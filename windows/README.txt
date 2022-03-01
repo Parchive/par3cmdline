@@ -63,7 +63,7 @@ Options: (create)
 [ About "trial" command ]
 
  If you want to see how PAR3 files will be created, use this command.
-This try to create PAR3 files, but won't write created data on files really.
+It tries to create PAR3 files, but won't write created data on files really.
 It's useful to see file size or how many files.
 
  Though it doesn't write data, it reads file data for deduplication.
