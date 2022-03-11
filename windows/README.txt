@@ -38,11 +38,13 @@ Usage:
   par3 c(reate) [options] <PAR3 file> [files] : Create PAR3 files
   par3 v(erify) [options] <PAR3 file> [files] : Verify files using PAR3 file
   par3 r(epair) [options] <PAR3 file> [files] : Repair files using PAR3 files
+  par3 l(ist)   [options] <PAR3 file>         : List files in PAR3 file
 
 Options: (all uses)
   -B<path> : Set the basepath to use as reference for the datafiles
   -v [-v]  : Be more verbose
   -q [-q]  : Be more quiet (-q -q gives silence)
+  -m<n>    : Memory (in MB) to use
   --       : Treat all following arguments as filenames
 Options: (create)
   -s<n>    : Set the Block-Size (don't use both -b and -s)
@@ -75,9 +77,28 @@ But, I did not implement such feature yet.
 
 
 
+[ About "list" command ]
+
+ If you want to see content in a PAR3 file, use this command.
+It checks your specified PAR3 file, and shows how are packets.
+When there are not enough packets in the PAR3 file, it will fail.
+
+ This is listing internal information only.
+It doesn't check files or directory tree really.
+It may be useful to check a PAR3 file is valid.
+
+ You cannot see raw hash value of input files,
+because PAR3 specification doesn't store file's hash value.
+Though I (Yutaka Sawada) suggested to make a packet for file's hash values,
+there is no official definition yet.
+If many users request, I will add optional packets in future.
+
+
+
 [ About "-v" option ]
 
- When setting double -v -v, mapping of all blocks is shown.
+ When setting double -v -v, it may show detail information for debug.
+For example, mapping of all blocks is shown at creation.
 If file size is large and there are many blocks,
 output lines may be too many.
 Use the option only for debug usage with small files.
