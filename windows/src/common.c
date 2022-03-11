@@ -29,15 +29,96 @@ char * offset_file_name(char *file_path)
 	return file_path + i;
 }
 
+// detect device name
+static int check_device_name(char *name, int len)
+{
+	if (len >= 3){
+		if ((name[3] == 0) || (name[3] == '.')){
+			if (_strnicmp(name, "CON", 3) == 0)
+				return 1;
+			if (_strnicmp(name, "PRN", 3) == 0)
+				return 1;
+			if (_strnicmp(name, "AUX", 3) == 0)
+				return 1;
+			if (_strnicmp(name, "NUL", 3) == 0)
+				return 1;
+		}
+		if (len >= 4){
+			if ((name[4] == 0) || (name[4] == '.')){
+				if (_strnicmp(name, "COM", 3) == 0){
+					if ((name[3] >= 0x31) && (name[3] <= 0x39))
+						return 1;
+				}
+				if (_strnicmp(name, "LPT", 3) == 0){
+					if ((name[3] >= 0x31) && (name[3] <= 0x39))
+						return 1;
+				}
+			}
+		}
+	}
+
+	return 0;
+}
+
+// Sanitize invalid filename on Windows OS.
+// filename must be UTF-8.
+// return 0 = ok, 1 = sanitize, 2 = warn
+int sanitize_file_name(char *name)
+{
+	int i, ret = 0, len = 0;
+
+	// erase control character 1~31. (return, tab, etc)
+	while (name[len] != 0){
+		if ( (name[len] >= 1) && (name[len] <= 31) ){
+			name[len] = '_';
+			ret |= 1;
+		}
+		len++;
+	}
+
+	// sanitize invalid character on Windows OS. ( \ / : * ? " < > | )
+	for (i = 0; i < len; i++){
+		if ( (name[i] == '\\') || (name[i] == '/') || (name[i] == ':') || (name[i] == '*') || (name[i] == '?')
+				 || (name[i] == '"') || (name[i] == '<') || (name[i] == '>') || (name[i] == '|') ){
+			name[i] = '_';
+			ret |= 1;
+		}
+	}
+
+	// refuse directory traversal (..)
+	if (name[0] == '.'){
+		if (name[1] == 0){
+			name[0] = '_';
+			ret |= 1;
+		} else if ( (name[1] == '.') && (name[2] == 0) ){
+			name[0] = '_';
+			name[1] = '_';
+			ret |= 1;
+		}
+	}
+
+	// warn " " at the top, "." or " " at the last.
+	if (name[0] == ' ')
+		ret |= 2;
+	if ( (len >= 2) && ( (name[len - 1] == '.') || (name[len - 1] == ' ') ) )
+		ret |= 2;
+
+	// warn device name on Windows OS.
+	if (check_device_name(name, len) != 0)
+		ret |= 2;
+
+	return ret;
+}
+
 // convert relative path to absolute path
 int get_absolute_path(char *absolute_path, char *relative_path, size_t max)
 {
 	// MSVC
-	struct _finddata_t c_file;
+	struct _finddatai64_t c_file;
 	intptr_t handle;
 
 	// Confirm the path is valid.
-	handle = _findfirst(relative_path, &c_file);
+	handle = _findfirst64(relative_path, &c_file);
 	if (handle != -1){
 		_findclose(handle);
 
@@ -307,5 +388,40 @@ int namez_sort(char *namez, size_t namez_len)
 	free(list_buf);
 	free(list_name);
 	return max;
+}
+
+// return the maximum length of names
+size_t namez_maxlen(char *namez, size_t namez_len)
+{
+	size_t off, len, max_len;
+
+	if (namez == NULL)
+		return 0;
+	if (namez[0] == 0)
+		return 0;
+
+	max_len = 0;
+	off = 0;
+	while (off < namez_len){
+		len = strlen(namez + off);
+		if (max_len < len)
+			max_len = len;
+
+		off += len + 1;
+	}
+
+	return max_len;
+}
+
+
+// Combine 8 or 16 bytes to 2 byte integer.
+int mem_or8(unsigned char buf[8])
+{
+	return (buf[0] | ((buf[1] | buf[2] | buf[3] | buf[4] | buf[5] | buf[6] | buf[7]) << 8));
+}
+int mem_or16(unsigned char buf[16])
+{
+	return (buf[0] | (( buf[1] | buf[2] | buf[3] | buf[4] | buf[5] | buf[6] | buf[7] |
+			buf[8] | buf[9] | buf[10] | buf[11] | buf[12] | buf[13] | buf[14] | buf[15]) << 8));
 }
 

@@ -13,7 +13,7 @@
 
 #define RET_INVALID_COMMAND     3	// There was something wrong with the command line arguments
 
-#define RET_INSUFFICIENT_DATA   4	// The PAR2 files did not contain sufficient information
+#define RET_INSUFFICIENT_DATA   4	// The PAR3 files did not contain sufficient information
 									// about the data files to be able to verify them.
 
 #define RET_REPAIR_FAILED       5	// Repair completed but the data files still appear to be damaged.
@@ -76,9 +76,15 @@ typedef struct {
 } PAR3_CMP_CTX;
 
 typedef struct {
+	// Command-line options
 	int noise_level;
-	uint8_t attribute;	// attributes in Root Packet
+	char recovery_file_scheme;
+	char deduplication;
+	char data_packet;
+	char absolute_path;
+	uint64_t memory_limit;	// how much memory to use
 
+	// For CRC-64 as rolling hash
 	uint64_t window_table[256];		// slide window search for block size
 	uint64_t window_mask;
 	uint64_t window_table16[256];	// slide window search for the first 16 KB of input files
@@ -86,10 +92,13 @@ typedef struct {
 	uint64_t window_table40[256];	// slide window search for the first 40-bytes of chunk tails
 	uint64_t window_mask40;
 
-	uint8_t *work_buf;		// Working buffer to keep two blocks for slide window search
+	uint8_t *work_buf;		// Working buffer for temporary usage
+	size_t work_buf_size;
 	PAR3_CMP_CTX *crc_list;	// List of CRC-64 for slide window search
 
 	uint8_t set_id[8];	// InputSetID
+	uint8_t attribute;	// attributes in Root Packet
+	uint8_t gf_size;	// The size of the Galois field in bytes.
 
 	uint64_t block_size;
 	uint64_t block_count;		// This may be max or possible value at creating.
@@ -118,6 +127,16 @@ typedef struct {
 	size_t input_dir_name_len;		// current used size
 	size_t input_dir_name_max;		// allocated size on memory
 
+//	uint32_t par_file_count;
+	char *par_file_name;			// List of PAR3 file names
+	size_t par_file_name_len;		// current used size
+	size_t par_file_name_max;		// allocated size on memory
+
+//	uint32_t extra_file_count;
+//	char *extra_file_name;			// List of extra file names
+//	size_t extra_file_name_len;		// current used size
+//	size_t extra_file_name_max;		// allocated size on memory
+
 	uint32_t chunk_count;
 	PAR3_CHUNK_CTX *chunk_list;		// List of chunk description
 	uint64_t map_count;
@@ -125,13 +144,17 @@ typedef struct {
 
 	uint8_t *creator_packet;		// pointer to Creator Packet
 	size_t creator_packet_size;		// size of Creator Packet
+	uint32_t creator_packet_count;
 	uint8_t *comment_packet;		// pointer to Comment Packet
 	size_t comment_packet_size;		// size of Comment Packet
+	uint32_t comment_packet_count;
 
-	uint8_t start_packet[85];		// buffer of Start Packet
+	uint8_t *start_packet;			// pointer to Start Packet
 	size_t start_packet_size;		// size of Start Packet
+	uint32_t start_packet_count;
 	uint8_t *matrix_packet;			// pointer to Matrix Packets
 	size_t matrix_packet_size;		// total size of Matrix Packets
+	uint32_t matrix_packet_count;
 
 	uint8_t *file_packet;			// pointer to File Packets
 	size_t file_packet_size;		// total size of File Packets
@@ -141,6 +164,7 @@ typedef struct {
 	uint32_t dir_packet_count;
 	uint8_t *root_packet;			// pointer to Root Packet
 	size_t root_packet_size;		// size of Root Packet
+	uint32_t root_packet_count;
 
 	uint8_t *ext_data_packet;		// pointer to External Data Packets
 	size_t ext_data_packet_size;	// total size of External Data Packets
@@ -153,6 +177,7 @@ typedef struct {
 } PAR3_CTX;
 
 
+
 // About input files
 int path_search(PAR3_CTX *par3_ctx, char *match_path, int flag_recursive);
 int get_file_status(PAR3_CTX *par3_ctx);
@@ -160,20 +185,22 @@ uint64_t suggest_block_size(PAR3_CTX *par3_ctx);
 uint64_t calculate_block_count(PAR3_CTX *par3_ctx, uint64_t block_size);
 int sort_input_set(PAR3_CTX *par3_ctx);
 
-// add text in Creator Packet or Comment Packet
+// Add text in Creator Packet or Comment Packet
 int add_creator_text(PAR3_CTX *par3_ctx, char *text);
 int add_comment_text(PAR3_CTX *par3_ctx, char *text);
 
 
-int par3_trial(PAR3_CTX *par3_ctx,
-	char command_recovery_file_scheme,
-	char command_data_packet,
-	char command_deduplication);
+int par3_trial(PAR3_CTX *par3_ctx);
+int par3_create(PAR3_CTX *par3_ctx);
 
-int par3_create(PAR3_CTX *par3_ctx,
-	char command_recovery_file_scheme,
-	char command_data_packet,
-	char command_deduplication);
+
+// About par files
+int par_search(PAR3_CTX *par3_ctx, int flag_other);
+
+int par3_list(PAR3_CTX *par3_ctx);
+int par3_verify(PAR3_CTX *par3_ctx);
+
+
 
 // Release internal allocated memory
 void par3_release(PAR3_CTX *par3_ctx);

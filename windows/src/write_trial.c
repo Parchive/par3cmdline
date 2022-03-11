@@ -1,4 +1,3 @@
-
 // avoid error of MSVC
 #define _CRT_SECURE_NO_WARNINGS
 
@@ -8,147 +7,55 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "blake3/blake3.h"
 #include "libpar3.h"
 #include "common.h"
-#include "packet.h"
 
 
-// Write Index File
-int write_index_file(PAR3_CTX *par3_ctx)
+// Try Index File
+void try_index_file(PAR3_CTX *par3_ctx)
 {
-	size_t write_size;
-	FILE *fp;
+	uint64_t file_size;
 
-	fp = fopen(par3_ctx->par_filename, "wb");
-	if (fp == NULL){
-		perror("Failed to open Index File");
-		return RET_FILE_IO_ERROR;
-	}
+	file_size = 0;
 
 	// Creator Packet
-	write_size = par3_ctx->creator_packet_size;
-	if (write_size > 0){
-		if (fwrite(par3_ctx->creator_packet, 1, write_size, fp) != write_size){
-			perror("Failed to write Creator Packet on Index File");
-			fclose(fp);
-			return RET_FILE_IO_ERROR;
-		}
-	}
+	file_size += par3_ctx->creator_packet_size;
 
 	// Start Packet
-	write_size = par3_ctx->start_packet_size;
-	if (write_size > 0){
-		if (fwrite(par3_ctx->start_packet, 1, write_size, fp) != write_size){
-			perror("Failed to write Start Packet on Index File");
-			fclose(fp);
-			return RET_FILE_IO_ERROR;
-		}
-	}
+	file_size += par3_ctx->start_packet_size;
 
 	// Matrix Packet
-	write_size = par3_ctx->matrix_packet_size;
-	if (write_size > 0){
-		if (fwrite(par3_ctx->matrix_packet, 1, write_size, fp) != write_size){
-			perror("Failed to write Matrix Packet on Index File");
-			fclose(fp);
-			return RET_FILE_IO_ERROR;
-		}
-	}
+	file_size += par3_ctx->matrix_packet_size;
 
 	// File Packet
-	write_size = par3_ctx->file_packet_size;
-	if (write_size > 0){
-		if (fwrite(par3_ctx->file_packet, 1, write_size, fp) != write_size){
-			perror("Failed to write File Packet on Index File");
-			fclose(fp);
-			return RET_FILE_IO_ERROR;
-		}
-	}
+	file_size += par3_ctx->file_packet_size;
 
 	// Directory Packet
-	write_size = par3_ctx->dir_packet_size;
-	if (write_size > 0){
-		if (fwrite(par3_ctx->dir_packet, 1, write_size, fp) != write_size){
-			perror("Failed to write Directory Packet on Index File");
-			fclose(fp);
-			return RET_FILE_IO_ERROR;
-		}
-	}
+	file_size += par3_ctx->dir_packet_size;
 
 	// Root Packet
-	write_size = par3_ctx->root_packet_size;
-	if (write_size > 0){
-		if (fwrite(par3_ctx->root_packet, 1, write_size, fp) != write_size){
-			perror("Failed to write Root Packet on Index File");
-			fclose(fp);
-			return RET_FILE_IO_ERROR;
-		}
-	}
+	file_size += par3_ctx->root_packet_size;
 
 	// External Data Packet
-	write_size = par3_ctx->ext_data_packet_size;
-	if (write_size > 0){
-		if (fwrite(par3_ctx->ext_data_packet, 1, write_size, fp) != write_size){
-			perror("Failed to write External Data Packet on Index File");
-			fclose(fp);
-			return RET_FILE_IO_ERROR;
-		}
-	}
+	file_size += par3_ctx->ext_data_packet_size;
 
 	// Comment Packet
-	write_size = par3_ctx->comment_packet_size;
-	if (write_size > 0){
-		if (fwrite(par3_ctx->comment_packet, 1, write_size, fp) != write_size){
-			perror("Failed to write Comment Packet on Index File");
-			fclose(fp);
-			return RET_FILE_IO_ERROR;
-		}
-	}
+	file_size += par3_ctx->comment_packet_size;
 
-	if (fclose(fp) != 0){
-		perror("Failed to close Index File");
-		return RET_FILE_IO_ERROR;
-	}
-
-	printf("Wrote index file, %s\n", offset_file_name(par3_ctx->par_filename));
-
-	return 0;
+	printf("Size of index file = %I64u, %s\n", file_size, offset_file_name(par3_ctx->par_filename));
 }
 
-/*
-Redundancy of critical packets;
-number of blocks = 0 ~ 1 : number of copies = 1
-number of blocks = 2 ~ 3 : number of copies = 2
-number of blocks = 4 ~ 7 : number of copies = 3
-number of blocks = 8 ~ 15 : number of copies = 4
-number of blocks = 16 ~ 31 : number of copies = 5
-number of blocks = 32 ~ 63 : number of copies = 6
-number of blocks = 64 ~ 127 : number of copies = 7
-number of blocks = 128 ~ 255 : number of copies = 8
-number of blocks = 256 ~ 511 : number of copies = 9
-number of blocks = 512 ~ 1023 : number of copies = 10
-number of blocks = 1024 ~ 2047 : number of copies = 11
-number of blocks = 2048 ~ 4095 : number of copies = 12
-number of blocks = 4096 ~ 8191 : number of copies = 13
-number of blocks = 8192 ~ 16383 : number of copies = 14
-number of blocks = 16384 ~ 32767 : number of copies = 15
-number of blocks = 32768 ~ 65535 : number of copies = 16
-*/
-static int write_data_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t each_start, uint64_t each_count)
+static void try_data_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t each_start, uint64_t each_count)
 {
-	uint8_t *buf_p, *common_packet, packet_header[56];
-	uint64_t block_size, num, index;
+	uint8_t *common_packet;
+	uint64_t file_size, block_size, num, index;
 	size_t write_size, write_size2;
 	size_t packet_count, packet_to, packet_from;
 	size_t common_packet_size, packet_size, packet_offset;
 	PAR3_MAP_CTX *map_list;
 	PAR3_BLOCK_CTX *block_list;
-	FILE *fp;
-	blake3_hasher hasher;
 
 	block_size = par3_ctx->block_size;
-	buf_p = par3_ctx->input_block + block_size * each_start;
 	map_list = par3_ctx->map_list;
 	block_list = par3_ctx->block_list;
 	common_packet = par3_ctx->common_packet;
@@ -162,29 +69,13 @@ static int write_data_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t each_s
 	packet_count *= par3_ctx->common_packet_count;
 	//printf("number of repeated packets = %zu\n", packet_count);
 
-	fp = fopen(filename, "wb");
-	if (fp == NULL){
-		perror("Failed to open Archive File");
-		return RET_FILE_IO_ERROR;
-	}
+	file_size = 0;
 
 	// Creator Packet
-	write_size = par3_ctx->creator_packet_size;
-	if (write_size > 0){
-		if (fwrite(par3_ctx->creator_packet, 1, write_size, fp) != write_size){
-			perror("Failed to write Creator Packet on Archive File");
-			fclose(fp);
-			return RET_FILE_IO_ERROR;
-		}
-	}
+	file_size += par3_ctx->creator_packet_size;
 
 	// First common packets
-	write_size = common_packet_size;
-	if (fwrite(common_packet, 1, write_size, fp) != write_size){
-		perror("Failed to write first common packets on Archive File");
-		fclose(fp);
-		return RET_FILE_IO_ERROR;
-	}
+	file_size += common_packet_size;
 
 	// Data Packet and repeated common packets
 	packet_from = 0;
@@ -208,30 +99,9 @@ static int write_data_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t each_s
 			//printf("block[%I64u] total data size = %I64u, last map index = %I64u\n", num, write_size, index);
 		}
 
-		// packet header
-		make_packet_header(packet_header, 56 + write_size, par3_ctx->set_id, "PAR DAT\0", 0);
-
-		// The index of the input block
-		memcpy(packet_header + 48, &num, 8);
-
-		// Calculate hash of packet here.
-		blake3_hasher_init(&hasher);
-		blake3_hasher_update(&hasher, packet_header + 24, 24 + 8);
-		blake3_hasher_update(&hasher, buf_p, write_size);
-		blake3_hasher_finalize(&hasher, packet_header + 8, 16);
-
 		// Write packet header and data on file.
-		if (fwrite(packet_header, 1, 56, fp) != 56){
-			perror("Failed to write Data Packet on Archive File");
-			fclose(fp);
-			return RET_FILE_IO_ERROR;
-		}
-		if (fwrite(buf_p, 1, write_size, fp) != write_size){
-			perror("Failed to write Data Packet on Archive File");
-			fclose(fp);
-			return RET_FILE_IO_ERROR;
-		}
-		buf_p += block_size;
+		file_size += 56;
+		file_size += write_size;
 
 		// How many common packets to write here.
 		write_size = 0;
@@ -256,11 +126,7 @@ static int write_data_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t each_s
 		// Write common packets
 		if (write_size > 0){
 			//printf("packet_offset = %zu, write_size = %zu, total = %zu\n", packet_offset, write_size, packet_offset + write_size);
-			if (fwrite(common_packet + packet_offset, 1, write_size, fp) != write_size){
-				perror("Failed to write repeated common packet on Archive File");
-				fclose(fp);
-				return RET_FILE_IO_ERROR;
-			}
+			file_size += write_size;
 			// This offset doesn't exceed common_packet_size.
 			packet_offset += write_size;
 			if (packet_offset >= common_packet_size)
@@ -268,36 +134,20 @@ static int write_data_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t each_s
 		}
 		if (write_size2 > 0){
 			//printf("write_size2 = %zu = packet_offset\n", write_size2);
-			if (fwrite(common_packet, 1, write_size2, fp) != write_size2){
-				perror("Failed to write repeated common packet on Archive File");
-				fclose(fp);
-				return RET_FILE_IO_ERROR;
-			}
+			file_size += write_size2;
 			// Current offset is saved.
 			packet_offset = write_size2;
 		}
 	}
 
 	// Comment Packet
-	write_size = par3_ctx->comment_packet_size;
-	if (write_size > 0){
-		if (fwrite(par3_ctx->comment_packet, 1, write_size, fp) != write_size){
-			perror("Failed to write Comment Packet on Archive File");
-			fclose(fp);
-			return RET_FILE_IO_ERROR;
-		}
-	}
+	file_size += par3_ctx->comment_packet_size;
 
-	if (fclose(fp) != 0){
-		perror("Failed to close Archive File");
-		return RET_FILE_IO_ERROR;
-	}
-
-	return 0;
+	printf("Size of archive file = %I64u, %s\n", file_size, offset_file_name(filename));
 }
 
 // Write PAR3 files with Data packets (input blocks)
-int write_archive_file(PAR3_CTX *par3_ctx)
+int try_archive_file(PAR3_CTX *par3_ctx)
 {
 	char filename[_MAX_PATH], recovery_file_scheme;
 	int digit_num1, digit_num2;
@@ -473,10 +323,7 @@ int write_archive_file(PAR3_CTX *par3_ctx)
 		}
 
 		sprintf(filename + len, ".part%0*I64u+%0*I64u.par3", digit_num1, each_start, digit_num2, each_count);
-		if (write_data_packet(par3_ctx, filename, each_start, each_count) != 0){
-			return RET_FILE_IO_ERROR;
-		}
-		printf("Wrote archive file, %s\n", offset_file_name(filename));
+		try_data_packet(par3_ctx, filename, each_start, each_count);
 
 		each_start += each_count;
 		block_count -= each_count;

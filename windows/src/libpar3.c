@@ -18,9 +18,9 @@
 #include "libpar3.h"
 #include "hash.h"
 #include "common.h"
-#include "create.h"
+#include "map.h"
 #include "packet.h"
-#include "trial.h"
+#include "read.h"
 #include "write.h"
 
 
@@ -32,17 +32,17 @@ static int path_search_recursive(PAR3_CTX *par3_ctx, char *sub_dir)
 	size_t dir_len;
 
 	// MSVC
-	struct _finddata_t c_file;
+	struct _finddatai64_t c_file;
 	intptr_t handle;
 
-	//printf("recursive search '%s'\n", sub_dir);
+	//printf("recursive search \"%s\"\n", sub_dir);
 	dir_len = strlen(sub_dir);
 	memcpy(new_dir, sub_dir, dir_len);
 	new_dir[dir_len] = '/';
 	dir_len++;
 	new_dir[dir_len] = 0;
 
-	handle = _findfirst("*", &c_file);
+	handle = _findfirst64("*", &c_file);
 	if (handle != -1){
 		do {
 			// ignore "." or ".."
@@ -54,9 +54,9 @@ static int path_search_recursive(PAR3_CTX *par3_ctx, char *sub_dir)
 
 			// add relative path to the found filename
 			strcpy(new_dir + dir_len, c_file.name);
-			//printf("found = '%s'\n", new_dir);
+			//printf("found = \"%s\"\n", new_dir);
 			if (strlen(new_dir) >= _MAX_PATH){
-				printf("Found file path is too long '%s'\n", new_dir);
+				printf("Found file path is too long \"%s\"\n", new_dir);
 				_findclose(handle);
 				return RET_FILE_IO_ERROR;
 			}
@@ -87,7 +87,7 @@ static int path_search_recursive(PAR3_CTX *par3_ctx, char *sub_dir)
 
 				// goto inner directory
 				if (_chdir(c_file.name) != 0){
-					perror("Failed to go sub directory\n");
+					perror("Failed to go sub directory");
 					return RET_FILE_IO_ERROR;
 				}
 
@@ -100,12 +100,12 @@ static int path_search_recursive(PAR3_CTX *par3_ctx, char *sub_dir)
 
 				// return to parent (this) directory
 				if (_chdir("..") != 0){
-					perror("Failed to return parent directory\n");
+					perror("Failed to return parent directory");
 					return RET_FILE_IO_ERROR;
 				}
 			}
 
-		} while( _findnext( handle, &c_file ) == 0 );
+		} while( _findnext64( handle, &c_file ) == 0 );
 
 		_findclose(handle);
 	}
@@ -122,7 +122,7 @@ int path_search(PAR3_CTX *par3_ctx, char *match_path, int flag_recursive)
 	size_t dir_len, len, base_len;
 
 	// MSVC
-	struct _finddata_t c_file;
+	struct _finddatai64_t c_file;
 	intptr_t handle;
 
 	// when match_path includes directory, change to the directory at first
@@ -136,35 +136,35 @@ int path_search(PAR3_CTX *par3_ctx, char *match_path, int flag_recursive)
 		new_dir[0] = '.';
 		new_dir[1] = '/';
 		new_dir[2 + len] = 0;
-		//printf("new_dir = '%s'\n", new_dir);
+		//printf("new_dir = \"%s\"\n", new_dir);
 
 		// store current working directory, and will resume later
 		tmp_p = _getcwd(cur_dir, _MAX_PATH);
 		if (tmp_p == NULL){
-			perror("Failed to get current working directory\n");
+			perror("Failed to get current working directory");
 			return RET_FILE_IO_ERROR;
 		}
 
 		// move to the sub directory
 		if (_chdir(new_dir) != 0){
-			perror("Failed to change working directory\n");
+			perror("Failed to change working directory");
 			return RET_FILE_IO_ERROR;
 		}
 
 		// get the new working directory
 		tmp_p = _getcwd(new_dir, _MAX_PATH);
 		if (tmp_p == NULL){
-			perror("Failed to get new working directory\n");
+			perror("Failed to get new working directory");
 			return RET_FILE_IO_ERROR;
 		}
-		//printf("new_dir = '%s'\n", new_dir);
+		//printf("new_dir = \"%s\"\n", new_dir);
 
 		// check the directory is a child
 		base_len = strlen(cur_dir);
 		if (memcmp(cur_dir, new_dir, base_len) != 0){	// relative path is out side
 			// return to original working directory
 			if (_chdir(cur_dir) != 0){
-				perror("Failed to resume working directory\n");
+				perror("Failed to resume working directory");
 				return 6;
 			}
 			printf("Ignoring out of basepath source file: %s\n", match_path);
@@ -179,17 +179,17 @@ int path_search(PAR3_CTX *par3_ctx, char *match_path, int flag_recursive)
 			tmp_p = strchr(tmp_p, '\\');
 		}
 		strcat(new_dir, "/");
-		//printf("dir path = '%s'\n", new_dir);
+		//printf("dir path = \"%s\"\n", new_dir);
 
 		// check case for sensitive system
 		tmp_p = strchr(new_dir + base_len, '/');
 		while (tmp_p != NULL){
 			tmp_p[0] = 0;
-			//printf("path component = '%s'\n", new_dir);
-			handle = _findfirst(new_dir, &c_file);
+			//printf("path component = \"%s\"\n", new_dir);
+			handle = _findfirst64(new_dir, &c_file);
 			if (handle != -1){
 				// If case is different, use the original case.
-				//printf("found component = '%s'\n", c_file.name);
+				//printf("found component = \"%s\"\n", c_file.name);
 				len = strlen(c_file.name);
 				if (strcmp(tmp_p - len, c_file.name) != 0)
 					strcpy(tmp_p - len, c_file.name);
@@ -202,14 +202,14 @@ int path_search(PAR3_CTX *par3_ctx, char *match_path, int flag_recursive)
 		// get the relative path
 		dir_len = strlen(new_dir) - base_len;
 		memmove(new_dir, new_dir + base_len, dir_len + 1);	// copy path, which inlcudes the last null string
-		//printf("relative path = '%s'\n", new_dir);
+		//printf("relative path = \"%s\"\n", new_dir);
 
 	} else {
 		match_name = match_path;
 		dir_len = 0;
 	}
 
-	handle = _findfirst(match_name, &c_file);
+	handle = _findfirst64(match_name, &c_file);
 	if (handle != -1){
 		do {
 			// ignore "." or ".."
@@ -222,9 +222,9 @@ int path_search(PAR3_CTX *par3_ctx, char *match_path, int flag_recursive)
 			// found filename may different case from the specified name
 			// add relative path to the found filename
 			strcpy(new_dir + dir_len, c_file.name);
-			//printf("found = '%s'\n", new_dir);
+			//printf("found = \"%s\"\n", new_dir);
 			if (strlen(new_dir) >= _MAX_PATH){
-				printf("Found file path is too long '%s'\n", new_dir);
+				printf("Found file path is too long \"%s\"\n", new_dir);
 				_findclose(handle);
 				return RET_FILE_IO_ERROR;
 			}
@@ -255,7 +255,7 @@ int path_search(PAR3_CTX *par3_ctx, char *match_path, int flag_recursive)
 
 				// goto inner directory
 				if (_chdir(c_file.name) != 0){
-					perror("Failed to go sub directory\n");
+					perror("Failed to go sub directory");
 					return RET_FILE_IO_ERROR;
 				}
 
@@ -268,12 +268,12 @@ int path_search(PAR3_CTX *par3_ctx, char *match_path, int flag_recursive)
 
 				// return to parent (this) directory
 				if (_chdir("..") != 0){
-					perror("Failed to return parent directory\n");
+					perror("Failed to return parent directory");
 					return RET_FILE_IO_ERROR;
 				}
 			}
 
-		} while( _findnext( handle, &c_file ) == 0 );
+		} while( _findnext64( handle, &c_file ) == 0 );
 
 		_findclose(handle);
 	}
@@ -281,7 +281,7 @@ int path_search(PAR3_CTX *par3_ctx, char *match_path, int flag_recursive)
 	// resume original working directory
 	if (match_name != match_path){
 		if (_chdir(cur_dir) != 0){
-			perror("Failed to resume working directory\n");
+			perror("Failed to resume working directory");
 			return RET_FILE_IO_ERROR;
 		}
 	}
@@ -300,6 +300,28 @@ int get_file_status(PAR3_CTX *par3_ctx)
 	struct _stat64 stat_buf;
 	PAR3_FILE_CTX *file_p;
 
+	// Decrease memory for file and directory names.
+	if (par3_ctx->input_file_name_len < par3_ctx->input_file_name_max){
+		//printf("input_file_name_len = %zu, input_file_name_max = %zu\n", par3_ctx->input_file_name_len, par3_ctx->input_file_name_max);
+		list_name = realloc(par3_ctx->input_file_name, par3_ctx->input_file_name_len);
+		if (list_name == NULL){
+			perror("Failed to allocate memory for file name");
+			return RET_MEMORY_ERROR;
+		}
+		par3_ctx->input_file_name = list_name;
+		par3_ctx->input_file_name_max = par3_ctx->input_file_name_len;
+	}
+	if (par3_ctx->input_dir_name_len < par3_ctx->input_dir_name_max){
+		//printf("input_dir_name_len = %zu, input_dir_name_max = %zu\n", par3_ctx->input_dir_name_len, par3_ctx->input_dir_name_max);
+		list_name = realloc(par3_ctx->input_dir_name, par3_ctx->input_dir_name_len);
+		if (list_name == NULL){
+			perror("Failed to allocate memory for directory name");
+			return RET_MEMORY_ERROR;
+		}
+		par3_ctx->input_dir_name = list_name;
+		par3_ctx->input_dir_name_max = par3_ctx->input_dir_name_len;
+	}
+
 	// Allocate directory list at here.
 	num = par3_ctx->input_dir_count;
 	if (num > 0){
@@ -307,7 +329,7 @@ int get_file_status(PAR3_CTX *par3_ctx)
 
 		dir_p = malloc(sizeof(PAR3_DIR_CTX) * num);
 		if (dir_p == NULL){
-			perror("Failed to allocate memory for input directories");
+			perror("Failed to allocate memory for input directory");
 			return RET_MEMORY_ERROR;
 		}
 		par3_ctx->input_dir_list = dir_p;
@@ -330,7 +352,7 @@ int get_file_status(PAR3_CTX *par3_ctx)
 
 	file_p = malloc(sizeof(PAR3_FILE_CTX) * num);
 	if (file_p == NULL){
-		perror("Failed to allocate memory for input files");
+		perror("Failed to allocate memory for input file");
 		return RET_MEMORY_ERROR;
 	}
 	par3_ctx->input_file_list = file_p;
@@ -341,11 +363,11 @@ int get_file_status(PAR3_CTX *par3_ctx)
 	while (num > 0){
 		ret = _stat64(list_name, &stat_buf);
 		if (ret != 0){
-			printf("Failed to get status information of '%s'\n", list_name);
+			printf("Failed to get status information of \"%s\"\n", list_name);
 			return RET_FILE_IO_ERROR;
 		}
 		file_size = stat_buf.st_size;
-		//printf("st_mode = %04x '%s'\n", stat_buf.st_mode, list_name);
+		//printf("st_mode = %04x \"%s\"\n", stat_buf.st_mode, list_name);
 
 		file_p->name = list_name;	// pointer to the file name
 		file_p->size = file_size;	// 64-bit unsigned integer
@@ -585,7 +607,7 @@ int sort_input_set(PAR3_CTX *par3_ctx)
 
 		if (par3_ctx->noise_level >= 0){
 			while (num > 0){
-				printf("input file = '%s' %I64u / %I64u\n", file_p->name, file_p->chk[0], file_p->size);
+				printf("input file = \"%s\" %I64u / %I64u\n", file_p->name, file_p->chk[0], file_p->size);
 
 				file_p++;
 				num--;
@@ -607,13 +629,119 @@ int sort_input_set(PAR3_CTX *par3_ctx)
 
 		if (par3_ctx->noise_level >= 0){
 			while (num > 0){
-				printf("input dir  = '%s'\n", dir_p->name);
+				printf("input dir  = \"%s\"\n", dir_p->name);
 
 				dir_p++;
 				num--;
 			}
 			printf("\n");
 		}
+	}
+
+	return 0;
+}
+
+
+// search other par files from par_filename
+int par_search(PAR3_CTX *par3_ctx, int flag_other)
+{
+	char find_path[_MAX_PATH];
+	size_t dir_len, len;
+	uint64_t max_file_size;
+
+	// MSVC
+	struct _finddatai64_t c_file;
+	intptr_t handle;
+
+	max_file_size = 0;
+	strcpy(find_path, par3_ctx->par_filename);
+
+	// get length of directory part
+	dir_len = offset_file_name(find_path) - find_path;
+	//printf("dir_len = %zu\n", dir_len);
+
+	handle = _findfirst64(find_path, &c_file);
+	if (handle != -1){
+		strcpy(find_path + dir_len, c_file.name);
+		//printf("found = \"%s\", size = %I64d\n", find_path, c_file.size);
+		if (max_file_size < (uint64_t)c_file.size)
+			max_file_size = c_file.size;
+
+		// add found filename with absolute path
+		if ( namez_add(&(par3_ctx->par_file_name), &(par3_ctx->par_file_name_len), &(par3_ctx->par_file_name_max), find_path) != 0){
+			_findclose(handle);
+			return RET_MEMORY_ERROR;
+		}
+
+		_findclose(handle);
+	}
+
+	if (flag_other != 0){	// search other files
+
+		// something.par3 -> something.*.par3
+		len = strlen(find_path);
+		// remove file extension
+		if (_stricmp(find_path + len - 5, ".par3") == 0){
+			find_path[len - 5] = 0;
+			len -= 5;
+		}
+		// remove ".vol#+#" or ".part#+#"
+		while (len > 0){
+			if (find_path[len] == '.'){
+				if ( (_strnicmp(find_path + len, ".vol", 4) == 0) || (_strnicmp(find_path + len, ".part", 5) == 0) )
+					find_path[len] = 0;
+				break;
+			}
+			len--;
+		}
+		// add matching words
+		strcat(find_path + len, "*.par3");
+		//printf("find path = \"%s\"\n", find_path);
+
+		handle = _findfirst64(find_path, &c_file);
+		if (handle != -1){
+			do {
+				// ignore hidden or system files or directory
+				if ( ((c_file.attrib & _A_HIDDEN) != 0) || ((c_file.attrib & _A_SYSTEM) != 0) || ((c_file.attrib & _A_SUBDIR) != 0) )
+					continue;
+
+				// add absolute path to the found filename
+				if (dir_len + strlen(c_file.name) >= _MAX_PATH){
+					printf("Found file path is too long \"%s\"\n", c_file.name);
+					_findclose(handle);
+					return RET_FILE_IO_ERROR;
+				}
+				strcpy(find_path + dir_len, c_file.name);
+
+				// check name in list, and ignore if exist
+				if (namez_search(par3_ctx->par_file_name, par3_ctx->par_file_name_len, find_path) != NULL)
+					continue;
+
+				//printf("found = \"%s\", size = %I64d\n", find_path, c_file.size);
+				if (max_file_size < (uint64_t)c_file.size)
+					max_file_size = c_file.size;
+
+				// add found filename with absolute path
+				if ( namez_add(&(par3_ctx->par_file_name), &(par3_ctx->par_file_name_len), &(par3_ctx->par_file_name_max), find_path) != 0){
+					_findclose(handle);
+					return RET_MEMORY_ERROR;
+				}
+
+			} while( _findnext64( handle, &c_file ) == 0 );
+
+			_findclose(handle);
+		}
+	}
+
+	// If no file found, error exit.
+	if (par3_ctx->par_file_name_len == 0){
+		printf("PAR file is not found\n");
+		return RET_FILE_IO_ERROR;
+	}
+
+	par3_ctx->max_file_size = max_file_size;
+	if (par3_ctx->noise_level >= 0){
+		printf("Max par file size = %I64u\n", par3_ctx->max_file_size);
 	}
 
 	return 0;
@@ -648,6 +776,7 @@ int add_creator_text(PAR3_CTX *par3_ctx, char *text)
 	}
 	par3_ctx->creator_packet_size = alloc_size;
 	memcpy(par3_ctx->creator_packet + alloc_size - len, text, len);
+	par3_ctx->creator_packet_count = 1;
 
 	return 0;
 }
@@ -687,24 +816,25 @@ int add_comment_text(PAR3_CTX *par3_ctx, char *text)
 	}
 	par3_ctx->comment_packet_size = alloc_size;
 	memcpy(par3_ctx->comment_packet + alloc_size - len, text, len);
+	par3_ctx->comment_packet_count = 1;
 
 	return 0;
 }
 
 
-int par3_trial(PAR3_CTX *par3_ctx,
-	char command_recovery_file_scheme,
-	char command_data_packet,
-	char command_deduplication)
+
+
+
+int par3_trial(PAR3_CTX *par3_ctx)
 {
 	int ret;
 
 	// Load input blocks on memory.
 	if (par3_ctx->block_count == 0){
 		ret = map_chunk_tail(par3_ctx);
-	} else if (command_deduplication == '1'){	// Simple deduplication
+	} else if (par3_ctx->deduplication == '1'){	// Simple deduplication
 		ret = map_input_block(par3_ctx);
-	} else if (command_deduplication == '2'){	// Deduplication with slide search
+	} else if (par3_ctx->deduplication == '2'){	// Deduplication with slide search
 		ret = map_input_block_slide(par3_ctx);
 	} else {
 		ret = map_input_block_simple(par3_ctx);
@@ -738,11 +868,11 @@ int par3_trial(PAR3_CTX *par3_ctx,
 	try_index_file(par3_ctx);
 
 	// Try PAR3 files with input blocks
-	if ( (par3_ctx->block_count > 0) && (command_data_packet != 0) ){
+	if ( (par3_ctx->block_count > 0) && (par3_ctx->data_packet != 0) ){
 		ret = duplicate_common_packet(par3_ctx);
 		if (ret != 0)
 			return ret;
-		ret = try_archive_file(par3_ctx, command_recovery_file_scheme);
+		ret = try_archive_file(par3_ctx);
 		if (ret != 0)
 			return ret;
 	}
@@ -750,19 +880,16 @@ int par3_trial(PAR3_CTX *par3_ctx,
 	return 0;
 }
 
-int par3_create(PAR3_CTX *par3_ctx,
-	char command_recovery_file_scheme,
-	char command_data_packet,
-	char command_deduplication)
+int par3_create(PAR3_CTX *par3_ctx)
 {
 	int ret;
 
 	// Load input blocks on memory.
 	if (par3_ctx->block_count == 0){
 		ret = map_chunk_tail(par3_ctx);
-	} else if (command_deduplication == '1'){	// Simple deduplication
+	} else if (par3_ctx->deduplication == '1'){	// Simple deduplication
 		ret = map_input_block(par3_ctx);
-	} else if (command_deduplication == '2'){	// Deduplication with slide search
+	} else if (par3_ctx->deduplication == '2'){	// Deduplication with slide search
 		ret = map_input_block_slide(par3_ctx);
 	} else {
 		ret = map_input_block_simple(par3_ctx);
@@ -798,15 +925,100 @@ int par3_create(PAR3_CTX *par3_ctx,
 		return ret;
 
 	// Write PAR3 files with input blocks
-	if ( (par3_ctx->block_count > 0) && (command_data_packet != 0) ){
+	if ( (par3_ctx->block_count > 0) && (par3_ctx->data_packet != 0) ){
 		ret = duplicate_common_packet(par3_ctx);
 		if (ret != 0)
 			return ret;
-		ret = write_archive_file(par3_ctx, command_recovery_file_scheme);
+		ret = write_archive_file(par3_ctx);
 		if (ret != 0)
 			return ret;
 	}
 
+	return 0;
+}
+
+int par3_list(PAR3_CTX *par3_ctx)
+{
+	int ret;
+	uint32_t num;
+
+	ret = read_vital_packet(par3_ctx);
+	if (ret != 0)
+		return ret;
+
+	ret = parse_vital_packet(par3_ctx);
+	if (ret != 0)
+		return ret;
+
+	// Show archived file data.
+	if (par3_ctx->noise_level >= -1){
+		if (par3_ctx->input_file_count > 0){
+			PAR3_FILE_CTX *file_p;
+
+			num = (uint32_t)namez_maxlen(par3_ctx->input_file_name, par3_ctx->input_file_name_len);
+			if (num > 64)
+				num = 64;	// 80 characters per line
+			printf("\n");
+			printf(" Size (Bytes)  File (%d)\n", par3_ctx->input_file_count);
+			printf(" ------------  ");
+			while (num > 0){
+				printf("-");
+				num--;
+			}
+			printf("\n");
+
+			file_p = par3_ctx->input_file_list;
+			num = par3_ctx->input_file_count;
+			while (num > 0){
+				printf("%13I64u \"%s\"\n", file_p->size, file_p->name);
+				//printf("index of file = %u, index of the first chunk = %u\n", par3_ctx->input_file_count, file_p->chunk);
+
+				file_p++;
+				num--;
+			}
+		}
+		if (par3_ctx->input_dir_count > 0){
+			PAR3_DIR_CTX *dir_p;
+
+			num = (uint32_t)namez_maxlen(par3_ctx->input_dir_name, par3_ctx->input_dir_name_len);
+			if (num > 64)
+				num = 64;	// 80 characters per line
+			printf("\n");
+			printf(" Directory (%d)\n", par3_ctx->input_dir_count);
+			printf(" ");
+			while (num > 0){
+				printf("-");
+				num--;
+			}
+			printf("\n");
+
+			dir_p = par3_ctx->input_dir_list;
+			num = par3_ctx->input_dir_count;
+			while (num > 0){
+				printf("\"%s\"\n", dir_p->name);
+
+				dir_p++;
+				num--;
+			}
+		}
+	}
+	printf("\n");
+	printf("Listed\n");
+
+	return 0;
+}
+
+int par3_verify(PAR3_CTX *par3_ctx)
+{
+	int ret;
+
+	ret = read_vital_packet(par3_ctx);
+	if (ret != 0)
+		return ret;
+
+	ret = parse_vital_packet(par3_ctx);
+	if (ret != 0)
+		return ret;
 
 
 
@@ -816,7 +1028,7 @@ int par3_create(PAR3_CTX *par3_ctx,
 	fp = fopen("debug_file.txt", "wb");
 	if (fp != NULL){
 	
-		fwrite(par3_ctx->common_packet, 1, par3_ctx->common_packet_size, fp);
+		fwrite(par3_ctx->par_file_name, 1, par3_ctx->par_file_name_len, fp);
 	
 		fclose(fp);
 	}
@@ -827,32 +1039,47 @@ int par3_create(PAR3_CTX *par3_ctx,
 	return 0;
 }
 
+
 // This function releases all allocated memory.
 void par3_release(PAR3_CTX *par3_ctx)
 {
 	if (par3_ctx->input_file_name){
 		free(par3_ctx->input_file_name);
 		par3_ctx->input_file_name = NULL;
+		par3_ctx->input_file_name_len = 0;
+		par3_ctx->input_file_name_max = 0;
 	}
 	if (par3_ctx->input_file_list){
 		free(par3_ctx->input_file_list);
 		par3_ctx->input_file_list = NULL;
+		par3_ctx->input_file_count = 0;
 	}
 	if (par3_ctx->input_dir_name){
 		free(par3_ctx->input_dir_name);
 		par3_ctx->input_dir_name = NULL;
+		par3_ctx->input_dir_name_len = 0;
+		par3_ctx->input_dir_name_max = 0;
 	}
 	if (par3_ctx->input_dir_list){
 		free(par3_ctx->input_dir_list);
 		par3_ctx->input_dir_list = NULL;
+		par3_ctx->input_dir_count = 0;
+	}
+	if (par3_ctx->par_file_name){
+		free(par3_ctx->par_file_name);
+		par3_ctx->par_file_name = NULL;
+		par3_ctx->par_file_name_len = 0;
+		par3_ctx->par_file_name_max = 0;
 	}
 	if (par3_ctx->chunk_list){
 		free(par3_ctx->chunk_list);
 		par3_ctx->chunk_list = NULL;
+		par3_ctx->chunk_count = 0;
 	}
 	if (par3_ctx->map_list){
 		free(par3_ctx->map_list);
 		par3_ctx->map_list = NULL;
+		par3_ctx->map_count = 0;
 	}
 	if (par3_ctx->block_list){
 		free(par3_ctx->block_list);
@@ -865,6 +1092,7 @@ void par3_release(PAR3_CTX *par3_ctx)
 	if (par3_ctx->work_buf){
 		free(par3_ctx->work_buf);
 		par3_ctx->work_buf = NULL;
+		par3_ctx->work_buf_size = 0;
 	}
 	if (par3_ctx->crc_list){
 		free(par3_ctx->crc_list);
@@ -873,34 +1101,56 @@ void par3_release(PAR3_CTX *par3_ctx)
 	if (par3_ctx->creator_packet){
 		free(par3_ctx->creator_packet);
 		par3_ctx->creator_packet = NULL;
+		par3_ctx->creator_packet_size = 0;
+		par3_ctx->creator_packet_count = 0;
 	}
 	if (par3_ctx->comment_packet){
 		free(par3_ctx->comment_packet);
 		par3_ctx->comment_packet = NULL;
+		par3_ctx->comment_packet_size = 0;
+		par3_ctx->comment_packet_count = 0;
+	}
+	if (par3_ctx->start_packet){
+		free(par3_ctx->start_packet);
+		par3_ctx->start_packet = NULL;
+		par3_ctx->start_packet_size = 0;
+		par3_ctx->start_packet_count = 0;
 	}
 	if (par3_ctx->matrix_packet){
 		free(par3_ctx->matrix_packet);
 		par3_ctx->matrix_packet = NULL;
+		par3_ctx->matrix_packet_size = 0;
+		par3_ctx->matrix_packet_count = 0;
 	}
 	if (par3_ctx->file_packet){
 		free(par3_ctx->file_packet);
 		par3_ctx->file_packet = NULL;
+		par3_ctx->file_packet_size = 0;
+		par3_ctx->file_packet_count = 0;
 	}
 	if (par3_ctx->dir_packet){
 		free(par3_ctx->dir_packet);
 		par3_ctx->dir_packet = NULL;
+		par3_ctx->dir_packet_size = 0;
+		par3_ctx->dir_packet_count = 0;
 	}
 	if (par3_ctx->root_packet){
 		free(par3_ctx->root_packet);
 		par3_ctx->root_packet = NULL;
+		par3_ctx->root_packet_size = 0;
+		par3_ctx->root_packet_count = 0;
 	}
 	if (par3_ctx->ext_data_packet){
 		free(par3_ctx->ext_data_packet);
 		par3_ctx->ext_data_packet = NULL;
+		par3_ctx->ext_data_packet_size = 0;
+		par3_ctx->ext_data_packet_count = 0;
 	}
 	if (par3_ctx->common_packet){
 		free(par3_ctx->common_packet);
 		par3_ctx->common_packet = NULL;
+		par3_ctx->common_packet_size = 0;
+		par3_ctx->common_packet_count = 0;
 	}
 }
 
