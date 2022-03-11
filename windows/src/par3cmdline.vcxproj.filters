@@ -39,22 +39,31 @@
     <ClCompile Include="hash.c">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
-    <ClCompile Include="create.c">
+    <ClCompile Include="map.c">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
-    <ClCompile Include="packet.c">
+    <ClCompile Include="packet_make.c">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
     <ClCompile Include="write.c">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
-    <ClCompile Include="create_slide.c">
+    <ClCompile Include="map_slide.c">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
-    <ClCompile Include="create_simple.c">
+    <ClCompile Include="map_simple.c">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
-    <ClCompile Include="trial.c">
+    <ClCompile Include="write_trial.c">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="read.c">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="packet_add.c">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="packet_parse.c">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
   </ItemGroup>
@@ -74,7 +83,7 @@
     <ClInclude Include="hash.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
-    <ClInclude Include="create.h">
+    <ClInclude Include="map.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
     <ClInclude Include="packet.h">
@@ -83,7 +92,7 @@
     <ClInclude Include="write.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
-    <ClInclude Include="trial.h">
+    <ClInclude Include="read.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
   </ItemGroup>
