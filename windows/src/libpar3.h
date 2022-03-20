@@ -33,7 +33,7 @@ typedef struct {
 	uint64_t tail_block;	// index of block holding tail
 	uint64_t tail_offset;	// offset of tail inside block
 
-	uint32_t next;			// index of next chunk
+	uint32_t next;			// index of next chunk in a same file
 } PAR3_CHUNK_CTX;
 
 typedef struct {
@@ -59,12 +59,12 @@ typedef struct {
 	uint64_t block;			// index of input block holding mapped area
 	uint64_t tail_offset;	// offset bytes of the mapped tail in belong block
 
-	int64_t same;		// index of same map info
-	uint64_t next;		// index of next map info for chunk tail
+	uint64_t next;		// index of next map info in a same block
 } PAR3_MAP_CTX;
 
 typedef struct {
 	uint64_t map;		// index of first map info
+	uint64_t size;		// data size in the block
 
 	uint64_t crc;		// CRC-64-ISO
 	uint8_t hash[16];	// BLAKE3 hash

@@ -148,6 +148,7 @@
   <ItemGroup>
     <ClCompile Include="blake3\blake3.c" />
     <ClCompile Include="blake3\blake3_portable.c" />
+    <ClCompile Include="block_map.c" />
     <ClCompile Include="common.c" />
     <ClCompile Include="map.c" />
     <ClCompile Include="map_simple.c" />
@@ -159,18 +160,21 @@
     <ClCompile Include="packet_make.c" />
     <ClCompile Include="packet_parse.c" />
     <ClCompile Include="read.c" />
+    <ClCompile Include="verify.c" />
     <ClCompile Include="write_trial.c" />
     <ClCompile Include="write.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="blake3\blake3.h" />
     <ClInclude Include="blake3\blake3_impl.h" />
+    <ClInclude Include="block.h" />
     <ClInclude Include="common.h" />
     <ClInclude Include="map.h" />
     <ClInclude Include="hash.h" />
     <ClInclude Include="libpar3.h" />
     <ClInclude Include="packet.h" />
     <ClInclude Include="read.h" />
+    <ClInclude Include="verify.h" />
     <ClInclude Include="write.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

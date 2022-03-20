@@ -13,13 +13,14 @@
 
 #include "blake3/blake3.h"
 #include "libpar3.h"
+#include "common.h"
 #include "hash.h"
 #include "packet.h"
 
 
 int read_vital_packet(PAR3_CTX *par3_ctx)
 {
-	char *namez, *packet_type;
+	char *namez, packet_type[9];
 	uint8_t *buf, buf_hash[16];
 	int ret;
 	size_t namez_len, namez_off;
@@ -28,6 +29,7 @@ int read_vital_packet(PAR3_CTX *par3_ctx)
 	uint64_t packet_count, new_packet_count;
 	FILE *fp;
 
+	packet_type[8] = 0;	// Set null string.
 //for debug
 //par3_ctx->memory_limit = 1024;
 
@@ -110,7 +112,15 @@ int read_vital_packet(PAR3_CTX *par3_ctx)
 			if (memcmp(buf + offset, "PAR3\0PKT", 8) == 0){	// check Magic sequence
 				// read packet size
 				memcpy(&packet_size, buf + (offset + 24), 8);
-				if ( (packet_size <= 48) || (packet_size > buf_size) ){	// If packet is too small or too large, ignore it.
+				if (packet_size <= 48){	// If packet is too small, just ignore it.
+					offset += 8;
+					continue;
+				}
+				if (packet_size > buf_size){	// If packet is too large, show error and continue.
+					if (par3_ctx->noise_level >= 1){
+						memcpy(packet_type, buf + (offset + 40), 8);
+						printf("Warning, packet is too large. size = %I64u, type = %s\n", packet_size, packet_type);
+					}
 					offset += 8;
 					continue;
 				}
@@ -153,7 +163,7 @@ int read_vital_packet(PAR3_CTX *par3_ctx)
 				packet_count++;
 
 				// read packet type
-				packet_type = buf + (offset + 40);
+				memcpy(packet_type, buf + (offset + 40), 8);
 				if (par3_ctx->noise_level >= 2){
 					printf("offset =%6zu, size =%5I64u, type = %s\n", offset, packet_size, packet_type);
 				}
@@ -237,5 +247,94 @@ int read_vital_packet(PAR3_CTX *par3_ctx)
 		return ret;
 
 	return 0;
+}
+
+void show_read_result(PAR3_CTX *par3_ctx)
+{
+	uint32_t num;
+
+	if (par3_ctx->input_file_count > 0){
+		PAR3_FILE_CTX *file_p;
+
+		num = (uint32_t)namez_maxlen(par3_ctx->input_file_name, par3_ctx->input_file_name_len);
+		if (num < 8)
+			num = 8;
+		if (num > 64)
+			num = 64;	// 80 characters per line
+		printf("\n");
+		printf(" Size (Bytes)  File (%d)\n", par3_ctx->input_file_count);
+		printf(" ------------  ");
+		while (num > 0){
+			printf("-");
+			num--;
+		}
+		printf("\n");
+
+		file_p = par3_ctx->input_file_list;
+		num = par3_ctx->input_file_count;
+		while (num > 0){
+			printf("%13I64u \"%s\"\n", file_p->size, file_p->name);
+			//printf("index of file = %u, index of the first chunk = %u\n", par3_ctx->input_file_count, file_p->chunk);
+
+			file_p++;
+			num--;
+		}
+	}
+	if (par3_ctx->input_dir_count > 0){
+		PAR3_DIR_CTX *dir_p;
+
+		num = (uint32_t)namez_maxlen(par3_ctx->input_dir_name, par3_ctx->input_dir_name_len);
+		if (num < 13)
+			num = 13;
+		if (num > 64)
+			num = 64;	// 80 characters per line
+		printf("\n");
+		printf(" Directory (%d)\n", par3_ctx->input_dir_count);
+		printf(" ");
+		while (num > 0){
+			printf("-");
+			num--;
+		}
+		printf("\n");
+
+		dir_p = par3_ctx->input_dir_list;
+		num = par3_ctx->input_dir_count;
+		while (num > 0){
+			printf("\"%s\"\n", dir_p->name);
+
+			dir_p++;
+			num--;
+		}
+	}
+	printf("\n");
+}
+
+void show_data_size(PAR3_CTX *par3_ctx)
+{
+	uint32_t num;
+	uint64_t max_size, total_size;
+	PAR3_FILE_CTX *file_p;
+
+	if (par3_ctx->input_file_count == 0)
+		return;
+
+	max_size = 0;
+	total_size = 0;
+	file_p = par3_ctx->input_file_list;
+	num = par3_ctx->input_file_count;
+	while (num > 0){
+		total_size += file_p->size;
+		if (max_size < file_p->size)
+			max_size = file_p->size;
+
+		file_p++;
+		num--;
+	}
+
+	par3_ctx->total_file_size = total_size;
+	par3_ctx->max_file_size = max_size;
+
+	printf("Total file size = %I64u\n", total_size);
+	printf("Max file size = %I64u\n", max_size);
 }
 

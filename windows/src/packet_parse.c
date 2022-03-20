@@ -12,8 +12,6 @@
 #include "common.h"
 
 
-
-
 // Count number of chunk descriptions.
 static int count_chunk_description(PAR3_CTX *par3_ctx, uint8_t *chunk, size_t description_size)
 {
@@ -138,6 +136,11 @@ static int count_directory_tree(PAR3_CTX *par3_ctx, uint8_t *checksum, size_t ch
 							printf("Input directory's path is too long.\n");
 							return RET_LOGIC_ERROR;
 						}
+						// PAR3 file's absolute path is enabled, only when a user set option.
+						if ( (dir_len == 0) && ((par3_ctx->attribute & 1) != 0) && (par3_ctx->absolute_path != 0) ){
+							// It doesn't check drive letter at this time.
+							dir_len++;	// add "/" at the top
+						}
 						par3_ctx->input_dir_name_max += dir_len + len + 1;
 
 						// options
@@ -216,7 +219,7 @@ static int parse_chunk_description(PAR3_CTX *par3_ctx, uint8_t *chunk, size_t de
 
 		par3_ctx->chunk_count++;
 		if (offset == description_size){	// last chunk
-			chunk_p->next = 0;
+			chunk_p->next = -1;
 		} else {
 			chunk_p->next = par3_ctx->chunk_count;
 		}
@@ -284,10 +287,12 @@ static int construct_directory_tree(PAR3_CTX *par3_ctx, uint8_t *checksum, size_
 							printf("input file = \"%s\"\n", sub_dir);
 						}
 						ret = sanitize_file_name(sub_dir + dir_len);
-						if (ret & 1){
-							printf("Warning, file name was sanitized to \"%s\".\n", sub_dir + dir_len);
-						} else if (ret & 2){
-							printf("Warning, file name \"%s\" is bad.\n", sub_dir + dir_len);
+						if (par3_ctx->noise_level >= 0){
+							if (ret & 1){
+								printf("Warning, file name was sanitized to \"%s\".\n", sub_dir + dir_len);
+							} else if (ret & 2){
+								printf("Warning, file name \"%s\" is bad.\n", sub_dir + dir_len);
+							}
 						}
 
 						// check name in list
@@ -357,17 +362,26 @@ static int construct_directory_tree(PAR3_CTX *par3_ctx, uint8_t *checksum, size_
 							printf("input dir  = \"%s\"\n", sub_dir);
 						}
 						// PAR3 file's absolute path is enabled, only when a user set option.
-						if ( (dir_len == 0) && (len == 2) && (sub_dir[1] == ':') && ((par3_ctx->attribute & 1) != 0) && (par3_ctx->absolute_path != 0) ){
-							sub_dir[1] = '_';	// replace drive letter mark temporary
-							ret = sanitize_file_name(sub_dir);
-							sub_dir[1] = ':';	// return to original mark
+						if ( (dir_len == 0) && ((par3_ctx->attribute & 1) != 0) && (par3_ctx->absolute_path != 0) ){
+							if ( (len == 2) && (sub_dir[1] == ':') ){
+								sub_dir[1] = '_';	// replace drive letter mark temporary
+								ret = sanitize_file_name(sub_dir);
+								sub_dir[1] = ':';	// return to original mark
+							} else {
+								ret = sanitize_file_name(sub_dir);
+								memmove(sub_dir + 1, sub_dir, len + 1);	// slide name by including the last null-string
+								sub_dir[0] = '/';
+								dir_len++;	// add "/" at the top
+							}
 						} else {
 							ret = sanitize_file_name(sub_dir + dir_len);
 						}
-						if (ret & 1){
-							printf("Warning, directory name was sanitized to \"%s\".\n", sub_dir + dir_len);
-						} else if (ret & 2){
-							printf("Warning, directory name \"%s\" is bad.\n", sub_dir + dir_len);
+						if (par3_ctx->noise_level >= 0){
+							if (ret & 1){
+								printf("Warning, directory name was sanitized to \"%s\".\n", sub_dir + dir_len);
+							} else if (ret & 2){
+								printf("Warning, directory name \"%s\" is bad.\n", sub_dir + dir_len);
+							}
 						}
 
 						// check name in list
@@ -390,6 +404,7 @@ static int construct_directory_tree(PAR3_CTX *par3_ctx, uint8_t *checksum, size_
 						offset += 4 + 16 * num;
 						if (offset < packet_size){
 							// goto children
+							// Though Windows OS supports both "/" and "\" as directory mark, I use "/" here for compatibility.
 							sub_dir[dir_len + len] = '/';	// directory mark
 							sub_dir[dir_len + len + 1] = 0;
 							ret = construct_directory_tree(par3_ctx, dir_packet + packet_offset + offset, packet_size - offset, sub_dir);
@@ -435,7 +450,7 @@ int parse_vital_packet(PAR3_CTX *par3_ctx)
 				if (tmp_p != NULL){
 					memcpy(tmp_p, par3_ctx->creator_packet + 48, len);
 					tmp_p[len] = 0;
-					printf("\nCreator text :\n");
+					printf("\nCreator text:\n");
 					if (tmp_p[len - 1] == '\n'){
 						printf("%s", tmp_p);
 					} else {
@@ -456,9 +471,9 @@ int parse_vital_packet(PAR3_CTX *par3_ctx)
 					memcpy(tmp_p, par3_ctx->comment_packet + 48, len);
 					tmp_p[len] = 0;
 					if (strchr(tmp_p, '\n') == NULL){
-						printf("\nComment text = %s\n", tmp_p);
+						printf("\nComment text: %s\n", tmp_p);
 					} else {
-						printf("\nComment text :\n");
+						printf("\nComment text:\n");
 						printf("%s\n", tmp_p);
 					}
 					free(tmp_p);
@@ -525,7 +540,8 @@ int parse_vital_packet(PAR3_CTX *par3_ctx)
 	if (ret != 0)
 		return ret;
 	if (par3_ctx->noise_level >= 0){
-		printf("Number of input file = %u (chunk = %u), directory = %u\n", par3_ctx->input_file_count, par3_ctx->chunk_count, par3_ctx->input_dir_count);
+		printf("Number of input file = %u, directory = %u\n", par3_ctx->input_file_count, par3_ctx->input_dir_count);
+		printf("Number of chunk description = %u\n", par3_ctx->chunk_count);
 	}
 	//printf("input_file_name_max = %zu, input_dir_name_max = %zu\n", par3_ctx->input_file_name_max, par3_ctx->input_dir_name_max);
 
@@ -598,7 +614,8 @@ int parse_vital_packet(PAR3_CTX *par3_ctx)
 	ret = construct_directory_tree(par3_ctx, tmp_p, len, file_path);
 	if (ret != 0)
 		return ret;
-
+	//printf("input_file_name_len = %zu, input_file_name_max = %zu\n", par3_ctx->input_file_name_len, par3_ctx->input_file_name_max);
+	//printf("input_dir_name_len = %zu, input_dir_name_max = %zu\n", par3_ctx->input_dir_name_len, par3_ctx->input_dir_name_max);
 
 
 /*
@@ -632,8 +649,67 @@ int parse_vital_packet(PAR3_CTX *par3_ctx)
 			}
 		}
 	}
-	//printf("input_file_name_max = %zu, input_dir_name_max = %zu\n", par3_ctx->input_file_name_max, par3_ctx->input_dir_name_max);
 	printf("Done\n");
+*/
+
+	return 0;
+}
+
+// parse information in External Data Packets
+int parse_external_data_packet(PAR3_CTX *par3_ctx)
+{
+	uint8_t *tmp_p, *hash;
+	uint32_t num;
+	uint64_t block_count, packet_size, index, count;
+	PAR3_BLOCK_CTX *block_p, *block_list;
+
+	num = par3_ctx->ext_data_packet_count;
+	if (num == 0)
+		return 0;
+
+	block_count = par3_ctx->block_count;
+	block_list = par3_ctx->block_list;
+	tmp_p = par3_ctx->ext_data_packet;
+	while (num > 0){
+		memcpy(&packet_size, tmp_p + 24, 8);
+		if (packet_size < 48 + 8 + 24){
+			printf("External Data Packet is too small.\n");
+			return RET_LOGIC_ERROR;
+		}
+		memcpy(&index, tmp_p + 48, 8);	// Index of the first input block
+		hash = tmp_p + 56;
+		count = packet_size - 56;
+		if (count % 24 != 0){
+			printf("External Data Packet for %I64u is bad.\n", index);
+			return RET_LOGIC_ERROR;
+		}
+		count /= 24;
+		if (index + count > block_count){
+			printf("External Data Packet for %I64u is too large (%I64u).\n", index, count);
+			return RET_LOGIC_ERROR;
+		}
+
+		// set hash values for blocks
+		block_p = block_list + index;
+		while (count > 0){
+			memcpy(&(block_p->crc), hash, 8);
+			hash += 8;
+			memcpy(&(block_p->hash), hash, 16);
+			hash += 16;
+
+			block_p++;
+			count--;
+		}
+
+		tmp_p += packet_size;
+		num--;
+	}
+
+/*
+	// for debug
+	for (index = 0; index < block_count; index++){
+		printf("block[%2I64u] crc = 0x%016I64x\n", index, block_list[index].crc);
+	}
 */
 
 	return 0;

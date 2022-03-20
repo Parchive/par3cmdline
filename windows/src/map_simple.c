@@ -23,7 +23,7 @@ int map_input_block_simple(PAR3_CTX *par3_ctx)
 	PAR3_FILE_CTX *file_p;
 	PAR3_CHUNK_CTX *chunk_p;
 	PAR3_MAP_CTX *map_p, *map_list;
-	PAR3_BLOCK_CTX *block_p;
+	PAR3_BLOCK_CTX *block_p, *block_list;
 	FILE *fp;
 	blake3_hasher hasher;
 
@@ -58,6 +58,7 @@ int map_input_block_simple(PAR3_CTX *par3_ctx)
 		perror("Failed to allocate memory for input blocks");
 		return RET_MEMORY_ERROR;
 	}
+	block_list = block_p;
 	par3_ctx->block_list = block_p;
 
 	// Try to allocate all input blocks on memory
@@ -94,7 +95,7 @@ int map_input_block_simple(PAR3_CTX *par3_ctx)
 		file_p->chunk = chunk_index;	// single chunk in each file
 		chunk_p->size = file_p->size;	// file size = chunk size
 		chunk_p->index = block_index;
-		chunk_p->next = 0;
+		chunk_p->next = -1;
 		blake3_hasher_init(&hasher);
 
 		// Read full size blocks
@@ -119,6 +120,7 @@ int map_input_block_simple(PAR3_CTX *par3_ctx)
 
 			// set block info
 			block_p->map = map_index;
+			block_p->size = block_size;
 			block_p->crc = crc64(buf_p, (size_t)block_size, 0);
 			blake3(buf_p, (size_t)block_size, block_p->hash);
 
@@ -129,8 +131,7 @@ int map_input_block_simple(PAR3_CTX *par3_ctx)
 			map_p->size = block_size;
 			map_p->block = block_index;
 			map_p->tail_offset = 0;
-			map_p->same = -1;
-			map_p->next = 0;
+			map_p->next = -1;
 			if (par3_ctx->noise_level >= 2){
 				printf("new block[%2I64u] : map[%2I64u] chunk[%2u] file %d, offset %I64u\n",
 						block_index, map_index, chunk_index, num, file_offset);
@@ -162,7 +163,7 @@ int map_input_block_simple(PAR3_CTX *par3_ctx)
 			// search existing tails to check available space
 			tail_offset = 0;
 			for (index = 0; index < map_index; index++){
-				if ( (map_list[index].next == 0) && (map_list[index].size < block_size) ){	// the last tail in the block
+				if ( (map_list[index].next == -1) && (map_list[index].size < block_size) ){	// the last tail in the block
 					if (map_list[index].tail_offset + map_list[index].size + tail_size <= block_size){
 						// When tail can fit in the space, put the tail there.
 						tail_offset = map_list[index].tail_offset + map_list[index].size;
@@ -190,6 +191,7 @@ int map_input_block_simple(PAR3_CTX *par3_ctx)
 
 				// set block info (block for tails don't store checksum)
 				block_p->map = map_index;
+				block_p->size = tail_size;
 				block_p++;
 				block_index++;
 
@@ -211,6 +213,9 @@ int map_input_block_simple(PAR3_CTX *par3_ctx)
 				chunk_p->tail_block = map_list[index].block;
 				chunk_p->tail_offset = tail_offset;
 				num_pack++;
+
+				// update block info
+				block_list[map_p->block].size = tail_offset + tail_size;
 			}
 
 			// calculate CRC-64 of the first 16 KB
@@ -226,8 +231,7 @@ int map_input_block_simple(PAR3_CTX *par3_ctx)
 			map_p->offset = file_offset;
 			map_p->size = tail_size;
 			map_p->chunk = chunk_index;
-			map_p->same = -1;
-			map_p->next = 0;
+			map_p->next = -1;
 			map_p++;
 			map_index++;
 
@@ -365,7 +369,7 @@ int map_chunk_tail(PAR3_CTX *par3_ctx)
 		file_p->chunk = chunk_index;	// single chunk in each file
 		chunk_p->size = file_p->size;	// file size = chunk size
 		chunk_p->index = 0;
-		chunk_p->next = 0;
+		chunk_p->next = -1;
 		blake3_hasher_init(&hasher);
 
 		tail_size = file_p->size;

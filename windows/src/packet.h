@@ -16,4 +16,5 @@ int add_found_packet(PAR3_CTX *par3_ctx, uint8_t *packet);
 int check_packet_set(PAR3_CTX *par3_ctx);
 
 int parse_vital_packet(PAR3_CTX *par3_ctx);
+int parse_external_data_packet(PAR3_CTX *par3_ctx);
 

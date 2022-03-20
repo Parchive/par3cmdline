@@ -18,9 +18,11 @@
 #include "libpar3.h"
 #include "hash.h"
 #include "common.h"
+#include "block.h"
 #include "map.h"
 #include "packet.h"
 #include "read.h"
+#include "verify.h"
 #include "write.h"
 
 
@@ -940,7 +942,6 @@ int par3_create(PAR3_CTX *par3_ctx)
 int par3_list(PAR3_CTX *par3_ctx)
 {
 	int ret;
-	uint32_t num;
 
 	ret = read_vital_packet(par3_ctx);
 	if (ret != 0)
@@ -951,59 +952,10 @@ int par3_list(PAR3_CTX *par3_ctx)
 		return ret;
 
 	// Show archived file data.
-	if (par3_ctx->noise_level >= -1){
-		if (par3_ctx->input_file_count > 0){
-			PAR3_FILE_CTX *file_p;
-
-			num = (uint32_t)namez_maxlen(par3_ctx->input_file_name, par3_ctx->input_file_name_len);
-			if (num > 64)
-				num = 64;	// 80 characters per line
-			printf("\n");
-			printf(" Size (Bytes)  File (%d)\n", par3_ctx->input_file_count);
-			printf(" ------------  ");
-			while (num > 0){
-				printf("-");
-				num--;
-			}
-			printf("\n");
-
-			file_p = par3_ctx->input_file_list;
-			num = par3_ctx->input_file_count;
-			while (num > 0){
-				printf("%13I64u \"%s\"\n", file_p->size, file_p->name);
-				//printf("index of file = %u, index of the first chunk = %u\n", par3_ctx->input_file_count, file_p->chunk);
-
-				file_p++;
-				num--;
-			}
-		}
-		if (par3_ctx->input_dir_count > 0){
-			PAR3_DIR_CTX *dir_p;
-
-			num = (uint32_t)namez_maxlen(par3_ctx->input_dir_name, par3_ctx->input_dir_name_len);
-			if (num > 64)
-				num = 64;	// 80 characters per line
-			printf("\n");
-			printf(" Directory (%d)\n", par3_ctx->input_dir_count);
-			printf(" ");
-			while (num > 0){
-				printf("-");
-				num--;
-			}
-			printf("\n");
-
-			dir_p = par3_ctx->input_dir_list;
-			num = par3_ctx->input_dir_count;
-			while (num > 0){
-				printf("\"%s\"\n", dir_p->name);
-
-				dir_p++;
-				num--;
-			}
-		}
-	}
-	printf("\n");
-	printf("Listed\n");
+	if (par3_ctx->noise_level >= 0)
+		show_data_size(par3_ctx);
+	if (par3_ctx->noise_level >= -1)
+		show_read_result(par3_ctx);
 
 	return 0;
 }
@@ -1020,7 +972,34 @@ int par3_verify(PAR3_CTX *par3_ctx)
 	if (ret != 0)
 		return ret;
 
+	// Show archived file data.
+	if (par3_ctx->noise_level >= 0)
+		show_data_size(par3_ctx);
+	if (par3_ctx->noise_level >= 1)
+		show_read_result(par3_ctx);
 
+	// Set block and map info.
+	if (par3_ctx->block_count > 0){
+		ret = count_map_info(par3_ctx);
+		if (ret != 0)
+			return ret;
+
+		ret = set_map_info(par3_ctx);
+		if (ret != 0)
+			return ret;
+
+		ret = parse_external_data_packet(par3_ctx);
+		if (ret != 0)
+			return ret;
+	}
+
+	// Check input file and directory.
+	ret = check_input_directory(par3_ctx);
+	if (ret != 0)
+		return ret;
+	ret = verify_input_file(par3_ctx);
+	if (ret != 0)
+		return ret;
 
 /*
 {

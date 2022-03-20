@@ -199,19 +199,6 @@ int main(int argc, char *argv[])
 	}
 	memset(par3_ctx, 0, sizeof(PAR3_CTX));
 
-	if (par3_ctx->noise_level >= 0){
-		if (command_operation == 'c'){
-			printf("command_operation = create\n");
-		} else if (command_operation == 'v'){
-			printf("command_operation = verify\n");
-		} else if (command_operation == 'r'){
-			printf("command_operation = repair\n");
-		} else if (command_operation == 't'){
-			printf("command_operation = trial\n");
-		} else if (command_operation == 'l'){
-			printf("command_operation = list\n");
-		}
-	}
 	if ( (command_operation == 'c') || (command_operation == 't') ){
 		// add text in Creator Packet
 		ret = add_creator_text(par3_ctx, PACKAGE " version " VERSION
@@ -236,8 +223,12 @@ int main(int argc, char *argv[])
 
 			} else if (strcmp(tmp_p, "v") == 0){
 				par3_ctx->noise_level++;
+			} else if (strcmp(tmp_p, "vv") == 0){
+				par3_ctx->noise_level += 2;
 			} else if (strcmp(tmp_p, "q") == 0){
 				par3_ctx->noise_level--;
+			} else if (strcmp(tmp_p, "qq") == 0){
+				par3_ctx->noise_level -= 2;
 
 			} else if ( (tmp_p[0] == 'm') && (tmp_p[1] >= '1') && (tmp_p[1] <= '9') ){	// Set the memory limit
 				if (par3_ctx->memory_limit > 0){
@@ -402,10 +393,12 @@ int main(int argc, char *argv[])
 					goto prepare_return;
 				}
 
-			} else if (strcmp(tmp_p, "abs") == 0){	// Enable absolute path
+			} else if ( (strcmp(tmp_p, "abs") == 0) || (strcmp(tmp_p, "ABS") == 0) ){	// Enable absolute path
 				if ( ((command_operation == 'v') || (command_operation == 'r') || (command_operation == 'l'))
 						&& (par3_ctx->base_path[0] != 0) ){
 					printf("Cannot specify base path and absolute path at the same time.\n");
+				} else if (tmp_p[0] == 'A'){
+					par3_ctx->absolute_path = 'A';
 				} else {
 					par3_ctx->absolute_path = 'a';
 				}
@@ -439,7 +432,7 @@ int main(int argc, char *argv[])
 				// if basepath isn't empty, relative from current working directory.
 				ret = get_absolute_path(file_name, par3_ctx->par_filename, _MAX_PATH - 8);
 				if (ret != 0){
-					printf("Failed to convert basepath to absolute path\n");
+					printf("Failed to convert PAR filename to absolute path\n");
 					ret = RET_FILE_IO_ERROR;
 					goto prepare_return;
 				}
@@ -490,7 +483,7 @@ int main(int argc, char *argv[])
 		if (par3_ctx->memory_limit != 0)
 			printf("memory_limit = %I64u MB\n", par3_ctx->memory_limit >> 20);
 		if (par3_ctx->block_size != 0)
-			printf("block_size = %I64u\n", par3_ctx->block_size);
+			printf("Specified block size = %I64u\n", par3_ctx->block_size);
 		if (command_redundancy != 0)
 			printf("command_redundancy = %u\n", command_redundancy);
 		if (par3_ctx->recovery_block_count != 0)
@@ -506,12 +499,12 @@ int main(int argc, char *argv[])
 		if (command_recursive != 0)
 			printf("recursive search = enabled\n");
 		if (par3_ctx->absolute_path != 0)
-			printf("absolute path = enabled\n");
+			printf("Absolute path = enabled\n");
 		if (par3_ctx->data_packet != 0)
-			printf("data packet = stored\n");
+			printf("Data packet = stored\n");
 		if (par3_ctx->base_path[0] != 0)
-			printf("base_path = \"%s\"\n", par3_ctx->base_path);
-		printf("par_filename = \"%s\"\n", par3_ctx->par_filename);
+			printf("Base path = \"%s\"\n", par3_ctx->base_path);
+		printf("PAR3 file = \"%s\"\n", par3_ctx->par_filename);
 		printf("\n");
 	}
 
@@ -605,7 +598,8 @@ int main(int argc, char *argv[])
 			printf("Failed to create PAR3 file\n");
 			goto prepare_return;
 		}
-		printf("Done\n");
+		if (par3_ctx->noise_level >= -1)
+			printf("Done\n");
 
 	} else if ( (command_operation == 'v') || (command_operation == 'l') ){	// Verify or List
 
@@ -626,6 +620,8 @@ int main(int argc, char *argv[])
 				printf("Failed to list files in PAR3 file\n");
 				goto prepare_return;
 			}
+			if (par3_ctx->noise_level >= -1)
+				printf("Listed\n");
 
 		} else {
 /*

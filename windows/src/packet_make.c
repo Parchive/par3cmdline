@@ -61,22 +61,16 @@ static int generate_set_id(PAR3_CTX *par3_ctx, uint8_t *buf, size_t body_size)
 			if (file_p->size > 0){
 				total_size = 0;
 				index = file_p->chunk;
-				// size of chunk
-				total_size += chunk_p[index].size;
-				blake3_hasher_update(&hasher, &(chunk_p[index].size), 8);
-				// hash of chunk
-				blake3_hasher_update(&hasher, chunk_p[index].hash, 16);
-
-				// When there are multiple chunks in the file.
-				while (chunk_p[index].next > 0){
-					index = chunk_p[index].next;
-
+				do {
 					// size of chunk
 					total_size += chunk_p[index].size;
 					blake3_hasher_update(&hasher, &(chunk_p[index].size), 8);
 					// hash of chunk
 					blake3_hasher_update(&hasher, chunk_p[index].hash, 16);
-				}
+
+					// When there are multiple chunks in the file.
+					index = chunk_p[index].next;
+				} while (index != -1);
 
 				// check size of chunks
 				if (total_size != file_p->size){
@@ -317,7 +311,8 @@ int make_file_packet(PAR3_CTX *par3_ctx)
 	absolute_num = 0;
 	if (par3_ctx->absolute_path != 0){	// Enable absolute path
 		par3_ctx->attribute |= 1;
-		absolute_num = 1;
+		if (par3_ctx->absolute_path == 'A')	// include drive letter on Windows OS
+			absolute_num = 1;
 		tmp_p = par3_ctx->base_path;
 		while (tmp_p[0] != 0){
 			if (tmp_p[0] == '/')
@@ -445,7 +440,7 @@ int make_file_packet(PAR3_CTX *par3_ctx)
 
 					// Goto next chunk.
 					chunk_index = chunk_p[chunk_index].next;
-				} while (chunk_index > 0);
+				} while (chunk_index != -1);
 			}
 
 			// packet header
@@ -654,6 +649,12 @@ int make_file_packet(PAR3_CTX *par3_ctx)
 					name_p--;
 				if (name_p[0] == '/')
 					name_p++;
+
+				if (par3_ctx->absolute_path != 'A'){
+					// don't include drive letter on Windows OS
+					if ( (name_p[1] == ':') && (name_p[2] == '/') )
+						break;
+				}
 
 				packet_size = 48;
 				// length of string in bytes

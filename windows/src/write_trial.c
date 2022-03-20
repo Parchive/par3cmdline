@@ -42,13 +42,14 @@ void try_index_file(PAR3_CTX *par3_ctx)
 	// Comment Packet
 	file_size += par3_ctx->comment_packet_size;
 
-	printf("Size of index file = %I64u, %s\n", file_size, offset_file_name(par3_ctx->par_filename));
+	if (par3_ctx->noise_level >= -1)
+		printf("Size of index file = %I64u, %s\n", file_size, offset_file_name(par3_ctx->par_filename));
 }
 
 static void try_data_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t each_start, uint64_t each_count)
 {
 	uint8_t *common_packet;
-	uint64_t file_size, block_size, num, index;
+	uint64_t file_size, block_size, num;
 	size_t write_size, write_size2;
 	size_t packet_count, packet_to, packet_from;
 	size_t common_packet_size, packet_size, packet_offset;
@@ -81,23 +82,8 @@ static void try_data_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t each_st
 	packet_from = 0;
 	packet_offset = 0;
 	for (num = each_start; num < each_start + each_count; num++){
-		// check data size in the block
-		index = block_list[num].map;
-		write_size = map_list[index].size;
-		if (write_size < block_size){
-			//printf("block[%I64u] first data size = %I64u, first map index = %I64u\n", num, write_size, index);
-			// skip same map until the last
-			while (map_list[index].same >= 0)
-				index = map_list[index].same;
-			// goto next chunk tail
-			while (map_list[index].next > 0){
-				index = map_list[index].next;
-				write_size += map_list[index].size;
-				while (map_list[index].same >= 0)
-					index = map_list[index].same;
-			}
-			//printf("block[%I64u] total data size = %I64u, last map index = %I64u\n", num, write_size, index);
-		}
+		// data size in the block
+		write_size = block_list[num].size;
 
 		// Write packet header and data on file.
 		file_size += 56;
@@ -143,7 +129,8 @@ static void try_data_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t each_st
 	// Comment Packet
 	file_size += par3_ctx->comment_packet_size;
 
-	printf("Size of archive file = %I64u, %s\n", file_size, offset_file_name(filename));
+	if (par3_ctx->noise_level >= -1)
+		printf("Size of archive file = %I64u, %s\n", file_size, offset_file_name(filename));
 }
 
 // Write PAR3 files with Data packets (input blocks)

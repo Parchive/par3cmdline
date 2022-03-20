@@ -151,7 +151,7 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 		file_p->chunk = chunk_index;	// There is at least one chunk in each file.
 		chunk_p->size = 0;
 		chunk_p->index = 0;
-		chunk_p->next = 0;
+		chunk_p->next = -1;
 		blake3_hasher_init(&hasher);
 
 		// Compare input blocks.
@@ -194,8 +194,8 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 						// search existing tails of same data
 						tail_offset = 0;
 						for (index = 0; index < map_index; index++){
-							//printf("same = %I64d, size = %I64u\n", map_list[index].same, map_list[index].size);
-							if ( (map_list[index].same < 0) && (map_list[index].size == tail_size) ){	// same size tail
+							//printf("tail size = %I64u\n", map_list[index].size);
+							if (map_list[index].size == tail_size){	// same size tail
 								//printf("crc = 0x%016I64x, 0x%016I64x chunk[%2u]\n", chunk_p->tail_crc, chunk_list[map_list[index].chunk].tail_crc, map_list[index].chunk);
 								if (chunk_p->tail_crc == chunk_list[map_list[index].chunk].tail_crc){
 									if (memcmp(chunk_p->tail_hash, chunk_list[map_list[index].chunk].tail_hash, 16) == 0){
@@ -205,15 +205,19 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 								}
 							}
 						}
-						if (tail_offset == 0){	// search existing tails to check available space
-							for (index = 0; index < map_index; index++){
-								// the last tail in the block
-								if ( (map_list[index].same < 0) && (map_list[index].next == 0) && (map_list[index].size < block_size) ){
-									if (map_list[index].tail_offset + map_list[index].size + tail_size <= block_size){
-										// When tail can fit in the space, put the tail there.
-										tail_offset = map_list[index].tail_offset + map_list[index].size;
-										break;
+						if (tail_offset == 0){
+							// search existing blocks to check available space
+							for (index = 0; index < block_index; index++){
+								if (block_list[index].size + tail_size <= block_size){
+									// When tail can fit in the space, put the tail there.
+									tail_offset = block_list[index].size;
+
+									// find the last map info in the block
+									index = block_list[index].map;
+									while (map_list[index].next != -1){
+										index = map_list[index].next;
 									}
+									break;
 								}
 							}
 						}
@@ -224,12 +228,11 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 								printf("o t block[%2I64u] : map[%2I64u] chunk[%2u] file %d, offset %I64u, tail size %I64u, offset %I64u\n",
 										map_list[index].block, map_index, chunk_index, num, file_offset, tail_size, map_list[index].tail_offset);
 							}
-							map_list[index].same = map_index;	// update "same" item of the same tail
+							map_list[index].next = map_index;	// These same tails have same offset and size.
 
 							// set map info
 							map_p->block = map_list[index].block;
 							map_p->tail_offset = map_list[index].tail_offset;
-							map_p->next = map_list[index].next;
 
 							// set chunk tail info
 							chunk_p->tail_block = map_p->block;
@@ -249,7 +252,6 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 							// set map info
 							map_p->block = block_index;
 							map_p->tail_offset = 0;
-							map_p->next = 0;
 
 							// set chunk tail info
 							chunk_p->tail_block = block_index;
@@ -257,6 +259,7 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 
 							// set block info (block for tails don't store checksum)
 							block_p->map = map_index;
+							block_p->size = tail_size;
 							block_p++;
 							block_index++;
 
@@ -273,12 +276,14 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 							// set map info
 							map_p->block = map_list[index].block;
 							map_p->tail_offset = tail_offset;
-							map_p->next = 0;
 
 							// set chunk tail info
 							chunk_p->tail_block = map_list[index].block;
 							chunk_p->tail_offset = tail_offset;
 							num_pack++;
+
+							// update block info
+							block_list[map_p->block].size = tail_offset + tail_size;
 						}
 
 						// set common map info
@@ -286,7 +291,7 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 						map_p->offset = file_offset;
 						map_p->size = tail_size;
 						map_p->chunk = chunk_index;
-						map_p->same = -1;
+						map_p->next = -1;
 						map_index++;
 						if (map_index >= map_count){
 							map_count *= 2;
@@ -341,16 +346,16 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 					// Match with a previous block while slide search
 					// update the last map info of previous block
 					index = block_list[find_index].map;
-					while (map_list[index].same >= 0){
-						index = map_list[index].same;
+					while (map_list[index].next != -1){
+						index = map_list[index].next;
 					}
 					//printf("first index = %I64u, same = %I64u, map_index = %I64u\n", block_list[find_index].map, index, map_index);
-					map_list[index].same = map_index;
+					map_list[index].next = map_index;
 
 					// Start this chunk
 					chunk_p->size = 0;
 					chunk_p->index = find_index;
-					chunk_p->next = 0;
+					chunk_p->next = -1;
 					// Start calculation of this chunk.
 					blake3_hasher_init(&hasher);
 
@@ -361,10 +366,9 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 					map_p->size = block_size;
 					map_p->block = find_index;
 					map_p->tail_offset = 0;
-					map_p->same = -1;
-					map_p->next = 0;
+					map_p->next = -1;
 					if (par3_ctx->noise_level >= 2){
-						printf("o s block[%2I64u] : map[%2I64u] chunk[%2u] file %d, offset %I64u\n",
+						printf("o s block[%2I64d] : map[%2I64u] chunk[%2u] file %d, offset %I64u\n",
 								find_index, map_index, chunk_index, num, file_offset + slide_offset);
 					}
 					map_index++;
@@ -426,6 +430,7 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 
 					// set block info
 					block_p->map = map_index;
+					block_p->size = block_size;
 					block_p->crc = crc;
 					if (find_index == -3){
 						memcpy(block_p->hash, buf_hash, 16);
@@ -458,7 +463,7 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 					if (chunk_p->size == 0){	// When this is the first block in the chunk.
 						// Save index of starting block.
 						chunk_p->index = block_index;
-						chunk_p->next = 0;
+						chunk_p->next = -1;
 						// Start calculation of this chunk.
 						blake3_hasher_init(&hasher);
 					}
@@ -473,8 +478,7 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 					map_p->size = block_size;
 					map_p->block = block_index;
 					map_p->tail_offset = 0;
-					map_p->same = -1;
-					map_p->next = 0;
+					map_p->next = -1;
 					if (par3_ctx->noise_level >= 2){
 						printf("new block[%2I64u] : map[%2I64u] chunk[%2u] file %d, offset %I64u\n",
 								block_index, map_index, chunk_index, num, file_offset);
@@ -539,11 +543,11 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 			} else {	// Match with a previous block
 				// update the last map info of previous block
 				index = block_list[find_index].map;
-				while (map_list[index].same >= 0){
-					index = map_list[index].same;
+				while (map_list[index].next != -1){
+					index = map_list[index].next;
 				}
 				//printf("first index = %I64u, same = %I64u, map_index = %I64u\n", block_list[find_index].map, index, map_index);
-				map_list[index].same = map_index;
+				map_list[index].next = map_index;
 
 				if ( (chunk_p->size > 0) &&	// When there are blocks already in the chunk.
 						(find_index != previous_index + 1) ){	// If found block isn't the next of previous block.
@@ -570,7 +574,7 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 					// Start next chunk
 					chunk_p->size = 0;
 					chunk_p->index = find_index;
-					chunk_p->next = 0;
+					chunk_p->next = -1;
 					// Start calculation of this chunk.
 					blake3_hasher_init(&hasher);
 				}
@@ -582,8 +586,7 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 				map_p->size = block_size;
 				map_p->block = find_index;
 				map_p->tail_offset = 0;
-				map_p->same = -1;
-				map_p->next = 0;
+				map_p->next = -1;
 				if (par3_ctx->noise_level >= 2){
 					printf("old block[%2I64u] : map[%2I64u] chunk[%2u] file %d, offset %I64u\n",
 							find_index, map_index, chunk_index, num, file_offset);
@@ -657,8 +660,8 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 			// search existing tails of same data
 			tail_offset = 0;
 			for (index = 0; index < map_index; index++){
-				//printf("same = %I64d, size = %I64u\n", map_list[index].same, map_list[index].size);
-				if ( (map_list[index].same < 0) && (map_list[index].size == tail_size) ){	// same size tail
+				//printf("tail size = %I64u\n", map_list[index].size);
+				if (map_list[index].size == tail_size){	// same size tail
 					//printf("crc = 0x%016I64x, 0x%016I64x chunk[%2u]\n", chunk_p->tail_crc, chunk_list[map_list[index].chunk].tail_crc, map_list[index].chunk);
 					if (chunk_p->tail_crc == chunk_list[map_list[index].chunk].tail_crc){
 						if (memcmp(chunk_p->tail_hash, chunk_list[map_list[index].chunk].tail_hash, 16) == 0){
@@ -668,15 +671,19 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 					}
 				}
 			}
-			if (tail_offset == 0){	// search existing tails to check available space
-				for (index = 0; index < map_index; index++){
-					// the last tail in the block
-					if ( (map_list[index].same < 0) && (map_list[index].next == 0) && (map_list[index].size < block_size) ){
-						if (map_list[index].tail_offset + map_list[index].size + tail_size <= block_size){
-							// When tail can fit in the space, put the tail there.
-							tail_offset = map_list[index].tail_offset + map_list[index].size;
-							break;
+			if (tail_offset == 0){
+				// search existing blocks to check available space
+				for (index = 0; index < block_index; index++){
+					if (block_list[index].size + tail_size <= block_size){
+						// When tail can fit in the space, put the tail there.
+						tail_offset = block_list[index].size;
+
+						// find the last map info in the block
+						index = block_list[index].map;
+						while (map_list[index].next != -1){
+							index = map_list[index].next;
 						}
+						break;
 					}
 				}
 			}
@@ -687,12 +694,11 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 					printf("o t block[%2I64u] : map[%2I64u] chunk[%2u] file %d, offset %I64u, tail size %I64u, offset %I64u\n",
 							map_list[index].block, map_index, chunk_index, num, file_offset, tail_size, map_list[index].tail_offset);
 				}
-				map_list[index].same = map_index;	// update "same" item of the same tail
+				map_list[index].next = map_index;	// These same tails have same offset and size.
 
 				// set map info
 				map_p->block = map_list[index].block;
 				map_p->tail_offset = map_list[index].tail_offset;
-				map_p->next = map_list[index].next;
 
 				// set chunk tail info
 				chunk_p->tail_block = map_p->block;
@@ -712,7 +718,6 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 				// set map info
 				map_p->block = block_index;
 				map_p->tail_offset = 0;
-				map_p->next = 0;
 
 				// set chunk tail info
 				chunk_p->tail_block = block_index;
@@ -720,6 +725,7 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 
 				// set block info (block for tails don't store checksum)
 				block_p->map = map_index;
+				block_p->size = tail_size;
 				block_p++;
 				block_index++;
 
@@ -736,12 +742,14 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 				// set map info
 				map_p->block = map_list[index].block;
 				map_p->tail_offset = tail_offset;
-				map_p->next = 0;
 
 				// set chunk tail info
 				chunk_p->tail_block = map_list[index].block;
 				chunk_p->tail_offset = tail_offset;
 				num_pack++;
+
+				// update block info
+				block_list[map_p->block].size = tail_offset + tail_size;
 			}
 
 			// set common map info
@@ -749,7 +757,7 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 			map_p->offset = file_offset;
 			map_p->size = tail_size;
 			map_p->chunk = chunk_index;
-			map_p->same = -1;
+			map_p->next = -1;
 			map_index++;
 			if (map_index >= map_count){
 				map_count *= 2;
