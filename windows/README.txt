@@ -97,11 +97,31 @@ If many users request, I will add optional packets in future.
 
 [ About "-v" option ]
 
- When setting double -v -v, it may show detail information for debug.
+ By setting "-v", it may show more detail information.
+When setting double "-v -v" or "-vv", it may show debug information.
 For example, mapping of all blocks is shown at creation.
 If file size is large and there are many blocks,
 output lines may be too many.
 Use the option only for debug usage with small files.
+
+
+
+[ About "-q" option ]
+
+ By setting "-q", it may show less information.
+When setting double "-q -q" or "-qq", it stops output.
+At that time, you may refer return value to know result.
+
+
+
+[ About "-m" option ]
+
+ If you want to limit using memory size, set this option.
+Note, this is not strict value. It may use more memory.
+When this isn't set, it assumes unlimited RAM size.
+
+ This option will affect some buffer size.
+You should set larger value than block size.
 
 
 
@@ -118,7 +138,7 @@ something.part#+#.par3
 
 [ About "-d<n>" option ]
 
- At this time, -d1 and -d2 are available.
+ At this time, "-d1" and "-d2" are available.
 Deduplication level 1 : same blocks of ordinary offset are be detected.
 Deduplication level 2 : same blocks of varied offset are detected.
 Be careful, comparing checksum of blocks is slow.
@@ -126,10 +146,19 @@ This may be useless for random data like compressed file.
 
 
 
-[ About "-abs" option ]
+[ About "-abs" or "-ABS" option ]
 
  This option is risky. You should not set this normally.
-By setting this, absolute path of files are stored in PAR3 files.
+By setting this, absolute path of files are stored in PAR3 files at creation.
+At verification, directory tree is treated as relative path by default.
+Only when you set "-abs" option, included absolute path becomes enabled.
+When a PAR3 file doesn't include absolute path, "-abs" option is ignored.
+
+ "-ABS" option is available on Windows OS only.
+This includes a drive letter in absolute path at creation.
+When a drive letter isn't included in a PAR3 file,
+it will refer the current drive.
+At verification, "-abs" and "-ABS" is same. It detects drive letter automatically.
 
 
 
