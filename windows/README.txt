@@ -3,6 +3,9 @@ par3cmdline is a PAR3 compatible file verification and repair tool.
 To see the ongoing development see:
 https://github.com/parchive/par3cmdline
 
+The latest PAR3 specification is available at below:
+https://github.com/Parchive/par3cmdline/files/8318148/Parity_Volume_Set_Specification_v3.0.md
+
 
 
 This is for testing usage only.
@@ -87,9 +90,8 @@ When there are not enough packets in the PAR3 file, it will fail.
 It doesn't check files or directory tree really.
 It may be useful to check a PAR3 file is valid.
 
- You cannot see raw hash value of input files,
-because PAR3 specification doesn't store file's hash value.
-Though I (Yutaka Sawada) suggested to make a packet for file's hash values,
+ You may see BLAKE3 hash value of input files by setting "-v" option.
+Though I (Yutaka Sawada) suggested to make a packet for additional hash values,
 there is no official definition yet.
 If many users request, I will add optional packets in future.
 
