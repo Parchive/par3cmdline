@@ -30,8 +30,8 @@ int count_map_info(PAR3_CTX *par3_ctx)
 
 	map_count = 0;
 	while (chunk_count > 0){
-		if (mem_or16(chunk_p->hash) != 0){
-			chunk_size = chunk_p->size;
+		chunk_size = chunk_p->size;
+		if (chunk_size != 0){
 			if (chunk_size >= block_size){
 				map_count += chunk_size / block_size;
 				tail_size = chunk_size % block_size;
@@ -127,8 +127,8 @@ int set_map_info(PAR3_CTX *par3_ctx)
 				return RET_LOGIC_ERROR;
 			}
 			chunk_p = par3_ctx->chunk_list + chunk_index;
-			if (mem_or16(chunk_p->hash) != 0){
-				chunk_size = chunk_p->size;
+			chunk_size = chunk_p->size;
+			if (chunk_size != 0){
 				block_index = chunk_p->index;	// index of first input block holding chunk
 				//printf("chunk size = %I64u, first block = %I64u\n", chunk_size, block_index);
 
@@ -171,6 +171,7 @@ int set_map_info(PAR3_CTX *par3_ctx)
 					map_p->block = block_index;
 					map_p->tail_offset = 0;
 					map_p->next = -1;
+					map_p->state = 0;
 					map_p++;
 					map_index++;
 
@@ -189,8 +190,8 @@ int set_map_info(PAR3_CTX *par3_ctx)
 						return RET_LOGIC_ERROR;
 					}
 					tail_offset = chunk_p->tail_offset;
-					if (tail_offset >= block_size){
-						printf("Chunk tail's offset exceeds block size. %I64u\n", tail_offset);
+					if (tail_offset + chunk_size > block_size){
+						printf("Chunk tail exceeds block size. %I64u + %I64u\n", tail_offset, chunk_size);
 						return RET_LOGIC_ERROR;
 					}
 					//printf("tail size = %I64u, belong block = %I64u, offset = %I64u\n", chunk_size, block_index, tail_offset);
@@ -247,6 +248,7 @@ int set_map_info(PAR3_CTX *par3_ctx)
 					map_p->block = block_index;
 					map_p->tail_offset = tail_offset;
 					map_p->next = -1;
+					map_p->state = 0;
 					map_p++;
 					map_index++;
 
@@ -264,6 +266,14 @@ int set_map_info(PAR3_CTX *par3_ctx)
 		} while (chunk_index != -1);
 
 		file_p++;
+	}
+
+	// Check all blocks have map info.
+	for (index = 0; index < block_count; index++){
+		if (block_list[index].map == -1){
+			printf("There is no map info for input block[%I64u].\n", index);
+			return RET_INSUFFICIENT_DATA;
+		}
 	}
 
 	// Check actual number of map info

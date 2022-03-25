@@ -954,8 +954,13 @@ int par3_list(PAR3_CTX *par3_ctx)
 	// Show archived file data.
 	if (par3_ctx->noise_level >= 0)
 		show_data_size(par3_ctx);
-	if (par3_ctx->noise_level >= -1)
-		show_read_result(par3_ctx);
+	if (par3_ctx->noise_level == -1){
+		show_read_result(par3_ctx, 0);
+	} else if (par3_ctx->noise_level == 0){
+		show_read_result(par3_ctx, 1);
+	} else if (par3_ctx->noise_level >= 1){
+		show_read_result(par3_ctx, 2);
+	}
 
 	return 0;
 }
@@ -975,8 +980,11 @@ int par3_verify(PAR3_CTX *par3_ctx)
 	// Show archived file data.
 	if (par3_ctx->noise_level >= 0)
 		show_data_size(par3_ctx);
-	if (par3_ctx->noise_level >= 1)
-		show_read_result(par3_ctx);
+	if (par3_ctx->noise_level == 1){
+		show_read_result(par3_ctx, 0);
+	} else if (par3_ctx->noise_level >= 2){
+		show_read_result(par3_ctx, 2);
+	}
 
 	// Set block and map info.
 	if (par3_ctx->block_count > 0){

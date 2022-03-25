@@ -77,7 +77,9 @@ int map_input_block_simple(PAR3_CTX *par3_ctx)
 	map_index = 0;
 	file_p = par3_ctx->input_file_list;
 	for (num = 0; num < input_file_count; num++){
+		blake3_hasher_init(&hasher);
 		if (file_p->size == 0){	// Skip empty files.
+			blake3_hasher_finalize(&hasher, file_p->hash, 16);
 			file_p++;
 			continue;
 		}
@@ -96,7 +98,6 @@ int map_input_block_simple(PAR3_CTX *par3_ctx)
 		chunk_p->size = file_p->size;	// file size = chunk size
 		chunk_p->index = block_index;
 		chunk_p->next = -1;
-		blake3_hasher_init(&hasher);
 
 		// Read full size blocks
 		file_offset = 0;
@@ -262,8 +263,8 @@ int map_input_block_simple(PAR3_CTX *par3_ctx)
 			memcpy(&(chunk_p->tail_block), buf_tail + 24, 8);
 			memcpy(&(chunk_p->tail_offset), buf_tail + 32, 8);
 		}
-		blake3_hasher_finalize(&hasher, chunk_p->hash, 16);
 
+		blake3_hasher_finalize(&hasher, file_p->hash, 16);
 		if (fclose(fp) != 0){
 			perror("Failed to close input file");
 			return RET_FILE_IO_ERROR;
@@ -351,7 +352,9 @@ int map_chunk_tail(PAR3_CTX *par3_ctx)
 	chunk_index = 0;
 	file_p = par3_ctx->input_file_list;
 	for (num = 0; num < input_file_count; num++){
+		blake3_hasher_init(&hasher);
 		if (file_p->size == 0){	// Skip empty files.
+			blake3_hasher_finalize(&hasher, file_p->hash, 16);
 			file_p++;
 			continue;
 		}
@@ -370,7 +373,6 @@ int map_chunk_tail(PAR3_CTX *par3_ctx)
 		chunk_p->size = file_p->size;	// file size = chunk size
 		chunk_p->index = 0;
 		chunk_p->next = -1;
-		blake3_hasher_init(&hasher);
 
 		tail_size = file_p->size;
 		// When tail size is 1~39-bytes, it's saved in File Packet.
@@ -395,8 +397,7 @@ int map_chunk_tail(PAR3_CTX *par3_ctx)
 		memcpy(&(chunk_p->tail_block), buf_tail + 24, 8);
 		memcpy(&(chunk_p->tail_offset), buf_tail + 32, 8);
 
-		blake3_hasher_finalize(&hasher, chunk_p->hash, 16);
-
+		blake3_hasher_finalize(&hasher, file_p->hash, 16);
 		if (fclose(fp) != 0){
 			perror("Failed to close input file");
 			return RET_FILE_IO_ERROR;

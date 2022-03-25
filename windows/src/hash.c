@@ -175,13 +175,16 @@ static uint64_t init_slide_window(uint64_t window_size, uint64_t window_table[25
 }
 
 // table setup for slide window search
-void init_crc_slide_table(PAR3_CTX *par3_ctx)
+void init_crc_slide_table(PAR3_CTX *par3_ctx, int flag_usage)
 {
-	par3_ctx->window_mask = init_slide_window(par3_ctx->block_size, par3_ctx->window_table);
-
-// Does this use a flag to setup other window size ?
-// Creation needs block size only.
-// Verification needs 3 sizes.
+	if (flag_usage & 1){
+		// Creation needs block size only for deduplication.
+		par3_ctx->window_mask = init_slide_window(par3_ctx->block_size, par3_ctx->window_table);
+	}
+	if (flag_usage & 2){
+		// Verification needs 2 sizes for find blocks and chunk tails.
+		par3_ctx->window_mask40 = init_slide_window(40, par3_ctx->window_table40);
+	}
 
 /*
 	int i, j;
@@ -323,6 +326,126 @@ uint64_t crc_list_add(PAR3_CTX *par3_ctx, uint64_t count, uint64_t crc, uint64_t
 	return count;
 }
 
+// Make list of crc for seaching full size blocks and chunk tails.
+int crc_list_make(PAR3_CTX *par3_ctx)
+{
+	uint64_t count, tail_count, index, map_index;
+	uint64_t block_count, chunk_count;
+	uint64_t block_size, data_size;
+	PAR3_MAP_CTX *map_list;
+	PAR3_BLOCK_CTX *block_p;
+	PAR3_CHUNK_CTX *chunk_p;
+	PAR3_CMP_CTX *crc_list, *tail_list;
+
+	if (par3_ctx->block_count == 0){
+		par3_ctx->crc_count = 0;
+		par3_ctx->tail_count = 0;
+		return 0;
+	}
+
+	// Allocate list of CRC-64
+	block_count = par3_ctx->block_count;
+	crc_list = malloc(sizeof(PAR3_CMP_CTX) * block_count);
+	if (crc_list == NULL){
+		perror("Failed to allocate memory for comparison of CRC-64");
+		return RET_MEMORY_ERROR;
+	}
+	par3_ctx->crc_list = crc_list;
+
+	// At this time, number of tails is unknown.
+	// When a chunk size is multiple of block size, the chunk has no tail.
+	chunk_count = par3_ctx->chunk_count;
+	tail_list = malloc(sizeof(PAR3_CMP_CTX) * chunk_count);
+	if (tail_list == NULL){
+		perror("Failed to allocate memory for comparison of CRC-64");
+		return RET_MEMORY_ERROR;
+	}
+	par3_ctx->tail_list = tail_list;
+
+	count = 0;
+	tail_count = 0;
+	map_list = par3_ctx->map_list;
+	block_p = par3_ctx->block_list;
+	chunk_p = par3_ctx->chunk_list;
+	block_size = par3_ctx->block_size;
+
+	// Find full size block, and set CRC of the block.
+	for (index = 0; index < block_count; index++){
+		data_size = block_p->size;
+		if (data_size == block_size){	// check map for tails, too.
+			map_index = block_p->map;
+			data_size = map_list[map_index].size;
+			while (data_size < block_size){
+				map_index = map_list[map_index].next;
+				if (map_index == -1)
+					break;
+				data_size = map_list[map_index].size;
+			}
+		}
+		if (data_size == block_size){
+			crc_list[count].crc = block_p->crc;
+			crc_list[count].index = index;
+			count++;
+		}
+
+		block_p++;
+	}
+
+	// Find chunk tail, and set CRC of the chunk.
+	for (index = 0; index < chunk_count; index++){
+		data_size = chunk_p->size;
+		if (data_size % block_size >= 40){	// This chunk tail belongs to a block.
+			tail_list[tail_count].crc = chunk_p->tail_crc;
+			tail_list[tail_count].index = index;
+			tail_count++;
+		}
+
+		chunk_p++;
+	}
+
+	// Re-allocate memory for actual number of CRC-64
+	if (count < block_count){
+		if (count > 0){
+			crc_list = realloc(par3_ctx->crc_list, sizeof(PAR3_CMP_CTX) * count);
+			if (crc_list == NULL){
+				perror("Failed to re-allocate memory for comparison of CRC-64");
+				return RET_MEMORY_ERROR;
+			}
+			par3_ctx->crc_list = crc_list;
+		} else {
+			free(par3_ctx->crc_list);
+			par3_ctx->crc_list = NULL;
+		}
+	}
+	if (tail_count < chunk_count){
+		if (tail_count > 0){
+			tail_list = realloc(par3_ctx->tail_list, sizeof(PAR3_CMP_CTX) * tail_count);
+			if (tail_list == NULL){
+				perror("Failed to re-allocate memory for comparison of CRC-64");
+				return RET_MEMORY_ERROR;
+			}
+			par3_ctx->tail_list = tail_list;
+		} else {
+			free(par3_ctx->tail_list);
+			par3_ctx->tail_list = NULL;
+		}
+	}
+
+	// Quick sort items.
+	if (count > 1){
+		// CRC for full size block
+		qsort( (void *)crc_list, (size_t)count, sizeof(PAR3_CMP_CTX), compare_crc );
+	}
+	if (tail_count > 1){
+		// CRC for chunk tail
+		qsort( (void *)tail_list, (size_t)tail_count, sizeof(PAR3_CMP_CTX), compare_crc );
+	}
+
+	par3_ctx->crc_count = count;
+	par3_ctx->tail_count = tail_count;
+
+	return 0;
+}
 
 /*
 This BLAKE3 code is non-SIMD subset of portable version from below;

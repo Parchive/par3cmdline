@@ -495,7 +495,7 @@ int check_packet_set(PAR3_CTX *par3_ctx)
 		tmp_p = par3_ctx->start_packet;
 		max = par3_ctx->start_packet_size;
 		memcpy(&this_id, tmp_p + 32, 8);
-		memcpy(&parent_id, tmp_p + 48, 8);
+		memcpy(&parent_id, tmp_p + 48 + 8, 8);
 		memcpy(id_list + id_count, &this_id, 8);
 		id_count++;
 
@@ -505,7 +505,7 @@ int check_packet_set(PAR3_CTX *par3_ctx)
 				offset = 0;
 				while (offset < max){
 					// check parent's SetID
-					if (memcmp(&this_id, tmp_p + offset + 48, 8) == 0){
+					if (memcmp(&this_id, tmp_p + offset + 48 + 8, 8) == 0){
 						memcpy(&this_id, tmp_p + offset + 32, 8);
 						memcpy(id_list + id_count, &this_id, 8);
 						id_count++;
@@ -537,7 +537,7 @@ int check_packet_set(PAR3_CTX *par3_ctx)
 						memcpy(id_list + id_count, &parent_id, 8);
 						id_count++;
 
-						memcpy(&parent_id, tmp_p + offset + 48, 8);
+						memcpy(&parent_id, tmp_p + offset + 48 + 8, 8);
 						// If parent_id isn't 0, search parent again.
 						break;
 					} else {

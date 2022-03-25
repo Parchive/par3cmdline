@@ -87,7 +87,7 @@ int main(int argc, char *argv[])
 	// For non UTF-8 code page system
 	ret = 1;
 	tmp_p = setlocale(LC_ALL, "");
-	if ( (tmp_p != NULL) && (strstr(tmp_p, "utf8") == NULL) ){
+	if ( (argc > 2) && (tmp_p != NULL) && (strstr(tmp_p, "utf8") == NULL) ){
 		wchar_t *w_argv_buf;
 
 		//printf("default locale = %s\n", tmp_p);
@@ -168,6 +168,7 @@ int main(int argc, char *argv[])
 			}
 		}
 		printf("Not enough command line arguments.\n");
+		printf("To show help, type: par3 -h\n");
 		ret = RET_INVALID_COMMAND;
 		goto prepare_return;
 	}

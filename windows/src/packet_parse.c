@@ -26,10 +26,9 @@ static int count_chunk_description(PAR3_CTX *par3_ctx, uint8_t *chunk, size_t de
 
 		memcpy(&chunk_size, chunk + offset, 8);
 		offset += 8;	// length of chunk
-		if (mem_or16(chunk + offset) == 0){
-			offset += 16;	// zeros if not protected
+		if (chunk_size == 0){	// zeros if not protected
+			offset += 8;
 		} else {
-			offset += 16;	// hash of chunk
 			if (block_size == 0){
 				printf("Block size must be larger than 0 for chunk.\n");
 				return RET_LOGIC_ERROR;
@@ -99,9 +98,10 @@ static int count_directory_tree(PAR3_CTX *par3_ctx, uint8_t *checksum, size_t ch
 						par3_ctx->input_file_name_max += dir_len + len + 1;
 
 						// options
-						offset += 2 + len + 8;
+						offset += 2 + len + 8 + 16;
 						num = 0;
 						memcpy(&num, file_packet + packet_offset + offset, 1);	// number of options
+						//printf("number of options = %u\n", num);
 
 						// chunk descriptions
 						offset += 1 + 16 * num;
@@ -109,6 +109,9 @@ static int count_directory_tree(PAR3_CTX *par3_ctx, uint8_t *checksum, size_t ch
 							ret = count_chunk_description(par3_ctx, file_packet + packet_offset + offset, packet_size - offset);
 							if (ret != 0)
 								return ret;
+						} else if (offset > packet_size){	// Either length of name or number of options is wrong.
+							printf("File Packet data is wrong.\n");
+							return RET_LOGIC_ERROR;
 						}
 						break;
 					}
@@ -152,6 +155,9 @@ static int count_directory_tree(PAR3_CTX *par3_ctx, uint8_t *checksum, size_t ch
 							ret = count_directory_tree(par3_ctx, dir_packet + packet_offset + offset, packet_size - offset, dir_len + len + 1);
 							if (ret != 0)
 								return ret;
+						} else if (offset > packet_size){	// Either length of name or number of options is wrong.
+							printf("Directory Packet data is wrong.\n");
+							return RET_LOGIC_ERROR;
 						}
 						break;
 					}
@@ -189,11 +195,10 @@ static int parse_chunk_description(PAR3_CTX *par3_ctx, uint8_t *chunk, size_t de
 		offset += 8;	// length of chunk
 		file_size += chunk_size;
 		chunk_p->size = chunk_size;
-		memcpy(chunk_p->hash, chunk + offset, 16);
-		if (mem_or16(chunk + offset) == 0){
-			offset += 16;	// zeros if not protected
+		if (chunk_size == 0){	// zeros if not protected
+			memcpy(&(chunk_p->index), chunk + offset, 8);	// length of chunk
+			offset += 8;
 		} else {
-			offset += 16;	// hash of chunk
 			if (block_size == 0){
 				printf("Block size must be larger than 0 for chunk.\n");
 				return RET_LOGIC_ERROR;
@@ -312,10 +317,17 @@ static int construct_directory_tree(PAR3_CTX *par3_ctx, uint8_t *checksum, size_
 						offset += len;
 						memcpy(&(file_p->crc), file_packet + packet_offset + offset, 8);
 
-						// options
+						// hash of the protected data in the file
 						offset += 8;
+						memcpy(file_p->hash, file_packet + packet_offset + offset, 16);
+
+						// options
+						offset += 16;
 						num = 0;
 						memcpy(&num, file_packet + packet_offset + offset, 1);	// number of options
+
+						// At this time, this doesn't support options yet.
+						//printf("number of options = %u\n", num);
 
 						// chunk descriptions
 						file_p->size = 0;
@@ -325,6 +337,9 @@ static int construct_directory_tree(PAR3_CTX *par3_ctx, uint8_t *checksum, size_
 							ret = parse_chunk_description(par3_ctx, file_packet + packet_offset + offset, packet_size - offset);
 							if (ret != 0)
 								return ret;
+						} else if (offset > packet_size){	// Either length of name or number of options is wrong.
+							printf("File Packet data is wrong.\n");
+							return RET_LOGIC_ERROR;
 						}
 						par3_ctx->input_file_count++;
 
@@ -410,6 +425,9 @@ static int construct_directory_tree(PAR3_CTX *par3_ctx, uint8_t *checksum, size_
 							ret = construct_directory_tree(par3_ctx, dir_packet + packet_offset + offset, packet_size - offset, sub_dir);
 							if (ret != 0)
 								return ret;
+						} else if (offset > packet_size){	// Either length of name or number of options is wrong.
+							printf("Directory Packet data is wrong.\n");
+							return RET_LOGIC_ERROR;
 						}
 
 						break;
@@ -485,9 +503,25 @@ int parse_vital_packet(PAR3_CTX *par3_ctx)
 	// Read Start Packet
 	if (par3_ctx->start_packet_size > 0){
 		memcpy(&packet_size, par3_ctx->start_packet + 24, 8);
-		if (packet_size >= 81){	// The minimum packet size is 81 bytes.
-			memcpy(&(par3_ctx->block_size), par3_ctx->start_packet + 48 + 24, 8);
-			memcpy(&(par3_ctx->gf_size), par3_ctx->start_packet + 48 + 32, 1);
+		if (packet_size < 89){	// The minimum packet size is 89 bytes.
+			printf("Start Packet is too small, %I64u\n", packet_size);
+			return RET_LOGIC_ERROR;
+		}
+		if (mem_or8(par3_ctx->start_packet + 48 + 8) != 0){	// check parent's InputSetID
+			if (mem_or16(par3_ctx->start_packet + 48 + 8) == 0){
+				printf("Checksum of the parent's Root Packet is wrong.\n");
+				return RET_LOGIC_ERROR;
+			}
+		}
+		memcpy(&(par3_ctx->block_size), par3_ctx->start_packet + 48 + 32, 8);
+		memcpy(&(par3_ctx->gf_size), par3_ctx->start_packet + 48 + 40, 1);
+		if (par3_ctx->gf_size > 2){	// At this time, this supports 8-bit or 16-bit Galois Field only.
+			printf("Size of Galois Field is too large, %u\n", par3_ctx->gf_size);
+			return RET_LOGIC_ERROR;
+		}
+		if (packet_size != 48 + 41 + par3_ctx->gf_size){	// check packet size was valid
+			printf("Start Packet size is wrong, %I64u\n", packet_size);
+			return RET_LOGIC_ERROR;
 		}
 	}
 	if (par3_ctx->noise_level >= 0){
@@ -507,7 +541,7 @@ int parse_vital_packet(PAR3_CTX *par3_ctx)
 	}
 	memcpy(&packet_size, par3_ctx->root_packet + 24, 8);
 	if (packet_size <= 61){
-		printf("Root Packet is too small.\n");
+		printf("Root Packet is too small, %I64u\n", packet_size);
 		return RET_INSUFFICIENT_DATA;
 	}
 	tmp_p = par3_ctx->root_packet + 48;	// packet body
@@ -515,7 +549,7 @@ int parse_vital_packet(PAR3_CTX *par3_ctx)
 	memcpy(&(par3_ctx->attribute), tmp_p + 8, 1);
 	memcpy(&num, tmp_p + 9, 4);	// number of options
 	if (packet_size < 48 + 8 + 1 + 4 + (16 * num)){
-		printf("Root Packet is too small.\n");
+		printf("Root Packet is too small, %I64u\n", packet_size);
 		return RET_INSUFFICIENT_DATA;
 	}
 	tmp_p += 8 + 1 + 4 + (16 * num);	// skip options at this time
@@ -539,6 +573,10 @@ int parse_vital_packet(PAR3_CTX *par3_ctx)
 	ret = count_directory_tree(par3_ctx, tmp_p, len, 0);
 	if (ret != 0)
 		return ret;
+	if (par3_ctx->chunk_count < par3_ctx->input_file_count){
+		printf("There are not enough chunk descriptions, %u < %u\n", par3_ctx->chunk_count, par3_ctx->input_file_count);
+		return RET_LOGIC_ERROR;
+	}
 	if (par3_ctx->noise_level >= 0){
 		printf("Number of input file = %u, directory = %u\n", par3_ctx->input_file_count, par3_ctx->input_dir_count);
 		printf("Number of chunk description = %u\n", par3_ctx->chunk_count);

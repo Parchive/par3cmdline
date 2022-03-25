@@ -43,13 +43,9 @@ static int generate_set_id(PAR3_CTX *par3_ctx, uint8_t *buf, size_t body_size)
 
 	// all the files' contents
 	if (par3_ctx->input_file_count > 0){
-		uint32_t index;
-		uint64_t total_size;
 		PAR3_FILE_CTX *file_p;
-		PAR3_CHUNK_CTX *chunk_p;
 
 		file_p = par3_ctx->input_file_list;
-		chunk_p = par3_ctx->chunk_list;
 		num = par3_ctx->input_file_count;
 		while (num > 0){
 			// file name
@@ -58,25 +54,10 @@ static int generate_set_id(PAR3_CTX *par3_ctx, uint8_t *buf, size_t body_size)
 
 			// file size
 			blake3_hasher_update(&hasher, &(file_p->size), 8);
+
 			if (file_p->size > 0){
-				total_size = 0;
-				index = file_p->chunk;
-				do {
-					// size of chunk
-					total_size += chunk_p[index].size;
-					blake3_hasher_update(&hasher, &(chunk_p[index].size), 8);
-					// hash of chunk
-					blake3_hasher_update(&hasher, chunk_p[index].hash, 16);
-
-					// When there are multiple chunks in the file.
-					index = chunk_p[index].next;
-				} while (index != -1);
-
-				// check size of chunks
-				if (total_size != file_p->size){
-					printf("Error: total size of chunks = %I64u, file size = %I64u\n", total_size, file_p->size);
-					return RET_LOGIC_ERROR;
-				}
+				// file hash of protected chunks
+				blake3_hasher_update(&hasher, file_p->hash, 16);
 			}
 
 			// If it include options (releated packets), calculate the data also.
@@ -120,10 +101,10 @@ static int generate_set_id(PAR3_CTX *par3_ctx, uint8_t *buf, size_t body_size)
 		blake3_hasher_update(&hasher, par3_ctx->base_path, len);
 	}
 
-	// result in 16-bytes hash
-	blake3_hasher_finalize(&hasher, buf + 8, 16);
+	// result in 8-bytes hash for a globally unique random number
+	blake3_hasher_finalize(&hasher, buf, 8);
 
-	// calculate hash of packet body
+	// calculate hash of packet body for InputSetID
 	blake3_hasher_init(&hasher);
 	blake3_hasher_update(&hasher, buf, body_size);
 	blake3_hasher_finalize(&hasher, buf - 16, 8);
@@ -142,15 +123,13 @@ int make_start_packet(PAR3_CTX *par3_ctx)
 		return 0;
 
 	// Packet size depends on galois field size.
+	packet_size = 48 + 8 + 8 + 16 + 8 + 1;
 	if (par3_ctx->block_count > 128){
 		// When there are 129 or more input blocks, use 16-bit Galois Field (0x1100B).
-		packet_size = 83;
+		packet_size += 2;
 	} else if (par3_ctx->block_count > 0){
 		// When there are 128 or less input blocks, use 8-bit Galois Field (0x11D).
-		packet_size = 82;
-	} else {
-		// When there is no input blocks, no need to set Galois Field.
-		packet_size = 81;
+		packet_size += 1;
 	}
 	if (par3_ctx->start_packet == NULL){
 		par3_ctx->start_packet = malloc(packet_size);
@@ -162,6 +141,9 @@ int make_start_packet(PAR3_CTX *par3_ctx)
 
 	// Set initial value temporary.
 	tmp_p = par3_ctx->start_packet + 48;
+	// A globally unique random number will be set by generate_set_id().
+	tmp_p += 8;
+	// At this time, "PAR inside" feature isn't made.
 	memset(tmp_p, 0, 24);	// When there is no parent, fill zeros.
 	tmp_p += 24;
 	memcpy(tmp_p, &(par3_ctx->block_size), 8);	// Block size
@@ -292,9 +274,9 @@ int make_file_packet(PAR3_CTX *par3_ctx)
 	// At this time, size of optional packets is ignored.
 	num = par3_ctx->input_file_count;
 	if (num > 0){
-		alloc_size = (48 + 2 + 8 + 1) * num;	// packet header, length of name, CRC-64, options
+		alloc_size = (48 + 2 + 8 + 16 + 1) * num;	// packet header, length of name, CRC-64, hash, options
 		alloc_size += par3_ctx->input_file_name_len - num;	// subtle null-string of each name
-		alloc_size += (32 + 40) * par3_ctx->chunk_count;	// chunk description with tail info
+		alloc_size += (16 + 40) * par3_ctx->chunk_count;	// chunk description with tail info
 		if (par3_ctx->noise_level >= 2){
 			printf("Possible total size of File Packets = %zu\n", alloc_size);
 		}
@@ -366,7 +348,7 @@ int make_file_packet(PAR3_CTX *par3_ctx)
 	if (num > 0){
 		uint8_t buf_tail[40];
 		uint32_t chunk_index;
-		uint64_t block_size, tail_size;
+		uint64_t block_size, tail_size, total_size;
 		PAR3_CHUNK_CTX *chunk_p;
 
 		total_packet_size = 0;
@@ -394,21 +376,23 @@ int make_file_packet(PAR3_CTX *par3_ctx)
 			// hash of the first 16kB of the file
 			memcpy(tmp_p + packet_size, &(file_p->crc), 8);
 			packet_size += 8;
+			// hash of the protected data in the file
+			memcpy(tmp_p + packet_size, file_p->hash, 16);
+			packet_size += 16;
 			// number of options
 			tmp_p[packet_size] = 0;
 			packet_size += 1;
 			// This doesn't support packets for options yet.
 
 			if (file_p->size > 0){	// chunk descriptions
+				total_size = 0;
 				chunk_index = file_p->chunk;
+				// At this time, this doesn't support "Par inside" feature.
 				do {
-					// length of chunk
+					// length of protected chunk
+					total_size += chunk_p[chunk_index].size;
 					memcpy(tmp_p + packet_size, &(chunk_p[chunk_index].size), 8);
 					packet_size += 8;
-					// hash of chunk or zeros if not protected
-					// At this time, this doesn't support "Par inside" feature.
-					memcpy(tmp_p + packet_size, &(chunk_p[chunk_index].hash), 16);
-					packet_size += 16;
 					if (chunk_p[chunk_index].size >= block_size){
 						// index of first input block holding chunk
 						memcpy(tmp_p + packet_size, &(chunk_p[chunk_index].index), 8);
@@ -441,6 +425,12 @@ int make_file_packet(PAR3_CTX *par3_ctx)
 					// Goto next chunk.
 					chunk_index = chunk_p[chunk_index].next;
 				} while (chunk_index != -1);
+
+				// check size of chunks
+				if (total_size != file_p->size){
+					printf("Error: total size of chunks = %I64u, file size = %I64u\n", total_size, file_p->size);
+					return RET_LOGIC_ERROR;
+				}
 			}
 
 			// packet header

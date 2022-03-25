@@ -29,9 +29,10 @@ int read_vital_packet(PAR3_CTX *par3_ctx)
 	uint64_t packet_count, new_packet_count;
 	FILE *fp;
 
+	//for debug
+	//par3_ctx->memory_limit = 1024;
+
 	packet_type[8] = 0;	// Set null string.
-//for debug
-//par3_ctx->memory_limit = 1024;
 
 	// Allocate buffer to keep PAR file.
 	buf_size = par3_ctx->max_file_size;
@@ -116,7 +117,11 @@ int read_vital_packet(PAR3_CTX *par3_ctx)
 					offset += 8;
 					continue;
 				}
-				if (packet_size > buf_size){	// If packet is too large, show error and continue.
+				if (offset + packet_size > buf_size + file_size){	// If not enough data, ignore the packet.
+					offset += 8;
+					continue;
+				}
+				if (packet_size > buf_size){	// If packet is larger than buffer, show error and continue.
 					if (par3_ctx->noise_level >= 1){
 						memcpy(packet_type, buf + (offset + 40), 8);
 						printf("Warning, packet is too large. size = %I64u, type = %s\n", packet_size, packet_type);
@@ -129,10 +134,6 @@ int read_vital_packet(PAR3_CTX *par3_ctx)
 					read_size = offset;
 					if (read_size > file_size)
 						read_size = file_size;
-					if (offset + packet_size > buf_size + read_size){	// If not enough data, ignore the packet.
-						offset += 8;
-						continue;
-					}
 
 					// slide data to top
 					memmove(buf, buf + offset, buf_size - offset);
@@ -249,7 +250,7 @@ int read_vital_packet(PAR3_CTX *par3_ctx)
 	return 0;
 }
 
-void show_read_result(PAR3_CTX *par3_ctx)
+void show_read_result(PAR3_CTX *par3_ctx, int flag_detail)
 {
 	uint32_t num;
 
@@ -259,11 +260,23 @@ void show_read_result(PAR3_CTX *par3_ctx)
 		num = (uint32_t)namez_maxlen(par3_ctx->input_file_name, par3_ctx->input_file_name_len);
 		if (num < 8)
 			num = 8;
-		if (num > 64)
-			num = 64;	// 80 characters per line
 		printf("\n");
-		printf(" Size (Bytes)  File (%d)\n", par3_ctx->input_file_count);
-		printf(" ------------  ");
+		if (flag_detail == 0){
+			if (num > 119)
+				num = 119;	// max characters per line
+			printf(" File (%d)\n", par3_ctx->input_file_count);
+			printf(" ");
+		} else if (flag_detail == 1){
+			if (num > 104)
+				num = 104;	// 119 - 15 = 104
+			printf(" Size (Bytes)  File (%d)\n", par3_ctx->input_file_count);
+			printf(" ------------  ");
+		} else {
+			if (num > 71)
+				num = 71;	// 119 - 48 = 71
+			printf(" Size (Bytes)            BLAKE3 Hash            File (%d)\n", par3_ctx->input_file_count);
+			printf(" ------------ --------------------------------  ");
+		}
 		while (num > 0){
 			printf("-");
 			num--;
@@ -273,7 +286,19 @@ void show_read_result(PAR3_CTX *par3_ctx)
 		file_p = par3_ctx->input_file_list;
 		num = par3_ctx->input_file_count;
 		while (num > 0){
-			printf("%13I64u \"%s\"\n", file_p->size, file_p->name);
+			if (flag_detail == 0){
+				printf("\"%s\"\n", file_p->name);
+			} else if (flag_detail == 1){
+				printf("%13I64u \"%s\"\n", file_p->size, file_p->name);
+			} else {
+				printf("%13I64u ", file_p->size);
+				printf("%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X ",
+					file_p->hash[0], file_p->hash[1], file_p->hash[2], file_p->hash[3],
+					file_p->hash[4], file_p->hash[5], file_p->hash[6], file_p->hash[7],
+					file_p->hash[8], file_p->hash[9], file_p->hash[10], file_p->hash[11],
+					file_p->hash[12], file_p->hash[13], file_p->hash[14], file_p->hash[15]);
+				printf("\"%s\"\n", file_p->name);
+			}
 			//printf("index of file = %u, index of the first chunk = %u\n", par3_ctx->input_file_count, file_p->chunk);
 
 			file_p++;
@@ -286,8 +311,8 @@ void show_read_result(PAR3_CTX *par3_ctx)
 		num = (uint32_t)namez_maxlen(par3_ctx->input_dir_name, par3_ctx->input_dir_name_len);
 		if (num < 13)
 			num = 13;
-		if (num > 64)
-			num = 64;	// 80 characters per line
+		if (num > 119)
+			num = 119;	// max 120 characters per line
 		printf("\n");
 		printf(" Directory (%d)\n", par3_ctx->input_dir_count);
 		printf(" ");

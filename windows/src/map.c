@@ -107,7 +107,9 @@ int map_input_block(PAR3_CTX *par3_ctx)
 	map_index = 0;
 	file_p = par3_ctx->input_file_list;
 	for (num = 0; num < input_file_count; num++){
+		blake3_hasher_init(&hasher);
 		if (file_p->size == 0){	// Skip empty files.
+			blake3_hasher_finalize(&hasher, file_p->hash, 16);
 			file_p++;
 			continue;
 		}
@@ -127,7 +129,6 @@ int map_input_block(PAR3_CTX *par3_ctx)
 		chunk_p->size = 0;
 		chunk_p->index = 0;
 		chunk_p->next = -1;
-		blake3_hasher_init(&hasher);
 
 		// Read full size blocks
 		file_offset = 0;
@@ -147,6 +148,7 @@ int map_input_block(PAR3_CTX *par3_ctx)
 			} else if (file_offset < 16384){
 				file_p->crc = crc64(buf_p, (size_t)(16384 - file_offset), file_p->crc);
 			}
+			blake3_hasher_update(&hasher, buf_p, (size_t)block_size);
 
 			// Compare current CRC-64 with previous blocks.
 			crc = crc64(buf_p, (size_t)block_size, 0);
@@ -169,7 +171,6 @@ int map_input_block(PAR3_CTX *par3_ctx)
 				// set chunk info
 				if ( (chunk_p->size > 0) && (previous_index >= 0) ){	// When there are old blocks already in the chunk.
 					// Close previous chunk.
-					blake3_hasher_finalize(&hasher, chunk_p->hash, 16);
 					chunk_index++;
 					chunk_p->next = chunk_index;
 					if (chunk_index >= chunk_count){
@@ -192,11 +193,8 @@ int map_input_block(PAR3_CTX *par3_ctx)
 					// Save index of starting block.
 					chunk_p->index = block_index;
 					chunk_p->next = -1;
-					// Start calculation of this chunk.
-					blake3_hasher_init(&hasher);
 				}
 				chunk_p->size += block_size;
-				blake3_hasher_update(&hasher, buf_p, (size_t)block_size);
 				previous_index = -4;
 
 				// set map info
@@ -223,7 +221,6 @@ int map_input_block(PAR3_CTX *par3_ctx)
 						(find_index != previous_index + 1) ){	// If found block isn't the next of previous block.
 
 					// Close previous chunk.
-					blake3_hasher_finalize(&hasher, chunk_p->hash, 16);
 					chunk_index++;
 					chunk_p->next = chunk_index;
 					if (chunk_index >= chunk_count){
@@ -245,8 +242,6 @@ int map_input_block(PAR3_CTX *par3_ctx)
 					chunk_p->size = 0;
 					chunk_p->index = find_index;
 					chunk_p->next = -1;
-					// Start calculation of this chunk.
-					blake3_hasher_init(&hasher);
 				}
 
 				// set map info
@@ -259,7 +254,6 @@ int map_input_block(PAR3_CTX *par3_ctx)
 
 				// set chunk info
 				chunk_p->size += block_size;
-				blake3_hasher_update(&hasher, buf_p, (size_t)block_size);
 				previous_index = find_index;
 				num_dedup++;
 			}
@@ -435,7 +429,6 @@ int map_input_block(PAR3_CTX *par3_ctx)
 
 		// Close chunk description
 		if (chunk_p->size > 0){
-			blake3_hasher_finalize(&hasher, chunk_p->hash, 16);
 			chunk_index++;
 			if (chunk_index >= chunk_count){
 				chunk_count *= 2;
@@ -453,6 +446,7 @@ int map_input_block(PAR3_CTX *par3_ctx)
 			}
 		}
 
+		blake3_hasher_finalize(&hasher, file_p->hash, 16);
 		if (fclose(fp) != 0){
 			perror("Failed to close input file");
 			return RET_FILE_IO_ERROR;

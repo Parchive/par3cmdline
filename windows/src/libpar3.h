@@ -24,22 +24,22 @@
 
 
 typedef struct {
-	uint64_t size;			// total size of chunk
-	uint8_t hash[16];		// BLAKE3 hash of entire chunk
-	uint64_t index;			// index of first input block holding chunk
+	uint64_t size;		// total size of chunk
+	uint64_t index;		// index of first input block holding chunk
 
 	uint64_t tail_crc;		// CRC-64 of first 40 bytes of tail
 	uint8_t tail_hash[16];	// hash of all bytes of tail
 	uint64_t tail_block;	// index of block holding tail
 	uint64_t tail_offset;	// offset of tail inside block
 
-	uint32_t next;			// index of next chunk in a same file
+	uint32_t next;		// index of next chunk in the same file
 } PAR3_CHUNK_CTX;
 
 typedef struct {
 	char *name;			// file name
 	uint64_t size;		// file size
 	uint64_t crc;		// CRC-64 of the first 16 KB
+	uint8_t hash[16];	// BLAKE3 hash of the protected data
 
 	uint32_t chunk;		// index of the first chunk
 	uint64_t chk[2];	// checksum of File Packet
@@ -58,8 +58,9 @@ typedef struct {
 
 	uint64_t block;			// index of input block holding mapped area
 	uint64_t tail_offset;	// offset bytes of the mapped tail in belong block
+	uint64_t next;			// index of next map info in a same block
 
-	uint64_t next;		// index of next map info in a same block
+	uint32_t state;		// result of verification
 } PAR3_MAP_CTX;
 
 typedef struct {
@@ -87,14 +88,17 @@ typedef struct {
 	// For CRC-64 as rolling hash
 	uint64_t window_table[256];		// slide window search for block size
 	uint64_t window_mask;
-	uint64_t window_table16[256];	// slide window search for the first 16 KB of input files
-	uint64_t window_mask16;
 	uint64_t window_table40[256];	// slide window search for the first 40-bytes of chunk tails
 	uint64_t window_mask40;
+	uint64_t window_table16[256];	// slide window search for the first 16 KB of input files
+	uint64_t window_mask16;
 
 	uint8_t *work_buf;		// Working buffer for temporary usage
 	size_t work_buf_size;
 	PAR3_CMP_CTX *crc_list;	// List of CRC-64 for slide window search
+	uint64_t crc_count;		// Number of CRC-64 in the list
+	PAR3_CMP_CTX *tail_list;
+	uint64_t tail_count;
 
 	uint8_t set_id[8];	// InputSetID
 	uint8_t attribute;	// attributes in Root Packet
