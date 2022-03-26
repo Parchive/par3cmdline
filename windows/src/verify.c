@@ -95,11 +95,18 @@ static int check_file(char *path)
 // This checks chunks in the file.
 static int check_chunk_map(PAR3_CTX *par3_ctx, uint32_t file_id)
 {
+	uint64_t block_size;
 	uint64_t crc_count;
 	uint64_t window_mask, *window_table;
 	PAR3_FILE_CTX *file_p;
 	PAR3_CMP_CTX *crc_list;
+	FILE *fp;
+	blake3_hasher hasher;
 
+	// Copy variables from context to local.
+	block_size = par3_ctx->block_size;
+
+	// Prepare to search blocks.
 	window_mask = par3_ctx->window_mask;
 	window_table = par3_ctx->window_table;
 	crc_list = par3_ctx->crc_list;
@@ -107,8 +114,25 @@ static int check_chunk_map(PAR3_CTX *par3_ctx, uint32_t file_id)
 
 
 	file_p = par3_ctx->input_file_list + file_id;
+	printf("file size = %I64u \"%s\"\n", file_p->size, file_p->name);
+	if (file_p->size == 0)
+		return 0;	// If file size is 0, no need to check file data.
 
-	//printf("file size = %I64u \"%s\"\n", file_p->size, file_p->name);
+
+	fp = fopen(file_p->name, "rb");
+	if (fp == NULL){
+		perror("Failed to open input file");
+		return RET_FILE_IO_ERROR;
+	}
+
+
+
+
+	if (fclose(fp) != 0){
+		perror("Failed to close input file");
+		return RET_FILE_IO_ERROR;
+	}
+
 
 
 	return 0;
@@ -144,21 +168,33 @@ int verify_input_file(PAR3_CTX *par3_ctx)
 */
 	}
 
+	// Allocate buffer to store file data temporary.
+//	if (par3_ctx->work_buf != NULL)
+//		free(par3_ctx->work_buf);
+	par3_ctx->work_buf = malloc(par3_ctx->block_size * 2);
+	if (par3_ctx->work_buf == NULL){
+		perror("Failed to allocate memory for temporary file data");
+		return RET_MEMORY_ERROR;
+	}
+	par3_ctx->work_buf_size = par3_ctx->block_size * 2;
+
 	file_p = par3_ctx->input_file_list;
 	for (num = 0; num < par3_ctx->input_file_count; num++){
 		ret = check_file(file_p->name);
-		if (ret == 0){
+		if ( (ret == 0) && (file_p->size > 0) ){
 
-			//printf("Opening: \"%s\"\n", file_p->name);
 			printf("Target: \"%s\" - exist (not verified yet).\n", file_p->name);
 
+			//printf("Opening: \"%s\"\n", file_p->name);
 			//ret = check_chunk_map(par3_ctx, num);
 
 
 
 		} else {
 			printf("Target: \"%s\"", file_p->name);
-			if (ret == 1){
+			if (ret == 0){
+				printf(" - found.\n");
+			} else if (ret == 1){
 				printf(" - missing.\n");
 			} else if (ret == 0x8000){
 				printf(" - not file.\n");

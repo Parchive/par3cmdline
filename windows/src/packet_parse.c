@@ -573,8 +573,8 @@ int parse_vital_packet(PAR3_CTX *par3_ctx)
 	ret = count_directory_tree(par3_ctx, tmp_p, len, 0);
 	if (ret != 0)
 		return ret;
-	if (par3_ctx->chunk_count < par3_ctx->input_file_count){
-		printf("There are not enough chunk descriptions, %u < %u\n", par3_ctx->chunk_count, par3_ctx->input_file_count);
+	if ( (par3_ctx->block_count > 0) && (par3_ctx->chunk_count == 0) ){
+		printf("There is no chunk description.\n");
 		return RET_LOGIC_ERROR;
 	}
 	if (par3_ctx->noise_level >= 0){
