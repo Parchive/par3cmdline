@@ -3,7 +3,7 @@ par3cmdline is a PAR3 compatible file verification and repair tool.
 To see the ongoing development see:
 https://github.com/parchive/par3cmdline
 
-The latest PAR3 specification is available at below:
+The latest PAR3 specification is available at:
 https://github.com/Parchive/par3cmdline/files/8318148/Parity_Volume_Set_Specification_v3.0.md
 
 
@@ -27,7 +27,7 @@ Archive Files include Data Packets, which is a piece of input files.
 
 It cannot create Recovery Files yet.
 It cannot Verify nor Repair yet.
-
+It doesn't support "PAR inside" feature yet.
 
 
 
