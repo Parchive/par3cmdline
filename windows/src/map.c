@@ -167,6 +167,7 @@ int map_input_block(PAR3_CTX *par3_ctx)
 				} else {
 					blake3(buf_p, (size_t)block_size, block_p->hash);
 				}
+				block_p->state = 1;
 
 				// set chunk info
 				if ( (chunk_p->size > 0) && (previous_index >= 0) ){	// When there are old blocks already in the chunk.
@@ -240,6 +241,9 @@ int map_input_block(PAR3_CTX *par3_ctx)
 
 					// Start next chunk
 					chunk_p->size = 0;
+				}
+				if (chunk_p->size == 0){	// When this is the first block in the chunk.
+					// Save index of starting block.
 					chunk_p->index = find_index;
 					chunk_p->next = -1;
 				}
@@ -355,6 +359,7 @@ int map_input_block(PAR3_CTX *par3_ctx)
 				// set block info (block for tails don't store checksum)
 				block_p->map = map_index;
 				block_p->size = tail_size;
+				block_p->state = 2;
 				block_p++;
 				block_index++;
 

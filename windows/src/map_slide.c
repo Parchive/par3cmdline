@@ -143,9 +143,9 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 
 		// calculate CRC-64 of the first 16 KB
 		if (read_size < 16384){
-			file_p->crc = crc64(work_buf, (size_t)read_size, file_p->crc);
+			file_p->crc = crc64(work_buf, (size_t)read_size, 0);
 		} else {
-			file_p->crc = crc64(work_buf, 16384, file_p->crc);
+			file_p->crc = crc64(work_buf, 16384, 0);
 		}
 		blake3_hasher_update(&hasher, work_buf, (size_t)read_size);
 
@@ -261,6 +261,7 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 							// set block info (block for tails don't store checksum)
 							block_p->map = map_index;
 							block_p->size = tail_size;
+							block_p->state = 2;
 							block_p++;
 							block_index++;
 
@@ -435,6 +436,7 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 					} else {
 						blake3(work_buf, (size_t)block_size, block_p->hash);
 					}
+					block_p->state = 1;
 
 					// set chunk info
 					if ( (chunk_p->size > 0) && (previous_index >= 0) ){	// When there are old blocks already in the chunk.
@@ -567,6 +569,9 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 
 					// Start next chunk
 					chunk_p->size = 0;
+				}
+				if (chunk_p->size == 0){	// When this is the first block in the chunk.
+					// Save index of starting block.
 					chunk_p->index = find_index;
 					chunk_p->next = -1;
 				}
@@ -717,6 +722,7 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 				// set block info (block for tails don't store checksum)
 				block_p->map = map_index;
 				block_p->size = tail_size;
+				block_p->state = 2;
 				block_p++;
 				block_index++;
 
