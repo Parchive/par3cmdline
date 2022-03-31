@@ -43,8 +43,13 @@ static int generate_set_id(PAR3_CTX *par3_ctx, uint8_t *buf, size_t body_size)
 
 	// all the files' contents
 	if (par3_ctx->input_file_count > 0){
+		uint32_t index;
+		uint64_t total_size, block_size, chunk_size;
 		PAR3_FILE_CTX *file_p;
+		PAR3_CHUNK_CTX *chunk_list;
 
+		block_size = par3_ctx->block_size;
+		chunk_list = par3_ctx->chunk_list;
 		file_p = par3_ctx->input_file_list;
 		num = par3_ctx->input_file_count;
 		while (num > 0){
@@ -55,12 +60,36 @@ static int generate_set_id(PAR3_CTX *par3_ctx, uint8_t *buf, size_t body_size)
 			// file size
 			blake3_hasher_update(&hasher, &(file_p->size), 8);
 
-			if (file_p->size > 0){
-				// file hash of protected chunks
-				blake3_hasher_update(&hasher, file_p->hash, 16);
-			}
+			// file hash of protected chunks
+			blake3_hasher_update(&hasher, file_p->hash, 16);
 
 			// If it include options (releated packets), calculate the data also.
+
+			// Chunk Descriptions
+			if (file_p->size > 0){
+				total_size = 0;
+				index = file_p->chunk;
+				do {
+					// size of chunk
+					chunk_size = chunk_list[index].size;
+					total_size += chunk_size;
+					blake3_hasher_update(&hasher, &chunk_size, 8);
+
+					if ( (chunk_size == 0) || (chunk_size >= block_size) ){
+						// index of first input block holding chunk
+						blake3_hasher_update(&hasher, &(chunk_list[index].index), 8);
+					}
+
+					if (chunk_size % block_size >= 40){
+						// index of block holding tail
+						blake3_hasher_update(&hasher, &(chunk_list[index].tail_block), 8);
+						blake3_hasher_update(&hasher, &(chunk_list[index].tail_offset), 8);
+					}
+
+					// When there are multiple chunks in the file.
+					index = chunk_list[index].next;
+				} while (index != -1);
+			}
 
 			file_p++;
 			num--;
@@ -397,6 +426,7 @@ int make_file_packet(PAR3_CTX *par3_ctx)
 						// index of first input block holding chunk
 						memcpy(tmp_p + packet_size, &(chunk_p[chunk_index].index), 8);
 						packet_size += 8;
+						//printf("chunk[%2u], block[%2I64u], %s\n", chunk_index, chunk_p[chunk_index].index, file_p->name);
 					}
 					tail_size = chunk_p[chunk_index].size % block_size;
 					if (tail_size >= 40){
@@ -776,7 +806,6 @@ int make_ext_data_packet(PAR3_CTX *par3_ctx)
 	int64_t find_block_count;	// use sign for flag
 	uint64_t block_count, block_size;
 	PAR3_BLOCK_CTX *block_p;
-	PAR3_MAP_CTX *map_list;
 
 	// When there is no input blocks, just exit.
 	if (par3_ctx->block_count == 0)
@@ -794,12 +823,11 @@ int make_ext_data_packet(PAR3_CTX *par3_ctx)
 	block_count = par3_ctx->block_count;
 	block_size = par3_ctx->block_size;
 	block_p = par3_ctx->block_list;
-	map_list = par3_ctx->map_list;
 	//printf("Number of input blocks = %I64u\n", block_count);
 	find_block_count = 0;
 	write_packet_count = 0;
 	while (block_count > 0){
-		if (map_list[block_p->map].size == block_size){	// full block
+		if (block_p->state & 1){	// block of full size data
 			if (find_block_count < 0)
 				find_block_count *= -1;
 			find_block_count++;
@@ -849,7 +877,7 @@ int make_ext_data_packet(PAR3_CTX *par3_ctx)
 	find_block_count = 0;
 	write_packet_count = 0;
 	while (block_count > 0){
-		if (map_list[block_p->map].size == block_size){	// full block
+		if (block_p->state & 1){	// block of full size data
 			if (write_packet_count == 0){
 				tmp_p += 48;	// skip packet header
 				memcpy(tmp_p, &find_block_count, 8);	// Index of the first input block
