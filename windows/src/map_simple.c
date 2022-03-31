@@ -124,6 +124,7 @@ int map_input_block_simple(PAR3_CTX *par3_ctx)
 			block_p->size = block_size;
 			block_p->crc = crc64(buf_p, (size_t)block_size, 0);
 			blake3(buf_p, (size_t)block_size, block_p->hash);
+			block_p->state = 1;
 
 			// set map info
 			map_p->chunk = chunk_index;
@@ -193,6 +194,7 @@ int map_input_block_simple(PAR3_CTX *par3_ctx)
 				// set block info (block for tails don't store checksum)
 				block_p->map = map_index;
 				block_p->size = tail_size;
+				block_p->state = 2;
 				block_p++;
 				block_index++;
 

@@ -679,8 +679,11 @@ int par_search(PAR3_CTX *par3_ctx, int flag_other)
 	}
 
 	if (flag_other != 0){	// search other files
+		// "something.*.par3" cannot find "something.par3".
+		// "something*.par3" may find "something_different.par3".
+		// So, I use "something.*par3" for matching.
 
-		// something.par3 -> something.*.par3
+		// something.par3 -> something.*par3
 		len = strlen(find_path);
 		// remove file extension
 		if (_stricmp(find_path + len - 5, ".par3") == 0){
@@ -697,8 +700,8 @@ int par_search(PAR3_CTX *par3_ctx, int flag_other)
 			len--;
 		}
 		// add matching words
-		strcat(find_path + len, "*.par3");
-		//printf("find path = \"%s\"\n", find_path);
+		strcat(find_path + len, ".*par3");
+		printf("find path = \"%s\"\n", find_path);
 
 		handle = _findfirst64(find_path, &c_file);
 		if (handle != -1){
@@ -1079,7 +1082,6 @@ void par3_release(PAR3_CTX *par3_ctx)
 	if (par3_ctx->work_buf){
 		free(par3_ctx->work_buf);
 		par3_ctx->work_buf = NULL;
-		par3_ctx->work_buf_size = 0;
 	}
 	if (par3_ctx->crc_list){
 		free(par3_ctx->crc_list);

@@ -329,10 +329,9 @@ uint64_t crc_list_add(PAR3_CTX *par3_ctx, uint64_t count, uint64_t crc, uint64_t
 // Make list of crc for seaching full size blocks and chunk tails.
 int crc_list_make(PAR3_CTX *par3_ctx)
 {
-	uint64_t count, tail_count, index, map_index;
+	uint64_t full_count, tail_count, index;
 	uint64_t block_count, chunk_count;
 	uint64_t block_size, data_size;
-	PAR3_MAP_CTX *map_list;
 	PAR3_BLOCK_CTX *block_p;
 	PAR3_CHUNK_CTX *chunk_p;
 	PAR3_CMP_CTX *crc_list, *tail_list;
@@ -362,30 +361,19 @@ int crc_list_make(PAR3_CTX *par3_ctx)
 	}
 	par3_ctx->tail_list = tail_list;
 
-	count = 0;
+	full_count = 0;
 	tail_count = 0;
-	map_list = par3_ctx->map_list;
 	block_p = par3_ctx->block_list;
 	chunk_p = par3_ctx->chunk_list;
 	block_size = par3_ctx->block_size;
 
-	// Find full size block, and set CRC of the block.
+	// Find block of full size data, and set CRC of the block.
 	for (index = 0; index < block_count; index++){
-		data_size = block_p->size;
-		if (data_size == block_size){	// check map for tails, too.
-			map_index = block_p->map;
-			data_size = map_list[map_index].size;
-			while (data_size < block_size){
-				map_index = map_list[map_index].next;
-				if (map_index == -1)
-					break;
-				data_size = map_list[map_index].size;
-			}
-		}
-		if (data_size == block_size){
-			crc_list[count].crc = block_p->crc;
-			crc_list[count].index = index;
-			count++;
+		// Even if checksum doesn't exist, the block is included.
+		if (block_p->state & 1){
+			crc_list[full_count].crc = block_p->crc;
+			crc_list[full_count].index = index;
+			full_count++;
 		}
 
 		block_p++;
@@ -404,9 +392,9 @@ int crc_list_make(PAR3_CTX *par3_ctx)
 	}
 
 	// Re-allocate memory for actual number of CRC-64
-	if (count < block_count){
-		if (count > 0){
-			crc_list = realloc(par3_ctx->crc_list, sizeof(PAR3_CMP_CTX) * count);
+	if (full_count < block_count){
+		if (full_count > 0){
+			crc_list = realloc(par3_ctx->crc_list, sizeof(PAR3_CMP_CTX) * full_count);
 			if (crc_list == NULL){
 				perror("Failed to re-allocate memory for comparison of CRC-64");
 				return RET_MEMORY_ERROR;
@@ -432,19 +420,46 @@ int crc_list_make(PAR3_CTX *par3_ctx)
 	}
 
 	// Quick sort items.
-	if (count > 1){
+	if (full_count > 1){
 		// CRC for full size block
-		qsort( (void *)crc_list, (size_t)count, sizeof(PAR3_CMP_CTX), compare_crc );
+		qsort( (void *)crc_list, (size_t)full_count, sizeof(PAR3_CMP_CTX), compare_crc );
 	}
 	if (tail_count > 1){
 		// CRC for chunk tail
 		qsort( (void *)tail_list, (size_t)tail_count, sizeof(PAR3_CMP_CTX), compare_crc );
 	}
 
-	par3_ctx->crc_count = count;
+	par3_ctx->crc_count = full_count;
 	par3_ctx->tail_count = tail_count;
 
 	return 0;
+}
+
+// Replace crc of a block, and sort again.
+void crc_list_replace(PAR3_CTX *par3_ctx, uint64_t crc, uint64_t index)
+{
+	int64_t i, count;
+	PAR3_CMP_CTX *crc_list;
+
+	if ( (par3_ctx->crc_list == NULL) || (par3_ctx->crc_count == 0) )
+		return;
+
+	crc_list = par3_ctx->crc_list;
+	count = par3_ctx->crc_count;
+
+	// Search the item and replace the value.
+	for (i = 0; i < count; i++){
+		if (crc_list[i].index == index){
+			crc_list[i].crc = crc;
+			i = -1;
+			break;
+		}
+	}
+
+	if ( (count > 1) && (i == -1) ){
+		// Quick sort items.
+		qsort( (void *)crc_list, (size_t)count, sizeof(PAR3_CMP_CTX), compare_crc );
+	}
 }
 
 /*

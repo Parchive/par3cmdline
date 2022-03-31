@@ -180,11 +180,13 @@ static int parse_chunk_description(PAR3_CTX *par3_ctx, uint8_t *chunk, size_t de
 {
 	uint8_t buf_tail[40];
 	size_t offset;
-	uint64_t block_size, chunk_size, tail_size, file_size;
+	uint64_t block_size, block_count;
+	uint64_t chunk_size, tail_size, file_size;
 	PAR3_CHUNK_CTX *chunk_p;
 	PAR3_FILE_CTX *file_p;
 
 	block_size = par3_ctx->block_size;
+	block_count = par3_ctx->block_count;
 	chunk_p = par3_ctx->chunk_list + par3_ctx->chunk_count;
 	file_p = par3_ctx->input_file_list + par3_ctx->input_file_count;
 
@@ -198,14 +200,20 @@ static int parse_chunk_description(PAR3_CTX *par3_ctx, uint8_t *chunk, size_t de
 		if (chunk_size == 0){	// zeros if not protected
 			memcpy(&(chunk_p->index), chunk + offset, 8);	// length of chunk
 			offset += 8;
-		} else {
+		} else {	// Protected Chunk Description 
 			if (block_size == 0){
 				printf("Block size must be larger than 0 for chunk.\n");
 				return RET_LOGIC_ERROR;
 			}
 			if (chunk_size >= block_size){
 				memcpy(&(chunk_p->index), chunk + offset, 8);
+				if (chunk_p->index >= block_count){
+					printf("First block of chunk exceeds block count. %I64u\n", chunk_p->index);
+					return RET_LOGIC_ERROR;
+				}
 				offset += 8;	// index of first input block holding chunk
+			} else {
+				chunk_p->index = 0;
 			}
 			tail_size = chunk_size % block_size;
 			if (tail_size < 40){
@@ -220,6 +228,12 @@ static int parse_chunk_description(PAR3_CTX *par3_ctx, uint8_t *chunk, size_t de
 			memcpy(chunk_p->tail_hash, buf_tail + 8, 16);
 			memcpy(&(chunk_p->tail_block), buf_tail + 24, 8);
 			memcpy(&(chunk_p->tail_offset), buf_tail + 32, 8);
+			if (tail_size >= 40){
+				if (chunk_p->tail_block >= block_count){
+					printf("Tail block of chunk exceeds block count. %I64u\n", chunk_p->tail_block);
+					return RET_LOGIC_ERROR;
+				}
+			}
 		}
 
 		par3_ctx->chunk_count++;
@@ -702,9 +716,6 @@ int parse_external_data_packet(PAR3_CTX *par3_ctx)
 	PAR3_BLOCK_CTX *block_p, *block_list;
 
 	num = par3_ctx->ext_data_packet_count;
-	if (num == 0)
-		return 0;
-
 	block_count = par3_ctx->block_count;
 	block_list = par3_ctx->block_list;
 	tmp_p = par3_ctx->ext_data_packet;
@@ -732,8 +743,9 @@ int parse_external_data_packet(PAR3_CTX *par3_ctx)
 		while (count > 0){
 			memcpy(&(block_p->crc), hash, 8);
 			hash += 8;
-			memcpy(&(block_p->hash), hash, 16);
+			memcpy(block_p->hash, hash, 16);
 			hash += 16;
+			block_p->state |= 16;	// mark of setting checksum for this block
 
 			block_p++;
 			count--;
@@ -743,12 +755,16 @@ int parse_external_data_packet(PAR3_CTX *par3_ctx)
 		num--;
 	}
 
-/*
-	// for debug
-	for (index = 0; index < block_count; index++){
-		printf("block[%2I64u] crc = 0x%016I64x\n", index, block_list[index].crc);
+	if (par3_ctx->noise_level >= 1){
+		// Checksum for full size blocks is required for verification.
+		// But, checking complete file by file's hash may be possible.
+		for (index = 0; index < block_count; index++){
+			//printf("block[%2I64u] crc = 0x%016I64x\n", index, block_list[index].crc);
+			if ((block_list[index].state & (1 | 16)) == 1){
+				printf("Warning, checksum of input block[%I64u] doesn't exist.\n", index);
+			}
+		}
 	}
-*/
 
 	return 0;
 }

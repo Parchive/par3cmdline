@@ -74,6 +74,7 @@ int count_map_info(PAR3_CTX *par3_ctx)
 		block_p->size = 0;
 		block_p->crc = 0;
 		memset(block_p->hash, 0, 16);
+		block_p->state = 0;
 
 		block_p++;
 		block_count--;
@@ -157,6 +158,7 @@ int set_map_info(PAR3_CTX *par3_ctx)
 					} else {
 						block_list[block_index].map = map_index;
 						block_list[block_index].size = block_size;
+						block_list[block_index].state |= 1;
 						if (par3_ctx->noise_level >= 2){
 							printf("new block[%2I64u] : map[%2I64u] chunk[%2u] file %d, offset %I64u\n",
 									block_index, map_index, chunk_index, num, file_offset);
@@ -234,6 +236,7 @@ int set_map_info(PAR3_CTX *par3_ctx)
 					} else {
 						block_list[block_index].map = map_index;
 						block_list[block_index].size = tail_offset + chunk_size;
+						block_list[block_index].state |= 2;
 						if (par3_ctx->noise_level >= 2){
 							printf("n t block[%2I64u] : map[%2I64u] chunk[%2u] file %d, offset %I64u, tail size %I64u, offset %I64u\n",
 									block_index, map_index, chunk_index, num, file_offset, chunk_size, tail_offset);

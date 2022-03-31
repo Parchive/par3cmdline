@@ -69,6 +69,10 @@ typedef struct {
 
 	uint64_t crc;		// CRC-64-ISO
 	uint8_t hash[16];	// BLAKE3 hash
+
+	uint32_t state;	// bit flag: 1 = including full size data, 2 = including tail data
+					// 4 = found full data, 8 = found tail data
+					// 16 = found checksum on External Data Packet
 } PAR3_BLOCK_CTX;
 
 typedef struct {
@@ -94,7 +98,6 @@ typedef struct {
 	uint64_t window_mask16;
 
 	uint8_t *work_buf;		// Working buffer for temporary usage
-	size_t work_buf_size;
 	PAR3_CMP_CTX *crc_list;	// List of CRC-64 for slide window search
 	uint64_t crc_count;		// Number of CRC-64 in the list
 	PAR3_CMP_CTX *tail_list;

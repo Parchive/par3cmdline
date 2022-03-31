@@ -50,7 +50,6 @@ int read_vital_packet(PAR3_CTX *par3_ctx)
 		return RET_MEMORY_ERROR;
 	}
 	par3_ctx->work_buf = buf;
-	par3_ctx->work_buf_size = buf_size;
 
 	namez = par3_ctx->par_file_name;
 	namez_len = par3_ctx->par_file_name_len;
@@ -222,7 +221,6 @@ int read_vital_packet(PAR3_CTX *par3_ctx)
 	}
 	free(buf);
 	par3_ctx->work_buf = NULL;
-	par3_ctx->work_buf_size = 0;
 
 	if (par3_ctx->noise_level >= 2){
 		printf("\nTotal packet:\n");
@@ -292,7 +290,7 @@ void show_read_result(PAR3_CTX *par3_ctx, int flag_detail)
 				printf("%13I64u \"%s\"\n", file_p->size, file_p->name);
 			} else {
 				printf("%13I64u ", file_p->size);
-				printf("%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X ",
+				printf("%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x ",
 					file_p->hash[0], file_p->hash[1], file_p->hash[2], file_p->hash[3],
 					file_p->hash[4], file_p->hash[5], file_p->hash[6], file_p->hash[7],
 					file_p->hash[8], file_p->hash[9], file_p->hash[10], file_p->hash[11],
