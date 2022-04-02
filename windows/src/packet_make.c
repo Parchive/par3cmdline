@@ -32,7 +32,7 @@ void make_packet_header(uint8_t *buf, uint64_t packet_size, uint8_t *set_id, uin
 // Return generated InputSetID at "buf - 16".
 static int generate_set_id(PAR3_CTX *par3_ctx, uint8_t *buf, size_t body_size)
 {
-	uint32_t num;
+	uint32_t num, chunk_num;
 	size_t len;
 	blake3_hasher hasher;
 
@@ -69,7 +69,8 @@ static int generate_set_id(PAR3_CTX *par3_ctx, uint8_t *buf, size_t body_size)
 			if (file_p->size > 0){
 				total_size = 0;
 				index = file_p->chunk;
-				do {
+				chunk_num = file_p->chunk_num;
+				while (chunk_num > 0){
 					// size of chunk
 					chunk_size = chunk_list[index].size;
 					total_size += chunk_size;
@@ -77,7 +78,7 @@ static int generate_set_id(PAR3_CTX *par3_ctx, uint8_t *buf, size_t body_size)
 
 					if ( (chunk_size == 0) || (chunk_size >= block_size) ){
 						// index of first input block holding chunk
-						blake3_hasher_update(&hasher, &(chunk_list[index].index), 8);
+						blake3_hasher_update(&hasher, &(chunk_list[index].block), 8);
 					}
 
 					if (chunk_size % block_size >= 40){
@@ -87,8 +88,9 @@ static int generate_set_id(PAR3_CTX *par3_ctx, uint8_t *buf, size_t body_size)
 					}
 
 					// When there are multiple chunks in the file.
-					index = chunk_list[index].next;
-				} while (index != -1);
+					index++;
+					chunk_num--;
+				}
 			}
 
 			file_p++;
@@ -376,7 +378,7 @@ int make_file_packet(PAR3_CTX *par3_ctx)
 	num = par3_ctx->input_file_count;
 	if (num > 0){
 		uint8_t buf_tail[40];
-		uint32_t chunk_index;
+		uint32_t chunk_index, chunk_num;
 		uint64_t block_size, tail_size, total_size;
 		PAR3_CHUNK_CTX *chunk_p;
 
@@ -416,15 +418,16 @@ int make_file_packet(PAR3_CTX *par3_ctx)
 			if (file_p->size > 0){	// chunk descriptions
 				total_size = 0;
 				chunk_index = file_p->chunk;
+				chunk_num = file_p->chunk_num;
 				// At this time, this doesn't support "Par inside" feature.
-				do {
+				while (chunk_num > 0){
 					// length of protected chunk
 					total_size += chunk_p[chunk_index].size;
 					memcpy(tmp_p + packet_size, &(chunk_p[chunk_index].size), 8);
 					packet_size += 8;
 					if (chunk_p[chunk_index].size >= block_size){
 						// index of first input block holding chunk
-						memcpy(tmp_p + packet_size, &(chunk_p[chunk_index].index), 8);
+						memcpy(tmp_p + packet_size, &(chunk_p[chunk_index].block), 8);
 						packet_size += 8;
 						//printf("chunk[%2u], block[%2I64u], %s\n", chunk_index, chunk_p[chunk_index].index, file_p->name);
 					}
@@ -452,9 +455,9 @@ int make_file_packet(PAR3_CTX *par3_ctx)
 						packet_size += tail_size;
 					}
 
-					// Goto next chunk.
-					chunk_index = chunk_p[chunk_index].next;
-				} while (chunk_index != -1);
+					chunk_index++;	// goto next chunk
+					chunk_num--;
+				}
 
 				// check size of chunks
 				if (total_size != file_p->size){

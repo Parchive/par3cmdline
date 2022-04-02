@@ -107,7 +107,7 @@ checking damaged file (compare all maps of other files)
 // offset_next = File data is complete until here.
 // file_slice = how many input file slices in original file
 // find_slice = number of found slices in the file
-// return 0 = complete, -1 = Not enough data, -2 = Too many data
+// return 0 = complete, -1 = not enough data, -2 = too many data
 // -3 = CRC of the first 16 KB is different, -4 = block data is different
 // -5 = chunk tail is different, -6 = tiny chunk tail is different
 // -7 = file hash is different
@@ -116,14 +116,15 @@ static int check_complete_file(PAR3_CTX *par3_ctx, uint32_t file_id,
 	uint64_t *file_slice, uint64_t *find_slice)
 {
 	uint8_t *work_buf, buf_tail[40], buf_hash[16];
-	uint32_t chunk_index;
-	uint64_t block_size, block_index;
+	uint32_t chunk_index, chunk_num, flag_unknown;
+	uint64_t block_size, block_index, map_index;
 	uint64_t chunk_size, tail_size, slice_count;
-	uint64_t file_size, file_offset, offset_unknown;
+	uint64_t file_size, file_offset;
 	uint64_t size16k, crc16k, crc;
 	PAR3_FILE_CTX *file_p;
 	PAR3_CHUNK_CTX *chunk_list;
 	PAR3_BLOCK_CTX *block_list;
+	PAR3_MAP_CTX *map_list;
 	FILE *fp;
 	blake3_hasher hasher;
 
@@ -142,22 +143,23 @@ static int check_complete_file(PAR3_CTX *par3_ctx, uint32_t file_id,
 	work_buf = par3_ctx->work_buf;
 	chunk_list = par3_ctx->chunk_list;
 	block_list = par3_ctx->block_list;
+	map_list = par3_ctx->map_list;
 
 	// First chunk in this file
 	chunk_index = file_p->chunk;
-	chunk_size = chunk_list[chunk_index].size;
+	chunk_num = file_p->chunk_num;
 
 	// Calculate number of input file slices in the file.
 	// Because map info doesn't include tiny chunk tail, I use input file slice here.
-	slice_count = chunk_size / block_size;
-	if (chunk_size % block_size != 0)
-		slice_count++;
-	chunk_index = chunk_list[chunk_index].next;
-	while (chunk_index != -1){
-		slice_count += chunk_list[chunk_index].size / block_size;
-		if (chunk_list[chunk_index].size % block_size != 0)
+	slice_count = 0;
+	while (chunk_num > 0){
+		chunk_size = chunk_list[chunk_index].size;
+		slice_count += chunk_size / block_size;
+		if (chunk_size % block_size != 0)
 			slice_count++;
-		chunk_index = chunk_list[chunk_index].next;
+
+		chunk_index++;
+		chunk_num--;
 	}
 	*file_slice = slice_count;
 
@@ -178,12 +180,15 @@ static int check_complete_file(PAR3_CTX *par3_ctx, uint32_t file_id,
 	}
 
 	chunk_index = file_p->chunk;
-	block_index = chunk_list[chunk_index].index;
+	chunk_num = file_p->chunk_num;
+	map_index = file_p->map;
+	chunk_size = chunk_list[chunk_index].size;
+	block_index = chunk_list[chunk_index].block;
 	if (par3_ctx->noise_level >= 2){
 		printf("first chunk = %u, size = %I64u, block index = %I64u\n", chunk_index, chunk_size, block_index);
 	}
 	blake3_hasher_init(&hasher);
-	offset_unknown = -1;
+	flag_unknown = 0;
 
 	file_offset = 0;
 	while ( (file_offset < real_size) && (file_offset < file_size) ){
@@ -246,9 +251,10 @@ static int check_complete_file(PAR3_CTX *par3_ctx, uint32_t file_id,
 						blake3(work_buf, (size_t)block_size, buf_hash);
 						if (memcmp(buf_hash, block_list[block_index].hash, 16) == 0){
 							if (par3_ctx->noise_level >= 2){
-								printf("full block[%2I64u] : chunk[%2u] file %d, offset = %I64u\n",
-										block_index, chunk_index, file_id, file_offset);
+								printf("full block[%2I64u] : map[%2I64u] chunk[%2u] file %d, offset = %I64u\n",
+										block_index, map_index, chunk_index, file_id, file_offset);
 							}
+							map_list[map_index].state |= 1;
 							block_list[block_index].state |= 4;
 							*find_slice += 1;
 						} else {	// BLAKE3 hash is different.
@@ -263,21 +269,26 @@ static int check_complete_file(PAR3_CTX *par3_ctx, uint32_t file_id,
 					}
 
 				} else {	// This block's checksum is unknown.
+					// When real file size is smaller than original size, it's impossible to check file's hash value.
+					if (real_size < file_size){
+						fclose(fp);
+						return -1;
+					}
+
 					// set this checksum temporary
 					block_list[block_index].crc = crc64(work_buf, (size_t)block_size, 0);
 					blake3(work_buf, (size_t)block_size, block_list[block_index].hash);
 
-					if (offset_unknown == -1){
-						// Save poisition of the first unknown block.
-						offset_unknown = file_offset;
-					}
+					flag_unknown = 1;	// sign of unknown checksum
 				}
 
 				blake3_hasher_update(&hasher, work_buf, (size_t)block_size);
 				block_index++;
+				map_index++;
 				chunk_size -= block_size;
 				file_offset += block_size;
-				*offset_next = file_offset;
+				if (flag_unknown == 0)
+					*offset_next = file_offset;
 
 			} else if (chunk_size >= 40){
 				tail_size = chunk_size;
@@ -334,9 +345,10 @@ static int check_complete_file(PAR3_CTX *par3_ctx, uint32_t file_id,
 					blake3(work_buf, (size_t)tail_size, buf_hash);
 					if (memcmp(buf_hash, chunk_list[chunk_index].tail_hash, 16) == 0){
 						if (par3_ctx->noise_level >= 2){
-							printf("tail block[%2I64u] : chunk[%2u] file %d, offset = %I64u, size = %I64u\n",
-									block_index, chunk_index, file_id, file_offset, tail_size);
+							printf("tail block[%2I64u] : map[%2I64u] chunk[%2u] file %d, offset = %I64u, size = %I64u\n",
+									block_index, map_index, chunk_index, file_id, file_offset, tail_size);
 						}
+						map_list[map_index].state |= 1;
 						block_list[block_index].state |= 8;
 						*find_slice += 1;
 					} else {	// BLAKE3 hash is different.
@@ -351,9 +363,11 @@ static int check_complete_file(PAR3_CTX *par3_ctx, uint32_t file_id,
 					return -5;
 				}
 				blake3_hasher_update(&hasher, work_buf, (size_t)tail_size);
+				map_index++;
 				chunk_size -= tail_size;
 				file_offset += tail_size;
-				*offset_next = file_offset;
+				if (flag_unknown == 0)
+					*offset_next = file_offset;
 
 			} else if (chunk_size > 0){	// 1 ~ 39 bytes
 				tail_size = chunk_size;
@@ -391,7 +405,7 @@ static int check_complete_file(PAR3_CTX *par3_ctx, uint32_t file_id,
 				// Compare bytes directly.
 				if (memcmp(work_buf, buf_tail, (size_t)tail_size) == 0){
 					if (par3_ctx->noise_level >= 2){
-						printf("tail block no  : chunk[%2u] file %d, offset = %I64u, size = %I64u\n",
+						printf("tail block no  : map no  chunk[%2u] file %d, offset = %I64u, size = %I64u\n",
 								chunk_index, file_id, file_offset, tail_size);
 					}
 					*find_slice += 1;
@@ -403,16 +417,18 @@ static int check_complete_file(PAR3_CTX *par3_ctx, uint32_t file_id,
 				blake3_hasher_update(&hasher, work_buf, (size_t)tail_size);
 				chunk_size -= tail_size;
 				file_offset += tail_size;
-				*offset_next = file_offset;
+				if (flag_unknown == 0)
+					*offset_next = file_offset;
 			}
 
 		} else {	// goto next chunk
-			chunk_index = chunk_list[chunk_index].next;
-			if (chunk_index == -1)
+			chunk_num--;
+			if (chunk_num == 0)
 				break;	// When there is no chunk description anymore, exit from loop.
+			chunk_index++;
 
 			chunk_size = chunk_list[chunk_index].size;
-			block_index = chunk_list[chunk_index].index;
+			block_index = chunk_list[chunk_index].block;
 			if (par3_ctx->noise_level >= 2){
 				printf("next chunk = %u, size = %I64u, block index = %I64u\n", chunk_index, chunk_size, block_index);
 			}
@@ -431,42 +447,49 @@ static int check_complete_file(PAR3_CTX *par3_ctx, uint32_t file_id,
 
 	// Check file's hash at the last.
 	blake3_hasher_finalize(&hasher, buf_hash, 16);
-	if (memcmp(buf_hash, file_p->hash, 16) != 0){	// File hash is different.
-		if (offset_unknown != -1){
-			// Check from position of unknown block.
-			*offset_next = offset_unknown;
-		}
+	if (memcmp(buf_hash, file_p->hash, 16) != 0){
+		// File hash is different.
 		return -7;
 
-	} else if (offset_unknown != -1){
+	} else if (flag_unknown != 0){
 		// Even when checksum is unknown, file data is complete.
 		*offset_next = file_size;
 
 		// Set block info
 		chunk_index = file_p->chunk;
-		while (chunk_index != -1){
+		chunk_num = file_p->chunk_num;
+		map_index = file_p->map;
+		while (chunk_num > 0){
 			chunk_size = chunk_list[chunk_index].size;
-			block_index = chunk_list[chunk_index].index;
+			block_index = chunk_list[chunk_index].block;
 
 			// Check all blocks in the chunk
 			while (chunk_size >= block_size){
-				if ((block_list[block_index].state & 16) == 0){	// There was no checksum for this block.
+				if ((map_list[map_index].state & 1) == 0){	// This map was not found.
 					if (par3_ctx->noise_level >= 2){
-						printf("full block[%2I64u] : chunk[%2u] file %d, no checksum\n", block_index, chunk_index, file_id);
+						printf("full block[%2I64u] : map[%2I64u] chunk[%2u] file %d, no checksum\n",
+								block_index, map_index, chunk_index, file_id);
 					}
-					block_list[block_index].state |= (4 | 16);	// Found block and calculated its checksum.
+					map_list[map_index].state |= 1;	// Found map.
 					*find_slice += 1;
 
-					// It's possible to use this checksum for later search.
-					crc_list_replace(par3_ctx, block_list[block_index].crc, block_index);
+					if ((block_list[block_index].state & 16) == 0){	// There was no checksum for this block.
+						block_list[block_index].state |= (4 | 16);	// Found block and calculated its checksum.
+
+						// It's possible to use this checksum for later search.
+						crc_list_replace(par3_ctx, block_list[block_index].crc, block_index);
+					}
 				}
 
+				map_index++;
 				block_index++;
 				chunk_size -= block_size;
 			}
+			if (chunk_size >= 40)
+				map_index++;
 
-			// Goto next chunk
-			chunk_index = chunk_list[chunk_index].next;
+			chunk_index++;	// goto next chunk
+			chunk_num--;
 		}
 	}
 
@@ -483,7 +506,7 @@ static int check_complete_file(PAR3_CTX *par3_ctx, uint32_t file_id,
 static int check_chunk_map(PAR3_CTX *par3_ctx, uint32_t file_id)
 {
 	uint8_t *work_buf;
-	uint32_t chunk_index;
+	uint32_t chunk_index, chunk_num;
 	uint64_t block_size;
 	uint64_t chunk_size, find_index;
 	uint64_t file_size, file_offset, read_size;
@@ -513,21 +536,23 @@ static int check_chunk_map(PAR3_CTX *par3_ctx, uint32_t file_id)
 
 	// First chunk in this file
 	chunk_p = par3_ctx->chunk_list + file_p->chunk;
-	printf("chunk[%2u] : size = %I64u, index = %I64u\n", file_p->chunk, chunk_p->size, chunk_p->index);
+	printf("chunk[%2u] : size = %I64u, index = %I64u\n", file_p->chunk, chunk_p->size, chunk_p->block);
 	chunk_size = chunk_p->size;
-	find_index = chunk_p->index;
+	find_index = chunk_p->block;
 
 	// Calculate number of map in the file
 	chunk_list = par3_ctx->chunk_list;
-	map_count = chunk_size / block_size;
-	if (chunk_size % block_size != 0)
-		map_count++;
-	chunk_index = chunk_p->next;
-	while (chunk_index != -1){
-		map_count += chunk_list[chunk_index].size / block_size;
-		if (chunk_list[chunk_index].size % block_size != 0)
+	chunk_index = file_p->chunk;
+	chunk_num = file_p->chunk_num;
+	map_count = 0;
+	while (chunk_num > 0){
+		chunk_size = chunk_list[chunk_index].size;
+		map_count += chunk_size / block_size;
+		if (chunk_size % block_size >= 40)
 			map_count++;
-		chunk_index = chunk_list[chunk_index].next;
+
+		chunk_index++;
+		chunk_num--;
 	}
 	printf("map count = %I64u\n", map_count);
 

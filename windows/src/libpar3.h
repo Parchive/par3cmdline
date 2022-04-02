@@ -25,14 +25,12 @@
 
 typedef struct {
 	uint64_t size;		// total size of chunk
-	uint64_t index;		// index of first input block holding chunk
+	uint64_t block;		// index of first input block holding chunk
 
 	uint64_t tail_crc;		// CRC-64 of first 40 bytes of tail
 	uint8_t tail_hash[16];	// hash of all bytes of tail
 	uint64_t tail_block;	// index of block holding tail
 	uint64_t tail_offset;	// offset of tail inside block
-
-	uint32_t next;		// index of next chunk in the same file
 } PAR3_CHUNK_CTX;
 
 typedef struct {
@@ -42,6 +40,9 @@ typedef struct {
 	uint8_t hash[16];	// BLAKE3 hash of the protected data
 
 	uint32_t chunk;		// index of the first chunk
+	uint32_t chunk_num;	// number of chunk descriptions
+	uint64_t map;		// index of the first map
+
 	uint64_t chk[2];	// checksum of File Packet
 } PAR3_FILE_CTX;
 
@@ -61,6 +62,9 @@ typedef struct {
 	uint64_t next;			// index of next map info in a same block
 
 	uint32_t state;		// result of verification
+						// 1 = found map at checking complete file
+						// 2 = found map at checking damaged file
+						// 0x80000000 = found map at checking extra file
 } PAR3_MAP_CTX;
 
 typedef struct {
@@ -71,6 +75,7 @@ typedef struct {
 	uint8_t hash[16];	// BLAKE3 hash
 
 	uint32_t state;	// bit flag: 1 = including full size data, 2 = including tail data
+					// result of verification
 					// 4 = found full data, 8 = found tail data
 					// 16 = found checksum on External Data Packet
 } PAR3_BLOCK_CTX;

@@ -27,8 +27,8 @@ int map_input_block(PAR3_CTX *par3_ctx)
 {
 	uint8_t *input_block, *buf_p;
 	uint8_t buf_tail[40], buf_hash[16];
-	uint32_t num, num_pack;
-	uint32_t input_file_count, chunk_count, chunk_index;
+	uint32_t num, num_pack, input_file_count;
+	uint32_t chunk_count, chunk_index, chunk_num;
 	int64_t find_index, previous_index, tail_offset;
 	uint64_t block_size, tail_size, file_offset;
 	uint64_t block_count, block_index, map_index, index;
@@ -127,8 +127,8 @@ int map_input_block(PAR3_CTX *par3_ctx)
 		previous_index = -4;
 		file_p->chunk = chunk_index;	// There is at least one chunk in each file.
 		chunk_p->size = 0;
-		chunk_p->index = 0;
-		chunk_p->next = -1;
+		chunk_p->block = 0;
+		chunk_num = 0;
 
 		// Read full size blocks
 		file_offset = 0;
@@ -172,8 +172,8 @@ int map_input_block(PAR3_CTX *par3_ctx)
 				// set chunk info
 				if ( (chunk_p->size > 0) && (previous_index >= 0) ){	// When there are old blocks already in the chunk.
 					// Close previous chunk.
+					chunk_num++;
 					chunk_index++;
-					chunk_p->next = chunk_index;
 					if (chunk_index >= chunk_count){
 						chunk_count *= 2;
 						chunk_p = realloc(par3_ctx->chunk_list, sizeof(PAR3_CHUNK_CTX) * chunk_count);
@@ -192,8 +192,7 @@ int map_input_block(PAR3_CTX *par3_ctx)
 				}
 				if (chunk_p->size == 0){	// When this is the first block in the chunk.
 					// Save index of starting block.
-					chunk_p->index = block_index;
-					chunk_p->next = -1;
+					chunk_p->block = block_index;
 				}
 				chunk_p->size += block_size;
 				previous_index = -4;
@@ -222,8 +221,8 @@ int map_input_block(PAR3_CTX *par3_ctx)
 						(find_index != previous_index + 1) ){	// If found block isn't the next of previous block.
 
 					// Close previous chunk.
+					chunk_num++;
 					chunk_index++;
-					chunk_p->next = chunk_index;
 					if (chunk_index >= chunk_count){
 						chunk_count *= 2;
 						chunk_p = realloc(par3_ctx->chunk_list, sizeof(PAR3_CHUNK_CTX) * chunk_count);
@@ -244,8 +243,7 @@ int map_input_block(PAR3_CTX *par3_ctx)
 				}
 				if (chunk_p->size == 0){	// When this is the first block in the chunk.
 					// Save index of starting block.
-					chunk_p->index = find_index;
-					chunk_p->next = -1;
+					chunk_p->block = find_index;
 				}
 
 				// set map info
@@ -434,6 +432,7 @@ int map_input_block(PAR3_CTX *par3_ctx)
 
 		// Close chunk description
 		if (chunk_p->size > 0){
+			chunk_num++;
 			chunk_index++;
 			if (chunk_index >= chunk_count){
 				chunk_count *= 2;
@@ -450,6 +449,7 @@ int map_input_block(PAR3_CTX *par3_ctx)
 				chunk_p++;
 			}
 		}
+		file_p->chunk_num = chunk_num;
 
 		blake3_hasher_finalize(&hasher, file_p->hash, 16);
 		if (fclose(fp) != 0){

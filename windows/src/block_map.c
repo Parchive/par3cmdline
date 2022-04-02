@@ -85,8 +85,8 @@ int count_map_info(PAR3_CTX *par3_ctx)
 
 int set_map_info(PAR3_CTX *par3_ctx)
 {
-	uint32_t num, num_pack;
-	uint32_t input_file_count, chunk_count, chunk_index;
+	uint32_t num, num_pack, input_file_count;
+	uint32_t chunk_count, chunk_index, chunk_num;
 	uint64_t block_size, chunk_size;
 	uint64_t block_count, file_offset, tail_offset;
 	uint64_t map_count, map_index, block_index, index;
@@ -115,14 +115,17 @@ int set_map_info(PAR3_CTX *par3_ctx)
 			file_p++;
 			continue;
 		}
-		if (par3_ctx->noise_level >= 2){
-			printf("file size = %I64u \"%s\"\n", file_p->size, file_p->name);
-		}
 
 		file_offset = 0;
 		chunk_index = file_p->chunk;	// index of the first chunk
+		chunk_num = file_p->chunk_num;	// number of chunk descriptions
+		file_p->map = map_index;		// index of the first map info
+		if (par3_ctx->noise_level >= 2){
+			printf("chunk = %u + %u, map = %I64u, file size = %I64u \"%s\"\n",
+					chunk_index, chunk_num, map_index, file_p->size, file_p->name);
+		}
 
-		do {	// check all chunk descriptions
+		while (chunk_num > 0){	// check all chunk descriptions
 			if (chunk_index >= chunk_count){
 				printf("There are too many chunk descriptions. %u\n", chunk_index);
 				return RET_LOGIC_ERROR;
@@ -130,7 +133,7 @@ int set_map_info(PAR3_CTX *par3_ctx)
 			chunk_p = par3_ctx->chunk_list + chunk_index;
 			chunk_size = chunk_p->size;
 			if (chunk_size != 0){
-				block_index = chunk_p->index;	// index of first input block holding chunk
+				block_index = chunk_p->block;	// index of first input block holding chunk
 				//printf("chunk size = %I64u, first block = %I64u\n", chunk_size, block_index);
 
 				while (chunk_size >= block_size){
@@ -265,8 +268,9 @@ int set_map_info(PAR3_CTX *par3_ctx)
 				file_offset += chunk_size;	// tail size
 			}
 
-			chunk_index = chunk_p->next;	// index of next chunk
-		} while (chunk_index != -1);
+			chunk_index++;	// goto next chunk
+			chunk_num--;
+		}
 
 		file_p++;
 	}

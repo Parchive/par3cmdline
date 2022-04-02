@@ -95,9 +95,9 @@ int map_input_block_simple(PAR3_CTX *par3_ctx)
 
 		// When no deduplication, chunk's index is same as file's index.
 		file_p->chunk = chunk_index;	// single chunk in each file
+		file_p->chunk_num = 1;
 		chunk_p->size = file_p->size;	// file size = chunk size
-		chunk_p->index = block_index;
-		chunk_p->next = -1;
+		chunk_p->block = block_index;
 
 		// Read full size blocks
 		file_offset = 0;
@@ -372,9 +372,9 @@ int map_chunk_tail(PAR3_CTX *par3_ctx)
 
 		// When no deduplication, chunk's index is same as file's index.
 		file_p->chunk = chunk_index;	// single chunk in each file
+		file_p->chunk_num = 1;
 		chunk_p->size = file_p->size;	// file size = chunk size
-		chunk_p->index = 0;
-		chunk_p->next = -1;
+		chunk_p->block = 0;
 
 		tail_size = file_p->size;
 		// When tail size is 1~39-bytes, it's saved in File Packet.

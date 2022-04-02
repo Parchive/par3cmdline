@@ -179,6 +179,7 @@ static int count_directory_tree(PAR3_CTX *par3_ctx, uint8_t *checksum, size_t ch
 static int parse_chunk_description(PAR3_CTX *par3_ctx, uint8_t *chunk, size_t description_size)
 {
 	uint8_t buf_tail[40];
+	uint32_t chunk_num;
 	size_t offset;
 	uint64_t block_size, block_count;
 	uint64_t chunk_size, tail_size, file_size;
@@ -190,6 +191,7 @@ static int parse_chunk_description(PAR3_CTX *par3_ctx, uint8_t *chunk, size_t de
 	chunk_p = par3_ctx->chunk_list + par3_ctx->chunk_count;
 	file_p = par3_ctx->input_file_list + par3_ctx->input_file_count;
 
+	chunk_num = 0;
 	file_size = 0;
 	offset = 0;
 	while (offset < description_size){
@@ -198,7 +200,7 @@ static int parse_chunk_description(PAR3_CTX *par3_ctx, uint8_t *chunk, size_t de
 		file_size += chunk_size;
 		chunk_p->size = chunk_size;
 		if (chunk_size == 0){	// zeros if not protected
-			memcpy(&(chunk_p->index), chunk + offset, 8);	// length of chunk
+			memcpy(&(chunk_p->block), chunk + offset, 8);	// length of chunk
 			offset += 8;
 		} else {	// Protected Chunk Description 
 			if (block_size == 0){
@@ -206,14 +208,14 @@ static int parse_chunk_description(PAR3_CTX *par3_ctx, uint8_t *chunk, size_t de
 				return RET_LOGIC_ERROR;
 			}
 			if (chunk_size >= block_size){
-				memcpy(&(chunk_p->index), chunk + offset, 8);
-				if (chunk_p->index >= block_count){
-					printf("First block of chunk exceeds block count. %I64u\n", chunk_p->index);
+				memcpy(&(chunk_p->block), chunk + offset, 8);
+				if (chunk_p->block >= block_count){
+					printf("First block of chunk exceeds block count. %I64u\n", chunk_p->block);
 					return RET_LOGIC_ERROR;
 				}
 				offset += 8;	// index of first input block holding chunk
 			} else {
-				chunk_p->index = 0;
+				chunk_p->block = 0;
 			}
 			tail_size = chunk_size % block_size;
 			if (tail_size < 40){
@@ -236,12 +238,8 @@ static int parse_chunk_description(PAR3_CTX *par3_ctx, uint8_t *chunk, size_t de
 			}
 		}
 
+		chunk_num++;
 		par3_ctx->chunk_count++;
-		if (offset == description_size){	// last chunk
-			chunk_p->next = -1;
-		} else {
-			chunk_p->next = par3_ctx->chunk_count;
-		}
 		chunk_p++;
 	}
 	if (offset != description_size){
@@ -249,6 +247,7 @@ static int parse_chunk_description(PAR3_CTX *par3_ctx, uint8_t *chunk, size_t de
 		return RET_LOGIC_ERROR;
 	}
 	file_p->size = file_size;
+	file_p->chunk_num = chunk_num;
 
 	return 0;
 }
