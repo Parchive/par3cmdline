@@ -13,6 +13,7 @@
 
 #include "blake3/blake3.h"
 #include "libpar3.h"
+#include "common.h"
 #include "hash.h"
 
 
@@ -75,7 +76,7 @@ int check_input_directory(PAR3_CTX *par3_ctx)
 // return 0 = exist, 1 = missing
 // 0x8000 = not file
 // 0x****0000 = permission or attribute is different ?
-static int check_file(char *path, uint64_t *file_size)
+static int check_file(char *path, uint64_t *current_size)
 {
 	// MSVC
 	struct _finddatai64_t c_file;
@@ -87,7 +88,7 @@ static int check_file(char *path, uint64_t *file_size)
 	_findclose(handle);
 
 	// Get size of existing file.
-	*file_size = c_file.size;	// This may be different from original size.
+	*current_size = c_file.size;	// This may be different from original size.
 
 	if ((c_file.attrib & _A_SUBDIR) == 1)
 		return 0x8000;
@@ -112,7 +113,7 @@ checking damaged file (compare all maps of other files)
 // -5 = chunk tail is different, -6 = tiny chunk tail is different
 // -7 = file hash is different
 static int check_complete_file(PAR3_CTX *par3_ctx, uint32_t file_id,
-	uint64_t real_size, uint64_t *offset_next,
+	uint64_t current_size, uint64_t *offset_next,
 	uint64_t *file_slice, uint64_t *find_slice)
 {
 	uint8_t *work_buf, buf_tail[40], buf_hash[16];
@@ -130,10 +131,11 @@ static int check_complete_file(PAR3_CTX *par3_ctx, uint32_t file_id,
 
 	file_p = par3_ctx->input_file_list + file_id;
 	file_size = file_p->size;
+	chunk_num = file_p->chunk_num;
 	if (par3_ctx->noise_level >= 1){
-		printf("real file size = %I64u, original file size = %I64u\n", real_size, file_size);
+		printf("chunk count = %u, current file size = %I64u, original size = %I64u\n", chunk_num, current_size, file_size);
 	}
-	if ( (file_size == 0) && (real_size > 0) ){
+	if ( (file_size == 0) && (current_size > 0) ){
 		// If original file size was 0, no need to check file data.
 		return -2;
 	}
@@ -147,7 +149,6 @@ static int check_complete_file(PAR3_CTX *par3_ctx, uint32_t file_id,
 
 	// First chunk in this file
 	chunk_index = file_p->chunk;
-	chunk_num = file_p->chunk_num;
 
 	// Calculate number of input file slices in the file.
 	// Because map info doesn't include tiny chunk tail, I use input file slice here.
@@ -191,11 +192,11 @@ static int check_complete_file(PAR3_CTX *par3_ctx, uint32_t file_id,
 	flag_unknown = 0;
 
 	file_offset = 0;
-	while ( (file_offset < real_size) && (file_offset < file_size) ){
+	while ( (file_offset < current_size) && (file_offset < file_size) ){
 		if (chunk_size > 0){	// read chunk data
 			//printf("chunk_size = %I64u\n", chunk_size);
 			if (chunk_size >= block_size){
-				if (file_offset + block_size > real_size){	// Not enough data
+				if (file_offset + block_size > current_size){	// Not enough data
 					fclose(fp);
 					return -1;
 				}
@@ -269,8 +270,8 @@ static int check_complete_file(PAR3_CTX *par3_ctx, uint32_t file_id,
 					}
 
 				} else {	// This block's checksum is unknown.
-					// When real file size is smaller than original size, it's impossible to check file's hash value.
-					if (real_size < file_size){
+					// When current file size is smaller than original size, it's impossible to check file's hash value.
+					if (current_size < file_size){
 						fclose(fp);
 						return -1;
 					}
@@ -292,7 +293,7 @@ static int check_complete_file(PAR3_CTX *par3_ctx, uint32_t file_id,
 
 			} else if (chunk_size >= 40){
 				tail_size = chunk_size;
-				if (file_offset + tail_size > real_size){	// Not enough data
+				if (file_offset + tail_size > current_size){	// Not enough data
 					fclose(fp);
 					return -1;
 				}
@@ -371,7 +372,7 @@ static int check_complete_file(PAR3_CTX *par3_ctx, uint32_t file_id,
 
 			} else if (chunk_size > 0){	// 1 ~ 39 bytes
 				tail_size = chunk_size;
-				if (file_offset + tail_size > real_size){	// Not enough data
+				if (file_offset + tail_size > current_size){	// Not enough data
 					fclose(fp);
 					return -1;
 				}
@@ -606,13 +607,57 @@ int verify_input_file(PAR3_CTX *par3_ctx)
 {
 	int ret;
 	uint32_t num;
-	uint64_t real_size, file_offset, file_slice, find_slice;
+	uint64_t current_size, file_offset, file_slice, find_slice;
 	PAR3_FILE_CTX *file_p;
 
 	if (par3_ctx->input_file_count == 0)
 		return 0;
 
-	printf("\nVerifying input files:\n\n");
+	// Remove input files from extra files
+	if (par3_ctx->extra_file_name_len > 0){
+		char *list_name;
+		size_t len, off, list_len;
+
+		list_name = par3_ctx->extra_file_name;
+		list_len = par3_ctx->extra_file_name_len;
+		off = 0;
+		while (off < list_len){
+			//printf("extra file = \"%s\"\n", list_name + off);
+			len = strlen(list_name + off);
+
+			// check name in list, and ignore if exist
+			if (namez_search(par3_ctx->input_file_name, par3_ctx->input_file_name_len, list_name + off) != NULL){
+				//printf("extra file = \"%s\" is an input file.\n", list_name + off);
+
+				// remove from list of extra files
+				len += 1;	// add the last null string
+				memmove(list_name + off, list_name + off + len, list_len - off - len);
+				list_len -= len;
+
+			} else {	// goto next filename
+				off += len + 1;
+			}
+		}
+		par3_ctx->extra_file_name_len = list_len;
+
+		if (list_len == 0){	// When all extra files were par files
+			free(par3_ctx->extra_file_name);
+			par3_ctx->extra_file_name = NULL;
+			par3_ctx->extra_file_name_max = 0;
+		}
+
+		// Decrease memory for extra files.
+		if (par3_ctx->extra_file_name_len < par3_ctx->extra_file_name_max){
+			//printf("extra_file_name_len = %zu, extra_file_name_max = %zu\n", par3_ctx->extra_file_name_len, par3_ctx->extra_file_name_max);
+			list_name = realloc(par3_ctx->extra_file_name, par3_ctx->extra_file_name_len);
+			if (list_name == NULL){
+				perror("Failed to allocate memory for extra file");
+				return RET_MEMORY_ERROR;
+			}
+			par3_ctx->extra_file_name = list_name;
+			par3_ctx->extra_file_name_max = par3_ctx->extra_file_name_len;
+		}
+	}
 
 	// Table setup for slide window search
 	init_crc_slide_table(par3_ctx, 3);
@@ -632,6 +677,8 @@ int verify_input_file(PAR3_CTX *par3_ctx)
 */
 	}
 
+	printf("\nVerifying input files:\n\n");
+
 	// Allocate buffer to store file data temporary.
 	par3_ctx->work_buf = malloc(par3_ctx->block_size * 2);
 	if (par3_ctx->work_buf == NULL){
@@ -641,8 +688,8 @@ int verify_input_file(PAR3_CTX *par3_ctx)
 
 	file_p = par3_ctx->input_file_list;
 	for (num = 0; num < par3_ctx->input_file_count; num++){
-		ret = check_file(file_p->name, &real_size);
-		if ( (ret == 0) && ( (file_p->size > 0) || (real_size > 0) ) ){
+		ret = check_file(file_p->name, &current_size);
+		if ( (ret == 0) && ( (file_p->size > 0) || (current_size > 0) ) ){
 			file_offset = 0;
 			file_slice = find_slice = 0;
 
@@ -650,12 +697,12 @@ int verify_input_file(PAR3_CTX *par3_ctx)
 
 			printf("Opening: \"%s\"\n", file_p->name);
 			//ret = check_chunk_map(par3_ctx, num);
-			ret = check_complete_file(par3_ctx, num, real_size, &file_offset, &file_slice, &find_slice);
+			ret = check_complete_file(par3_ctx, num, current_size, &file_offset, &file_slice, &find_slice);
 			if (ret > 0)
 				return ret;	// error
 			
 			printf("ret = %d, size = %I64u, offset = %I64u, slice = %I64u / %I64u\n",
-					ret, real_size, file_offset, find_slice, file_slice);
+					ret, current_size, file_offset, find_slice, file_slice);
 
 
 

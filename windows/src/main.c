@@ -530,7 +530,7 @@ int main(int argc, char *argv[])
 			// search files by wild card matching
 			ret = path_search(par3_ctx, file_name, command_recursive);
 			if (ret != 0){
-				printf("Ignoring non-existent source file: %s\n", file_name);
+				printf("Failed to search: %s\n", file_name);
 				goto prepare_return;
 			}
 		}
@@ -604,11 +604,47 @@ int main(int argc, char *argv[])
 
 	} else if ( (command_operation == 'v') || (command_operation == 'l') ){	// Verify or List
 
+		if (command_operation != 'l'){	// Verify or Repair
+			// search extra files
+			for (; argi < argc; argi++){
+				if (utf8_argv != NULL){
+					tmp_p = utf8_argv[argi];
+				} else {
+					tmp_p = argv[argi];
+				}
+
+				// read relative path of an input file
+				path_copy(file_name, tmp_p, _MAX_FNAME - 32);
+				if (file_name[0] == 0)
+					continue;
+				//if (par3_ctx->noise_level >= 2){
+				//	printf("argv[%d] = \"%s\"\n", argi, file_name);
+				//}
+
+				// search files by wild card matching
+				ret = extra_search(par3_ctx, file_name);
+				if (ret != 0){
+					printf("Failed to search: %s\n", file_name);
+					goto prepare_return;
+				}
+			}
+		}
+
+		// release UTF-8 argv
+		if (utf8_argv != NULL){
+			free(utf8_argv);
+			utf8_argv = NULL;
+		}
+		if (utf8_argv_buf != NULL){
+			free(utf8_argv_buf);
+			utf8_argv_buf = NULL;
+		}
+
 		// search par files
-		if (command_operation == 'l'){
-			ret = par_search(par3_ctx, 0);	// Check the specified PAR3 file only.
-		} else {
+		if (command_operation != 'l'){	// Verify or Repair
 			ret = par_search(par3_ctx, 1);	// Check other PAR3 files, too.
+		} else {	// List
+			ret = par_search(par3_ctx, 0);	// Check the specified PAR3 file only.
 		}
 		if (ret != 0){
 			printf("Failed to search PAR3 files\n");
@@ -625,16 +661,6 @@ int main(int argc, char *argv[])
 				printf("Listed\n");
 
 		} else {
-/*
-
-make list of extra files ?
-(for missing file, damaged file, etc)
- recovery files are removed.
- input files will be removed later.
-
-
-*/
-
 			ret = par3_verify(par3_ctx);
 			if (ret != 0){
 				printf("Failed to verify with PAR3 file\n");

@@ -169,7 +169,7 @@ int path_search(PAR3_CTX *par3_ctx, char *match_path, int flag_recursive)
 				perror("Failed to resume working directory");
 				return 6;
 			}
-			printf("Ignoring out of basepath source file: %s\n", match_path);
+			printf("Ignoring out of basepath input file: %s\n", match_path);
 			return RET_FILE_IO_ERROR;
 		}
 		base_len++;	// add the last "/"
@@ -273,6 +273,148 @@ int path_search(PAR3_CTX *par3_ctx, char *match_path, int flag_recursive)
 					perror("Failed to return parent directory");
 					return RET_FILE_IO_ERROR;
 				}
+			}
+
+		} while( _findnext64( handle, &c_file ) == 0 );
+
+		_findclose(handle);
+	}
+
+	// resume original working directory
+	if (match_name != match_path){
+		if (_chdir(cur_dir) != 0){
+			perror("Failed to resume working directory");
+			return RET_FILE_IO_ERROR;
+		}
+	}
+
+	return 0;
+}
+
+// Searching extra files are file only.
+// match_path may be relative path from current working directory
+int extra_search(PAR3_CTX *par3_ctx, char *match_path)
+{
+	char *tmp_p, *match_name;
+	char cur_dir[_MAX_PATH], new_dir[_MAX_PATH * 2];
+	size_t dir_len, len, base_len;
+
+	// MSVC
+	struct _finddatai64_t c_file;
+	intptr_t handle;
+
+	// when match_path includes directory, change to the directory at first
+	tmp_p = strrchr(match_path, '/');
+	if (tmp_p != NULL){
+		match_name = tmp_p + 1;
+
+		// directory may be a relative path from basepath
+		len = (size_t)(tmp_p - match_path);
+		memcpy(new_dir + 2, match_path, len);
+		new_dir[0] = '.';
+		new_dir[1] = '/';
+		new_dir[2 + len] = 0;
+		//printf("new_dir = \"%s\"\n", new_dir);
+
+		// store current working directory, and will resume later
+		tmp_p = _getcwd(cur_dir, _MAX_PATH);
+		if (tmp_p == NULL){
+			perror("Failed to get current working directory");
+			return RET_FILE_IO_ERROR;
+		}
+
+		// move to the sub directory
+		if (_chdir(new_dir) != 0){
+			perror("Failed to change working directory");
+			return RET_FILE_IO_ERROR;
+		}
+
+		// get the new working directory
+		tmp_p = _getcwd(new_dir, _MAX_PATH);
+		if (tmp_p == NULL){
+			perror("Failed to get new working directory");
+			return RET_FILE_IO_ERROR;
+		}
+		//printf("new_dir = \"%s\"\n", new_dir);
+
+		// check the directory is a child
+		base_len = strlen(cur_dir);
+		if (memcmp(cur_dir, new_dir, base_len) != 0){	// relative path is out side
+			// return to original working directory
+			if (_chdir(cur_dir) != 0){
+				perror("Failed to resume working directory");
+				return 6;
+			}
+			printf("Ignoring out of basepath extra file: %s\n", match_path);
+			return RET_FILE_IO_ERROR;
+		}
+		base_len++;	// add the last "/"
+
+		// replace directory mark from Windows OS style "\" to UNIX style "/"
+		tmp_p = strchr(new_dir + base_len, '\\');
+		while (tmp_p != NULL){
+			tmp_p[0] = '/';
+			tmp_p = strchr(tmp_p, '\\');
+		}
+		strcat(new_dir, "/");
+		//printf("dir path = \"%s\"\n", new_dir);
+
+		// check case for sensitive system
+		tmp_p = strchr(new_dir + base_len, '/');
+		while (tmp_p != NULL){
+			tmp_p[0] = 0;
+			//printf("path component = \"%s\"\n", new_dir);
+			handle = _findfirst64(new_dir, &c_file);
+			if (handle != -1){
+				// If case is different, use the original case.
+				//printf("found component = \"%s\"\n", c_file.name);
+				len = strlen(c_file.name);
+				if (strcmp(tmp_p - len, c_file.name) != 0)
+					strcpy(tmp_p - len, c_file.name);
+				_findclose(handle);
+			}
+			tmp_p[0] = '/';
+			tmp_p = strchr(tmp_p + 1, '/');
+		}
+
+		// get the relative path
+		dir_len = strlen(new_dir) - base_len;
+		memmove(new_dir, new_dir + base_len, dir_len + 1);	// copy path, which inlcudes the last null string
+		//printf("relative path = \"%s\"\n", new_dir);
+
+	} else {
+		match_name = match_path;
+		dir_len = 0;
+	}
+
+	handle = _findfirst64(match_name, &c_file);
+	if (handle != -1){
+		do {
+			// ignore "." or ".."
+			if ( (strcmp(c_file.name, ".") == 0) || (strcmp(c_file.name, "..") == 0) )
+				continue;
+			// ignore hidden or system files
+			if ( ((c_file.attrib & _A_HIDDEN) != 0) || ((c_file.attrib & _A_SYSTEM) != 0) || ((c_file.attrib & _A_SUBDIR) != 0) )
+				continue;
+
+			// found filename may different case from the specified name
+			// add relative path to the found filename
+			strcpy(new_dir + dir_len, c_file.name);
+			//printf("found = \"%s\"\n", new_dir);
+			if (strlen(new_dir) >= _MAX_PATH){
+				printf("Found file path is too long \"%s\"\n", new_dir);
+				_findclose(handle);
+				return RET_FILE_IO_ERROR;
+			}
+
+			// check name in list, and ignore if exist
+			if (namez_search(par3_ctx->extra_file_name, par3_ctx->extra_file_name_len, new_dir) != NULL)
+				continue;
+
+			// add found filename with relative path
+			if ( namez_add(&(par3_ctx->extra_file_name), &(par3_ctx->extra_file_name_len), &(par3_ctx->extra_file_name_max), new_dir) != 0){
+				_findclose(handle);
+				return RET_MEMORY_ERROR;
 			}
 
 		} while( _findnext64( handle, &c_file ) == 0 );
@@ -647,8 +789,8 @@ int sort_input_set(PAR3_CTX *par3_ctx)
 // search other par files from par_filename
 int par_search(PAR3_CTX *par3_ctx, int flag_other)
 {
-	char find_path[_MAX_PATH];
-	size_t dir_len, len;
+	char find_path[_MAX_PATH], *list_name;
+	size_t dir_len, len, off, list_len;
 	uint64_t max_file_size;
 
 	// MSVC
@@ -701,7 +843,7 @@ int par_search(PAR3_CTX *par3_ctx, int flag_other)
 		}
 		// add matching words
 		strcat(find_path + len, ".*par3");
-		printf("find path = \"%s\"\n", find_path);
+		//printf("find path = \"%s\"\n", find_path);
 
 		handle = _findfirst64(find_path, &c_file);
 		if (handle != -1){
@@ -736,6 +878,65 @@ int par_search(PAR3_CTX *par3_ctx, int flag_other)
 
 			_findclose(handle);
 		}
+
+		// bring par files from extra files
+		if (par3_ctx->extra_file_name_len > 0){
+			list_name = par3_ctx->extra_file_name;
+			list_len = par3_ctx->extra_file_name_len;
+			off = 0;
+			while (off < list_len){
+				//printf("extra file = \"%s\"\n", list_name + off);
+				len = strlen(list_name + off);
+				if (_stricmp(list_name + off + len - 5, ".par3") == 0){	// move this file to list of par files
+
+					// check name in list, and ignore if exist
+					if (namez_search(par3_ctx->par_file_name, par3_ctx->par_file_name_len, list_name + off) == NULL){
+						// add found filename
+						if ( namez_add(&(par3_ctx->par_file_name), &(par3_ctx->par_file_name_len), &(par3_ctx->par_file_name_max), list_name + off) != 0){
+							return RET_MEMORY_ERROR;
+						}
+					//} else {
+					//	printf("extra file = \"%s\" is listed already.\n", list_name + off);
+					}
+
+					// remove from list of extra files
+					len += 1;	// add the last null string
+					memmove(list_name + off, list_name + off + len, list_len - off - len);
+					list_len -= len;
+
+				} else {	// goto next filename
+					off += len + 1;
+				}
+			}
+			par3_ctx->extra_file_name_len = list_len;
+
+/*
+			// debug output to see extra files after remove
+			off = 0;
+			while (off < list_len){
+				printf("after file = \"%s\"\n", list_name + off);
+				len = strlen(list_name + off);
+				off += len + 1;
+			}
+*/
+			if (list_len == 0){	// When all extra files were par files
+				free(par3_ctx->extra_file_name);
+				par3_ctx->extra_file_name = NULL;
+				par3_ctx->extra_file_name_max = 0;
+			}
+		}
+	}
+
+	// Decrease memory for par files.
+	if (par3_ctx->par_file_name_len < par3_ctx->par_file_name_max){
+		//printf("par_file_name_len = %zu, par_file_name_max = %zu\n", par3_ctx->par_file_name_len, par3_ctx->par_file_name_max);
+		list_name = realloc(par3_ctx->par_file_name, par3_ctx->par_file_name_len);
+		if (list_name == NULL){
+			perror("Failed to allocate memory for file name");
+			return RET_MEMORY_ERROR;
+		}
+		par3_ctx->par_file_name = list_name;
+		par3_ctx->par_file_name_max = par3_ctx->par_file_name_len;
 	}
 
 	// If no file found, error exit.
@@ -825,9 +1026,6 @@ int add_comment_text(PAR3_CTX *par3_ctx, char *text)
 
 	return 0;
 }
-
-
-
 
 
 int par3_trial(PAR3_CTX *par3_ctx)
@@ -984,7 +1182,7 @@ int par3_verify(PAR3_CTX *par3_ctx)
 	if (par3_ctx->noise_level >= 0)
 		show_data_size(par3_ctx);
 	if (par3_ctx->noise_level == 1){
-		show_read_result(par3_ctx, 0);
+		show_read_result(par3_ctx, 1);
 	} else if (par3_ctx->noise_level >= 2){
 		show_read_result(par3_ctx, 2);
 	}

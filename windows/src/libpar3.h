@@ -139,15 +139,14 @@ typedef struct {
 	size_t input_dir_name_len;		// current used size
 	size_t input_dir_name_max;		// allocated size on memory
 
-//	uint32_t par_file_count;
 	char *par_file_name;			// List of PAR3 file names
 	size_t par_file_name_len;		// current used size
 	size_t par_file_name_max;		// allocated size on memory
 
 //	uint32_t extra_file_count;
-//	char *extra_file_name;			// List of extra file names
-//	size_t extra_file_name_len;		// current used size
-//	size_t extra_file_name_max;		// allocated size on memory
+	char *extra_file_name;			// List of extra file names
+	size_t extra_file_name_len;		// current used size
+	size_t extra_file_name_max;		// allocated size on memory
 
 	uint32_t chunk_count;
 	PAR3_CHUNK_CTX *chunk_list;		// List of chunk description
@@ -208,6 +207,7 @@ int par3_create(PAR3_CTX *par3_ctx);
 
 // About par files
 int par_search(PAR3_CTX *par3_ctx, int flag_other);
+int extra_search(PAR3_CTX *par3_ctx, char *match_path);
 
 int par3_list(PAR3_CTX *par3_ctx);
 int par3_verify(PAR3_CTX *par3_ctx);
