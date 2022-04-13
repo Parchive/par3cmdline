@@ -759,7 +759,7 @@ int parse_external_data_packet(PAR3_CTX *par3_ctx)
 		// But, checking complete file by file's hash may be possible.
 		for (index = 0; index < block_count; index++){
 			//printf("block[%2I64u] crc = 0x%016I64x\n", index, block_list[index].crc);
-			if ((block_list[index].state & (1 | 16)) == 1){
+			if ((block_list[index].state & (1 | 64)) == 1){
 				printf("Warning, checksum of input block[%I64u] doesn't exist.\n", index);
 			}
 		}

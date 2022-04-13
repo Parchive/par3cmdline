@@ -364,7 +364,7 @@ int check_complete_file(PAR3_CTX *par3_ctx, uint32_t file_id,
 
 			// Check all blocks in the chunk
 			while (chunk_size >= block_size){
-				if (map_list[map_index].find_name == NULL){	// This map was not found.
+				if (map_list[map_index].find_name == NULL){	// When this map was not found.
 					if (par3_ctx->noise_level >= 2){
 						printf("full block[%2I64d] : map[%2I64u] chunk[%2u] file %d, offset = %I64u, no checksum\n",
 								block_index, map_index, chunk_index, file_id, file_offset);
@@ -492,14 +492,14 @@ int check_damaged_file(PAR3_CTX *par3_ctx, uint8_t *filename,
 						printf("full block[%2I64d] : offset = %I64u + %I64u\n",
 								find_index, file_offset, slide_offset);
 					}
-					if ((block_list[find_index].state & 4) == 0){	// Only when this block was not found yet.
+					if ((block_list[find_index].state & 4) == 0){	// When this block was not found yet.
 						// Store filename & position of this map for later reading.
 						index = block_list[find_index].map;
 						map_list[index].find_name = filename;
 						map_list[index].find_offset = file_offset + slide_offset;
 						block_list[find_index].state |= 4;
+						*find_slice += 1;
 					}
-					*find_slice += 1;
 				}
 
 				crc = window_mask ^ crc_slide_byte(window_mask ^ crc,
@@ -521,13 +521,13 @@ int check_damaged_file(PAR3_CTX *par3_ctx, uint8_t *filename,
 						printf("tail block[%2I64u] : map[%2I64d] offset = %I64u + %I64u, tail size = %I64u, offset = %I64u\n",
 								index, find_index, file_offset, slide_offset, map_list[find_index].size, map_list[find_index].tail_offset);
 					}
-					if (map_list[find_index].find_name == NULL){	// Only when this map was not found yet.
+					if (map_list[find_index].find_name == NULL){	// When this map was not found yet.
 						// Store filename & position of this map later reading.
 						map_list[find_index].find_name = filename;
 						map_list[find_index].find_offset = file_offset + slide_offset;
 						block_list[index].state |= 8;
+						*find_slice += 1;
 					}
-					*find_slice += 1;
 				}
 
 				crc40 = window_mask40 ^ crc_slide_byte(window_mask40 ^ crc40,
