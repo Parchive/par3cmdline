@@ -97,6 +97,17 @@ If many users request, I will add optional packets in future.
 
 
 
+[ About "verify" command ]
+
+ You may specify extra files after PAR3 filename.
+They are PAR3 files or misnamed (and/or damaged) input files.
+These files must exist under basepath or current directory.
+If you add PAR3 file (extension with .par3),
+the file will be verified as PAR3 file.
+If you add other type files, they will be verified as input files.
+
+
+
 [ About "-v" option ]
 
  By setting "-v", it may show more detail information.
@@ -105,13 +116,6 @@ For example, mapping of all blocks is shown at creation.
 If file size is large and there are many blocks,
 output lines may be too many.
 Use the option only for debug usage with small files.
-
- You may specify extra files after PAR3 filename.
-They are PAR3 files or misnamed (and/or damaged) input files.
-These files must exist under basepath or current directory.
-If you add PAR3 file (extension with .par3),
-the file will be verified as PAR3 file.
-If you add other type files, they will be verified as input files.
 
 
 
