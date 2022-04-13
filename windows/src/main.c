@@ -661,7 +661,7 @@ int main(int argc, char *argv[])
 				printf("Listed\n");
 
 		} else {
-			ret = par3_verify(par3_ctx);
+			ret = par3_verify(par3_ctx, file_name);
 			if (ret != 0){
 				printf("Failed to verify with PAR3 file\n");
 				goto prepare_return;

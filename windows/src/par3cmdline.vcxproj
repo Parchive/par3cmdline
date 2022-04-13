@@ -161,6 +161,7 @@
     <ClCompile Include="packet_parse.c" />
     <ClCompile Include="read.c" />
     <ClCompile Include="verify.c" />
+    <ClCompile Include="verify_check.c" />
     <ClCompile Include="write_trial.c" />
     <ClCompile Include="write.c" />
   </ItemGroup>

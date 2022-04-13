@@ -1166,9 +1166,11 @@ int par3_list(PAR3_CTX *par3_ctx)
 	return 0;
 }
 
-int par3_verify(PAR3_CTX *par3_ctx)
+int par3_verify(PAR3_CTX *par3_ctx, char *temp_path)
 {
 	int ret;
+	uint32_t missing_dir_count, missing_file_count;
+	uint32_t misnamed_file_count, damaged_file_count;
 
 	ret = read_vital_packet(par3_ctx);
 	if (ret != 0)
@@ -1203,12 +1205,51 @@ int par3_verify(PAR3_CTX *par3_ctx)
 	}
 
 	// Check input file and directory.
-	ret = check_input_directory(par3_ctx);
+	missing_dir_count = 0;
+	ret = check_input_directory(par3_ctx, &missing_dir_count);
 	if (ret != 0)
 		return ret;
-	ret = verify_input_file(par3_ctx);
+	missing_file_count = 0;
+	damaged_file_count = 0;
+	misnamed_file_count = 0;
+	ret = verify_input_file(par3_ctx, &missing_file_count, &damaged_file_count);
 	if (ret != 0)
 		return ret;
+
+/*
+When blocks are not enough, check extra files next.
+At that time, temp_path may be required ?
+
+*/
+
+	if (missing_dir_count + missing_file_count + damaged_file_count + misnamed_file_count > 0){
+		if (par3_ctx->noise_level >= -1){
+			printf("\n");
+			printf("Repair is required.\n");
+		}
+		if (missing_dir_count > 0){
+			printf("%u directories are missing.\n", missing_dir_count);
+		}
+		if (par3_ctx->input_dir_count - missing_dir_count > 0){
+			printf("%u directories are ok.\n", par3_ctx->input_dir_count - missing_dir_count);
+		}
+		if (missing_file_count > 0){
+			printf("%u files are missing.\n", missing_file_count);
+		}
+		if (damaged_file_count > 0){
+			printf("%u files exist but are damaged.\n", damaged_file_count);
+		}
+
+		if (par3_ctx->input_file_count - missing_file_count - damaged_file_count - misnamed_file_count > 0){
+			printf("%u files are ok.\n", par3_ctx->input_file_count - missing_file_count - damaged_file_count - misnamed_file_count);
+		}
+
+	} else {
+		if (par3_ctx->noise_level >= -1){
+			printf("\n");
+			printf("All files are correct, repair is not required.\n");
+		}
+	}
 
 /*
 {

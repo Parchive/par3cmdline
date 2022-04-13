@@ -32,12 +32,12 @@ int map_input_block(PAR3_CTX *par3_ctx)
 	int64_t find_index, previous_index, tail_offset;
 	uint64_t block_size, tail_size, file_offset;
 	uint64_t block_count, block_index, map_index, index;
-	uint64_t crc, cmp_count, num_dedup;
+	uint64_t crc, num_dedup;
 	PAR3_FILE_CTX *file_p;
 	PAR3_CHUNK_CTX *chunk_p, *chunk_list;
 	PAR3_MAP_CTX *map_p, *map_list;
 	PAR3_BLOCK_CTX *block_p, *block_list;
-	PAR3_CMP_CTX *cmp_p;
+	PAR3_CMP_CTX *crc_list;
 	FILE *fp;
 	blake3_hasher hasher;
 
@@ -81,13 +81,14 @@ int map_input_block(PAR3_CTX *par3_ctx)
 	block_list = block_p;
 	par3_ctx->block_list = block_p;
 
-	// Allocate list of CRC-64
-	cmp_p = malloc(sizeof(PAR3_CMP_CTX) * block_count);
-	if (cmp_p == NULL){
+	// Allocate list of CRC-64 for maximum items
+	crc_list = malloc(sizeof(PAR3_CMP_CTX) * block_count);
+	if (crc_list == NULL){
 		perror("Failed to allocate memory for comparison of CRC-64");
 		return RET_MEMORY_ERROR;
 	}
-	par3_ctx->crc_list = cmp_p;
+	par3_ctx->crc_list = crc_list;
+	par3_ctx->crc_count = 0;	// There is no item yet.
 
 	// Try to allocate all input blocks on memory
 	buf_p = malloc(block_size * block_count);
@@ -101,7 +102,6 @@ int map_input_block(PAR3_CTX *par3_ctx)
 	// Read data of input files on memory
 	num_dedup = 0;
 	num_pack = 0;
-	cmp_count = 0;
 	chunk_index = 0;
 	block_index = 0;
 	map_index = 0;
@@ -152,11 +152,11 @@ int map_input_block(PAR3_CTX *par3_ctx)
 
 			// Compare current CRC-64 with previous blocks.
 			crc = crc64(buf_p, (size_t)block_size, 0);
-			find_index = crc_list_compare(par3_ctx, cmp_count, crc, buf_p, buf_hash);
+			find_index = crc_list_compare(par3_ctx, crc, buf_p, buf_hash);
 			//printf("find_index = %I64d, previous_index = %I64d\n", find_index, previous_index);
 			if (find_index < 0){	// No match
 				// Add full size block into list
-				cmp_count = crc_list_add(par3_ctx, cmp_count, crc, block_index);
+				crc_list_add(par3_ctx, crc, block_index);
 
 				// set block info
 				block_p->map = map_index;
@@ -461,7 +461,7 @@ int map_input_block(PAR3_CTX *par3_ctx)
 	}
 
 	// Release temporary buffer.
-	free(cmp_p);
+	free(crc_list);
 	par3_ctx->crc_list = NULL;
 
 	// Re-allocate memory for actual number of chunk description

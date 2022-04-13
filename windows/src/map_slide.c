@@ -23,12 +23,12 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 	uint64_t block_size, tail_size, file_offset;
 	uint64_t file_size, read_size, slide_offset;
 	uint64_t block_count, block_index, map_count, map_index, index;
-	uint64_t crc, crc_slide, cmp_count, window_mask, *window_table, num_dedup;
+	uint64_t crc, crc_slide, window_mask, *window_table, num_dedup;
 	PAR3_FILE_CTX *file_p;
 	PAR3_CHUNK_CTX *chunk_p, *chunk_list;
 	PAR3_MAP_CTX *map_p, *map_list;
 	PAR3_BLOCK_CTX *block_p, *block_list;
-	PAR3_CMP_CTX *cmp_p;
+	PAR3_CMP_CTX *crc_list;
 	FILE *fp;
 	blake3_hasher hasher;
 
@@ -80,13 +80,14 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 	block_list = block_p;
 	par3_ctx->block_list = block_p;
 
-	// Allocate list of CRC-64
-	cmp_p = malloc(sizeof(PAR3_CMP_CTX) * block_count);
-	if (cmp_p == NULL){
+	// Allocate list of CRC-64 for maximum items
+	crc_list = malloc(sizeof(PAR3_CMP_CTX) * block_count);
+	if (crc_list == NULL){
 		perror("Failed to allocate memory for comparison of CRC-64");
 		return RET_MEMORY_ERROR;
 	}
-	par3_ctx->crc_list = cmp_p;
+	par3_ctx->crc_list = crc_list;
+	par3_ctx->crc_count = 0;	// There is no item yet.
 
 	// Allocate buffer to store file data temporary.
 	work_buf = malloc(block_size * 2);
@@ -108,7 +109,6 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 	// Read data of input files on memory
 	num_dedup = 0;
 	num_pack = 0;
-	cmp_count = 0;
 	chunk_index = 0;
 	block_index = 0;
 	map_index = 0;
@@ -163,12 +163,12 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 		while (file_offset + block_size <= file_size){
 
 			// Compare current CRC-64 with previous blocks.
-			find_index = crc_list_compare(par3_ctx, cmp_count, crc, work_buf, buf_hash);
+			find_index = crc_list_compare(par3_ctx, crc, work_buf, buf_hash);
 			//printf("find_index = %I64d, previous_index = %I64d\n", find_index, previous_index);
 			if (find_index < 0){	// No match
 
-				if (cmp_count > 0){	// Slide search
-					//printf("slide: file %d, offset %I64u, cmp_count = %I64u\n", num, file_offset, cmp_count);
+				if (par3_ctx->crc_count > 0){	// Slide search
+					//printf("slide: file %d, offset %I64u, crc_count = %I64u\n", num, file_offset, par3_ctx->crc_count);
 					crc_slide = crc;
 					slide_offset = 0;
 					while (slide_offset + 1 < block_size){
@@ -177,7 +177,7 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 						slide_offset++;
 						//printf("offset = %I64u, crc = 0x%016I64x, 0x%016I64x\n", slide_offset, crc64(work_buf + slide_offset, block_size, 0), crc_slide);
 
-						find_index = crc_list_compare(par3_ctx, cmp_count, crc_slide, work_buf + slide_offset, buf_hash);
+						find_index = crc_list_compare(par3_ctx, crc_slide, work_buf + slide_offset, buf_hash);
 						if (find_index >= 0)
 							break;
 					}
@@ -392,6 +392,10 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 
 					// Read remain of partial block on first position, and next block on second position.
 					file_offset += slide_offset + block_size;
+					if (file_offset >= file_size){
+						//printf("file_offset = %I64u, file_size = %I64u, EOF\n", file_offset, file_size);
+						break;
+					}
 					read_size = slide_offset + block_size;
 					// Slide partial block to the top
 					memcpy(work_buf, work_buf + slide_offset + block_size, (size_t)(block_size - slide_offset));
@@ -424,7 +428,7 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 
 				} else {	// When same block was not found.
 					// Add full size block into list
-					cmp_count = crc_list_add(par3_ctx, cmp_count, crc, block_index);
+					crc_list_add(par3_ctx, crc, block_index);
 
 					// set block info
 					block_p->map = map_index;
@@ -502,6 +506,10 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 
 					// Read next block on second position.
 					file_offset += block_size;
+					if (file_offset >= file_size){
+						//printf("file_offset = %I64u, file_size = %I64u, EOF\n", file_offset, file_size);
+						break;
+					}
 					read_size = block_size;
 					if (file_offset + block_size >= file_size){
 						// Slide block of second position to former position.
@@ -608,6 +616,10 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 
 				// Read next block on second position.
 				file_offset += block_size;
+				if (file_offset >= file_size){
+					//printf("file_offset = %I64u, file_size = %I64u, EOF\n", file_offset, file_size);
+					break;
+				}
 				read_size = block_size;
 				if (file_offset + block_size >= file_size){
 					// Slide block of second position to former position.
@@ -816,14 +828,15 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 
 /*
 	// for debug
-	for (i = 0; i < cmp_count; i++){
-		printf("crc_list[%2u] = 0x%016I64x , %I64u\n", i, cmp_p[i].crc, cmp_p[i].index);
+	for (i = 0; i < par3_ctx->crc_count; i++){
+		printf("crc_list[%2u] = 0x%016I64x , %I64u\n", i, crc_list[i].crc, crc_list[i].index);
 	}
 */
 
 	// Release temporary buffer.
-	free(cmp_p);
+	free(crc_list);
 	par3_ctx->crc_list = NULL;
+	par3_ctx->crc_count = 0;
 	free(work_buf);
 	par3_ctx->work_buf = NULL;
 

@@ -744,7 +744,7 @@ int parse_external_data_packet(PAR3_CTX *par3_ctx)
 			hash += 8;
 			memcpy(block_p->hash, hash, 16);
 			hash += 16;
-			block_p->state |= 16;	// mark of setting checksum for this block
+			block_p->state |= 64;	// mark of setting checksum for this block
 
 			block_p++;
 			count--;

@@ -44,6 +44,10 @@ typedef struct {
 	uint64_t map;		// index of the first map
 
 	uint64_t chk[2];	// checksum of File Packet
+
+	uint32_t state;		// Result of verification (bit flag)
+						// 1 = missing, 2 = damaged
+						// 0x8000 = not file
 } PAR3_FILE_CTX;
 
 typedef struct {
@@ -59,25 +63,24 @@ typedef struct {
 
 	uint64_t block;			// index of input block holding mapped area
 	uint64_t tail_offset;	// offset bytes of the mapped tail in belong block
-	uint64_t next;			// index of next map info in a same block
+	int64_t next;			// index of next map info in a same block
 
-	uint32_t state;		// result of verification
-						// 1 = found map at checking complete file
-						// 2 = found map at checking damaged file
-						// 0x80000000 = found map at checking extra file
+							// Result of verification
+	char *find_name;		// filename of belong found file
+	uint64_t find_offset;	// offset bytes of found map
 } PAR3_MAP_CTX;
 
 typedef struct {
-	uint64_t map;		// index of first map info
+	int64_t map;		// index of first map info
 	uint64_t size;		// data size in the block
 
 	uint64_t crc;		// CRC-64-ISO
 	uint8_t hash[16];	// BLAKE3 hash
 
 	uint32_t state;	// bit flag: 1 = including full size data, 2 = including tail data
-					// result of verification
+					// Result of verification
 					// 4 = found full data, 8 = found tail data
-					// 16 = found checksum on External Data Packet
+					// 64 = found checksum on External Data Packet
 } PAR3_BLOCK_CTX;
 
 typedef struct {
@@ -99,8 +102,6 @@ typedef struct {
 	uint64_t window_mask;
 	uint64_t window_table40[256];	// slide window search for the first 40-bytes of chunk tails
 	uint64_t window_mask40;
-	uint64_t window_table16[256];	// slide window search for the first 16 KB of input files
-	uint64_t window_mask16;
 
 	uint8_t *work_buf;		// Working buffer for temporary usage
 	PAR3_CMP_CTX *crc_list;	// List of CRC-64 for slide window search
@@ -210,7 +211,7 @@ int par_search(PAR3_CTX *par3_ctx, int flag_other);
 int extra_search(PAR3_CTX *par3_ctx, char *match_path);
 
 int par3_list(PAR3_CTX *par3_ctx);
-int par3_verify(PAR3_CTX *par3_ctx);
+int par3_verify(PAR3_CTX *par3_ctx, char *temp_path);
 
 
 

@@ -19,6 +19,7 @@ int count_map_info(PAR3_CTX *par3_ctx)
 	uint64_t block_count, map_count;
 	PAR3_CHUNK_CTX *chunk_p;
 	PAR3_BLOCK_CTX *block_p;
+	PAR3_MAP_CTX *map_p;
 
 	// Copy variables from context to local.
 	block_size = par3_ctx->block_size;
@@ -67,6 +68,17 @@ int count_map_info(PAR3_CTX *par3_ctx)
 		return RET_MEMORY_ERROR;
 	}
 
+	// Initialize map info.
+	map_p = par3_ctx->map_list;
+	while (map_count > 0){
+		map_p->next = -1;
+		map_p->find_name = NULL;
+		map_p->find_offset = 0;
+
+		map_p++;
+		map_count--;
+	}
+
 	// Initialize block info.
 	block_p = par3_ctx->block_list;
 	while (block_count > 0){
@@ -87,9 +99,10 @@ int set_map_info(PAR3_CTX *par3_ctx)
 {
 	uint32_t num, num_pack, input_file_count;
 	uint32_t chunk_count, chunk_index, chunk_num;
+	int64_t index;
 	uint64_t block_size, chunk_size;
 	uint64_t block_count, file_offset, tail_offset;
-	uint64_t map_count, map_index, block_index, index;
+	uint64_t map_count, map_index, block_index;
 	uint64_t num_dedup;
 	PAR3_FILE_CTX *file_p;
 	PAR3_CHUNK_CTX *chunk_p;
@@ -175,8 +188,6 @@ int set_map_info(PAR3_CTX *par3_ctx)
 					map_p->size = block_size;
 					map_p->block = block_index;
 					map_p->tail_offset = 0;
-					map_p->next = -1;
-					map_p->state = 0;
 					map_p++;
 					map_index++;
 
@@ -253,8 +264,6 @@ int set_map_info(PAR3_CTX *par3_ctx)
 					map_p->size = chunk_size;
 					map_p->block = block_index;
 					map_p->tail_offset = tail_offset;
-					map_p->next = -1;
-					map_p->state = 0;
 					map_p++;
 					map_index++;
 
@@ -276,9 +285,9 @@ int set_map_info(PAR3_CTX *par3_ctx)
 	}
 
 	// Check all blocks have map info.
-	for (index = 0; index < block_count; index++){
-		if (block_list[index].map == -1){
-			printf("There is no map info for input block[%I64u].\n", index);
+	for (block_index = 0; block_index < block_count; block_index++){
+		if (block_list[block_index].map == -1){
+			printf("There is no map info for input block[%I64u].\n", block_index);
 			return RET_INSUFFICIENT_DATA;
 		}
 	}

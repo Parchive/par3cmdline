@@ -64,27 +64,6 @@ int read_vital_packet(PAR3_CTX *par3_ctx)
 
 		// get file size
 		file_size = _filelengthi64(_fileno(fp));
-/*
-		if (_fseeki64(fp, 0, SEEK_END) != 0){
-			printf("Failed to check \"%s\", skip to next file.\n", namez + namez_off);
-			namez_off += strlen(namez + namez_off) + 1;
-			fclose(fp);
-			continue;
-		}
-		file_size = _ftelli64(fp);
-		if (file_size == -1){
-			printf("Failed to check \"%s\", skip to next file.\n", namez + namez_off);
-			namez_off += strlen(namez + namez_off) + 1;
-			fclose(fp);
-			continue;
-		}
-		if (_fseeki64(fp, 0, SEEK_SET) != 0){
-			printf("Failed to check \"%s\", skip to next file.\n", namez + namez_off);
-			namez_off += strlen(namez + namez_off) + 1;
-			fclose(fp);
-			continue;
-		}
-*/
 		if (par3_ctx->noise_level >= 2){
 			printf("file size = %I64u, \"%s\"\n", file_size, namez + namez_off);
 		}
