@@ -12,7 +12,7 @@
 #include "hash.h"
 
 
-// map input files into input blocks with slide search
+// map input file slices into input blocks with slide search
 int map_input_block_slide(PAR3_CTX *par3_ctx)
 {
 	uint8_t *input_block, *buf_p, *work_buf;
@@ -22,11 +22,11 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 	int64_t find_index, previous_index, tail_offset;
 	uint64_t block_size, tail_size, file_offset;
 	uint64_t file_size, read_size, slide_offset;
-	uint64_t block_count, block_index, map_count, map_index, index;
+	uint64_t block_count, block_index, slice_count, slice_index, index;
 	uint64_t crc, crc_slide, window_mask, *window_table, num_dedup;
 	PAR3_FILE_CTX *file_p;
 	PAR3_CHUNK_CTX *chunk_p, *chunk_list;
-	PAR3_MAP_CTX *map_p, *map_list;
+	PAR3_SLICE_CTX *slice_p, *slice_list;
 	PAR3_BLOCK_CTX *block_p, *block_list;
 	PAR3_CMP_CTX *crc_list;
 	FILE *fp;
@@ -58,18 +58,18 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 	chunk_list = chunk_p;
 	par3_ctx->chunk_list = chunk_p;
 
-	// For deduplication, allocate map info as 2 * number of input blocks.
-	map_count = block_count * 2;
+	// For deduplication, allocate input file slices as 2 * number of input blocks.
+	slice_count = block_count * 2;
 	if (par3_ctx->noise_level >= 2){
-		printf("Initial map count = %I64u (input block count = %I64u)\n", map_count, block_count);
+		printf("Initial input file slice count = %I64u (input block count = %I64u)\n", slice_count, block_count);
 	}
-	map_p = malloc(sizeof(PAR3_MAP_CTX) * map_count);
-	if (map_p == NULL){
-		perror("Failed to allocate memory for mapping");
+	slice_p = malloc(sizeof(PAR3_SLICE_CTX) * slice_count);
+	if (slice_p == NULL){
+		perror("Failed to allocate memory for input file slices");
 		return RET_MEMORY_ERROR;
 	}
-	map_list = map_p;
-	par3_ctx->map_list = map_p;
+	slice_list = slice_p;
+	par3_ctx->slice_list = slice_p;
 
 	// Allocate max number of input blocks at first.
 	block_p = malloc(sizeof(PAR3_BLOCK_CTX) * block_count);
@@ -111,7 +111,7 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 	num_pack = 0;
 	chunk_index = 0;
 	block_index = 0;
-	map_index = 0;
+	slice_index = 0;
 	file_p = par3_ctx->input_file_list;
 	for (num = 0; num < input_file_count; num++){
 		blake3_hasher_init(&hasher);
@@ -194,12 +194,12 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 
 						// search existing tails of same data
 						tail_offset = 0;
-						for (index = 0; index < map_index; index++){
-							//printf("tail size = %I64u\n", map_list[index].size);
-							if (map_list[index].size == tail_size){	// same size tail
-								//printf("crc = 0x%016I64x, 0x%016I64x chunk[%2u]\n", chunk_p->tail_crc, chunk_list[map_list[index].chunk].tail_crc, map_list[index].chunk);
-								if (chunk_p->tail_crc == chunk_list[map_list[index].chunk].tail_crc){
-									if (memcmp(chunk_p->tail_hash, chunk_list[map_list[index].chunk].tail_hash, 16) == 0){
+						for (index = 0; index < slice_index; index++){
+							//printf("tail size = %I64u\n", slice_list[index].size);
+							if (slice_list[index].size == tail_size){	// same size tail
+								//printf("crc = 0x%016I64x, 0x%016I64x chunk[%2u]\n", chunk_p->tail_crc, chunk_list[slice_list[index].chunk].tail_crc, slice_list[index].chunk);
+								if (chunk_p->tail_crc == chunk_list[slice_list[index].chunk].tail_crc){
+									if (memcmp(chunk_p->tail_hash, chunk_list[slice_list[index].chunk].tail_hash, 16) == 0){
 										tail_offset = -1;
 										break;
 									}
@@ -213,10 +213,10 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 									// When tail can fit in the space, put the tail there.
 									tail_offset = block_list[index].size;
 
-									// find the last map info in the block
-									index = block_list[index].map;
-									while (map_list[index].next != -1){
-										index = map_list[index].next;
+									// find the last slice info in the block
+									index = block_list[index].slice;
+									while (slice_list[index].next != -1){
+										index = slice_list[index].next;
 									}
 									break;
 								}
@@ -226,18 +226,18 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 
 						if (tail_offset < 0){	// Same data as previous tail
 							if (par3_ctx->noise_level >= 2){
-								printf("o t block[%2I64u] : map[%2I64u] chunk[%2u] file %d, offset %I64u, tail size %I64u, offset %I64u\n",
-										map_list[index].block, map_index, chunk_index, num, file_offset, tail_size, map_list[index].tail_offset);
+								printf("o t block[%2I64u] : slice[%2I64u] chunk[%2u] file %d, offset %I64u, tail size %I64u, offset %I64u\n",
+										slice_list[index].block, slice_index, chunk_index, num, file_offset, tail_size, slice_list[index].tail_offset);
 							}
-							map_list[index].next = map_index;	// These same tails have same offset and size.
+							slice_list[index].next = slice_index;	// These same tails have same offset and size.
 
-							// set map info
-							map_p->block = map_list[index].block;
-							map_p->tail_offset = map_list[index].tail_offset;
+							// set slice info
+							slice_p->block = slice_list[index].block;
+							slice_p->tail_offset = slice_list[index].tail_offset;
 
 							// set chunk tail info
-							chunk_p->tail_block = map_p->block;
-							chunk_p->tail_offset = map_p->tail_offset;
+							chunk_p->tail_block = slice_p->block;
+							chunk_p->tail_offset = slice_p->tail_offset;
 							num_dedup++;
 
 						} else if (tail_offset == 0){	// Put tail in new block
@@ -246,20 +246,20 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 							memcpy(buf_p, work_buf, (size_t)tail_size);
 							memset(buf_p + tail_size, 0, block_size - tail_size);	// zero fill the rest bytes
 							if (par3_ctx->noise_level >= 2){
-								printf("n t block[%2I64u] : map[%2I64u] chunk[%2u] file %d, offset %I64u, tail size %I64u\n",
-										block_index, map_index, chunk_index, num, file_offset, tail_size);
+								printf("n t block[%2I64u] : slice[%2I64u] chunk[%2u] file %d, offset %I64u, tail size %I64u\n",
+										block_index, slice_index, chunk_index, num, file_offset, tail_size);
 							}
 
-							// set map info
-							map_p->block = block_index;
-							map_p->tail_offset = 0;
+							// set slice info
+							slice_p->block = block_index;
+							slice_p->tail_offset = 0;
 
 							// set chunk tail info
 							chunk_p->tail_block = block_index;
 							chunk_p->tail_offset = 0;
 
 							// set block info (block for tails don't store checksum)
-							block_p->map = map_index;
+							block_p->slice = slice_index;
 							block_p->size = tail_size;
 							block_p->state = 2;
 							block_p++;
@@ -267,54 +267,54 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 
 						} else {	// Put tail after another tail
 							// copy chunk tail work_buf to input_block
-							buf_p = input_block + (block_size * map_list[index].block) + tail_offset;
+							buf_p = input_block + (block_size * slice_list[index].block) + tail_offset;
 							memcpy(buf_p, work_buf, (size_t)tail_size);
 							if (par3_ctx->noise_level >= 2){
-								printf("a t block[%2I64u] : map[%2I64u] chunk[%2u] file %d, offset %I64u, tail size %I64u, offset %I64d\n",
-										map_list[index].block, map_index, chunk_index, num, file_offset, tail_size, tail_offset);
+								printf("a t block[%2I64u] : slice[%2I64u] chunk[%2u] file %d, offset %I64u, tail size %I64u, offset %I64d\n",
+										slice_list[index].block, slice_index, chunk_index, num, file_offset, tail_size, tail_offset);
 							}
-							map_list[index].next = map_index;	// update "next" item in the front tail
+							slice_list[index].next = slice_index;	// update "next" item in the front tail
 
-							// set map info
-							map_p->block = map_list[index].block;
-							map_p->tail_offset = tail_offset;
+							// set slice info
+							slice_p->block = slice_list[index].block;
+							slice_p->tail_offset = tail_offset;
 
 							// set chunk tail info
-							chunk_p->tail_block = map_list[index].block;
+							chunk_p->tail_block = slice_list[index].block;
 							chunk_p->tail_offset = tail_offset;
 							num_pack++;
 
 							// update block info
-							block_list[map_p->block].size = tail_offset + tail_size;
+							block_list[slice_p->block].size = tail_offset + tail_size;
 						}
 
-						// set common map info
-						map_p->file = num;
-						map_p->offset = file_offset;
-						map_p->size = tail_size;
-						map_p->chunk = chunk_index;
-						map_p->next = -1;
-						map_index++;
-						if (map_index >= map_count){
-							map_count *= 2;
-							map_p = realloc(par3_ctx->map_list, sizeof(PAR3_MAP_CTX) * map_count);
-							if (map_p == NULL){
-								perror("Failed to re-allocate memory for mapping");
+						// set common slice info
+						slice_p->file = num;
+						slice_p->offset = file_offset;
+						slice_p->size = tail_size;
+						slice_p->chunk = chunk_index;
+						slice_p->next = -1;
+						slice_index++;
+						if (slice_index >= slice_count){
+							slice_count *= 2;
+							slice_p = realloc(par3_ctx->slice_list, sizeof(PAR3_SLICE_CTX) * slice_count);
+							if (slice_p == NULL){
+								perror("Failed to re-allocate memory for input file slices");
 								fclose(fp);
 								return RET_MEMORY_ERROR;
 							}
-							map_list = map_p;
-							par3_ctx->map_list = map_p;
-							map_p += map_index;
+							slice_list = slice_p;
+							par3_ctx->slice_list = slice_p;
+							slice_p += slice_index;
 						} else {
-							map_p++;
+							slice_p++;
 						}
 
 					} else {	// When tail size is 1~39-bytes, it's saved in File Packet.
 						memcpy(buf_tail, work_buf, (size_t)tail_size);
 						memset(buf_tail + tail_size, 0, 40 - tail_size);	// zero fill the rest bytes
 						if (par3_ctx->noise_level >= 2){
-							printf("    block no  : map no  chunk[%2u] file %d, offset %I64u, tail size %I64u\n",
+							printf("    block no  : slice no  chunk[%2u] file %d, offset %I64u, tail size %I64u\n",
 									chunk_index, num, file_offset, tail_size);
 						}
 
@@ -345,44 +345,44 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 					}
 
 					// Match with a previous block while slide search
-					// update the last map info of previous block
-					index = block_list[find_index].map;
-					while (map_list[index].next != -1){
-						index = map_list[index].next;
+					// update the last slice info of previous block
+					index = block_list[find_index].slice;
+					while (slice_list[index].next != -1){
+						index = slice_list[index].next;
 					}
-					//printf("first index = %I64u, same = %I64u, map_index = %I64u\n", block_list[find_index].map, index, map_index);
-					map_list[index].next = map_index;
+					//printf("first index = %I64u, same = %I64u, slice_index = %I64u\n", block_list[find_index].slice, index, slice_index);
+					slice_list[index].next = slice_index;
 
 					// Start this chunk
 					chunk_p->size = 0;
 					chunk_p->block = find_index;
 
-					// set map info
-					map_p->chunk = chunk_index;
-					map_p->file = num;
-					map_p->offset = file_offset + slide_offset;
-					map_p->size = block_size;
-					map_p->block = find_index;
-					map_p->tail_offset = 0;
-					map_p->next = -1;
+					// set slice info
+					slice_p->chunk = chunk_index;
+					slice_p->file = num;
+					slice_p->offset = file_offset + slide_offset;
+					slice_p->size = block_size;
+					slice_p->block = find_index;
+					slice_p->tail_offset = 0;
+					slice_p->next = -1;
 					if (par3_ctx->noise_level >= 2){
-						printf("o s block[%2I64d] : map[%2I64u] chunk[%2u] file %d, offset %I64u\n",
-								find_index, map_index, chunk_index, num, file_offset + slide_offset);
+						printf("o s block[%2I64d] : slice[%2I64u] chunk[%2u] file %d, offset %I64u\n",
+								find_index, slice_index, chunk_index, num, file_offset + slide_offset);
 					}
-					map_index++;
-					if (map_index >= map_count){
-						map_count *= 2;
-						map_p = realloc(par3_ctx->map_list, sizeof(PAR3_MAP_CTX) * map_count);
-						if (map_p == NULL){
-							perror("Failed to re-allocate memory for mapping");
+					slice_index++;
+					if (slice_index >= slice_count){
+						slice_count *= 2;
+						slice_p = realloc(par3_ctx->slice_list, sizeof(PAR3_SLICE_CTX) * slice_count);
+						if (slice_p == NULL){
+							perror("Failed to re-allocate memory for input file slices");
 							fclose(fp);
 							return RET_MEMORY_ERROR;
 						}
-						map_list = map_p;
-						par3_ctx->map_list = map_p;
-						map_p += map_index;
+						slice_list = slice_p;
+						par3_ctx->slice_list = slice_p;
+						slice_p += slice_index;
 					} else {
-						map_p++;
+						slice_p++;
 					}
 
 					// set chunk info
@@ -431,7 +431,7 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 					crc_list_add(par3_ctx, crc, block_index);
 
 					// set block info
-					block_p->map = map_index;
+					block_p->slice = slice_index;
 					block_p->size = block_size;
 					block_p->crc = crc;
 					if (find_index == -3){
@@ -469,32 +469,32 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 					chunk_p->size += block_size;
 					previous_index = -4;
 
-					// set map info
-					map_p->chunk = chunk_index;
-					map_p->file = num;
-					map_p->offset = file_offset;
-					map_p->size = block_size;
-					map_p->block = block_index;
-					map_p->tail_offset = 0;
-					map_p->next = -1;
+					// set slice info
+					slice_p->chunk = chunk_index;
+					slice_p->file = num;
+					slice_p->offset = file_offset;
+					slice_p->size = block_size;
+					slice_p->block = block_index;
+					slice_p->tail_offset = 0;
+					slice_p->next = -1;
 					if (par3_ctx->noise_level >= 2){
-						printf("new block[%2I64u] : map[%2I64u] chunk[%2u] file %d, offset %I64u\n",
-								block_index, map_index, chunk_index, num, file_offset);
+						printf("new block[%2I64u] : slice[%2I64u] chunk[%2u] file %d, offset %I64u\n",
+								block_index, slice_index, chunk_index, num, file_offset);
 					}
-					map_index++;
-					if (map_index >= map_count){
-						map_count *= 2;
-						map_p = realloc(par3_ctx->map_list, sizeof(PAR3_MAP_CTX) * map_count);
-						if (map_p == NULL){
-							perror("Failed to re-allocate memory for mapping");
+					slice_index++;
+					if (slice_index >= slice_count){
+						slice_count *= 2;
+						slice_p = realloc(par3_ctx->slice_list, sizeof(PAR3_SLICE_CTX) * slice_count);
+						if (slice_p == NULL){
+							perror("Failed to re-allocate memory for input file slices");
 							fclose(fp);
 							return RET_MEMORY_ERROR;
 						}
-						map_list = map_p;
-						par3_ctx->map_list = map_p;
-						map_p += map_index;
+						slice_list = slice_p;
+						par3_ctx->slice_list = slice_p;
+						slice_p += slice_index;
 					} else {
-						map_p++;
+						slice_p++;
 					}
 
 					// Copy block from work_buf to input_block.
@@ -544,13 +544,13 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 				}
 
 			} else {	// Match with a previous block
-				// update the last map info of previous block
-				index = block_list[find_index].map;
-				while (map_list[index].next != -1){
-					index = map_list[index].next;
+				// update the last slice info of previous block
+				index = block_list[find_index].slice;
+				while (slice_list[index].next != -1){
+					index = slice_list[index].next;
 				}
-				//printf("first index = %I64u, same = %I64u, map_index = %I64u\n", block_list[find_index].map, index, map_index);
-				map_list[index].next = map_index;
+				//printf("first index = %I64u, same = %I64u, slice_index = %I64u\n", block_list[find_index].slice, index, slice_index);
+				slice_list[index].next = slice_index;
 
 				if ( (chunk_p->size > 0) &&	// When there are blocks already in the chunk.
 						(find_index != previous_index + 1) ){	// If found block isn't the next of previous block.
@@ -581,32 +581,32 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 					chunk_p->block = find_index;
 				}
 
-				// set map info
-				map_p->chunk = chunk_index;
-				map_p->file = num;
-				map_p->offset = file_offset;
-				map_p->size = block_size;
-				map_p->block = find_index;
-				map_p->tail_offset = 0;
-				map_p->next = -1;
+				// set slice info
+				slice_p->chunk = chunk_index;
+				slice_p->file = num;
+				slice_p->offset = file_offset;
+				slice_p->size = block_size;
+				slice_p->block = find_index;
+				slice_p->tail_offset = 0;
+				slice_p->next = -1;
 				if (par3_ctx->noise_level >= 2){
-					printf("old block[%2I64u] : map[%2I64u] chunk[%2u] file %d, offset %I64u\n",
-							find_index, map_index, chunk_index, num, file_offset);
+					printf("old block[%2I64u] : slice[%2I64u] chunk[%2u] file %d, offset %I64u\n",
+							find_index, slice_index, chunk_index, num, file_offset);
 				}
-				map_index++;
-				if (map_index >= map_count){
-					map_count *= 2;
-					map_p = realloc(par3_ctx->map_list, sizeof(PAR3_MAP_CTX) * map_count);
-					if (map_p == NULL){
-						perror("Failed to re-allocate memory for mapping");
+				slice_index++;
+				if (slice_index >= slice_count){
+					slice_count *= 2;
+					slice_p = realloc(par3_ctx->slice_list, sizeof(PAR3_SLICE_CTX) * slice_count);
+					if (slice_p == NULL){
+						perror("Failed to re-allocate memory for input file slices");
 						fclose(fp);
 						return RET_MEMORY_ERROR;
 					}
-					map_list = map_p;
-					par3_ctx->map_list = map_p;
-					map_p += map_index;
+					slice_list = slice_p;
+					par3_ctx->slice_list = slice_p;
+					slice_p += slice_index;
 				} else {
-					map_p++;
+					slice_p++;
 				}
 
 				// set chunk info
@@ -664,12 +664,12 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 
 			// search existing tails of same data
 			tail_offset = 0;
-			for (index = 0; index < map_index; index++){
-				//printf("tail size = %I64u\n", map_list[index].size);
-				if (map_list[index].size == tail_size){	// same size tail
-					//printf("crc = 0x%016I64x, 0x%016I64x chunk[%2u]\n", chunk_p->tail_crc, chunk_list[map_list[index].chunk].tail_crc, map_list[index].chunk);
-					if (chunk_p->tail_crc == chunk_list[map_list[index].chunk].tail_crc){
-						if (memcmp(chunk_p->tail_hash, chunk_list[map_list[index].chunk].tail_hash, 16) == 0){
+			for (index = 0; index < slice_index; index++){
+				//printf("tail size = %I64u\n", slice_list[index].size);
+				if (slice_list[index].size == tail_size){	// same size tail
+					//printf("crc = 0x%016I64x, 0x%016I64x chunk[%2u]\n", chunk_p->tail_crc, chunk_list[slice_list[index].chunk].tail_crc, slice_list[index].chunk);
+					if (chunk_p->tail_crc == chunk_list[slice_list[index].chunk].tail_crc){
+						if (memcmp(chunk_p->tail_hash, chunk_list[slice_list[index].chunk].tail_hash, 16) == 0){
 							tail_offset = -1;
 							break;
 						}
@@ -683,10 +683,10 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 						// When tail can fit in the space, put the tail there.
 						tail_offset = block_list[index].size;
 
-						// find the last map info in the block
-						index = block_list[index].map;
-						while (map_list[index].next != -1){
-							index = map_list[index].next;
+						// find the last slice info in the block
+						index = block_list[index].slice;
+						while (slice_list[index].next != -1){
+							index = slice_list[index].next;
 						}
 						break;
 					}
@@ -696,18 +696,18 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 
 			if (tail_offset < 0){	// Same data as previous tail
 				if (par3_ctx->noise_level >= 2){
-					printf("o t block[%2I64u] : map[%2I64u] chunk[%2u] file %d, offset %I64u, tail size %I64u, offset %I64u\n",
-							map_list[index].block, map_index, chunk_index, num, file_offset, tail_size, map_list[index].tail_offset);
+					printf("o t block[%2I64u] : slice[%2I64u] chunk[%2u] file %d, offset %I64u, tail size %I64u, offset %I64u\n",
+							slice_list[index].block, slice_index, chunk_index, num, file_offset, tail_size, slice_list[index].tail_offset);
 				}
-				map_list[index].next = map_index;	// These same tails have same offset and size.
+				slice_list[index].next = slice_index;	// These same tails have same offset and size.
 
-				// set map info
-				map_p->block = map_list[index].block;
-				map_p->tail_offset = map_list[index].tail_offset;
+				// set slice info
+				slice_p->block = slice_list[index].block;
+				slice_p->tail_offset = slice_list[index].tail_offset;
 
 				// set chunk tail info
-				chunk_p->tail_block = map_p->block;
-				chunk_p->tail_offset = map_p->tail_offset;
+				chunk_p->tail_block = slice_p->block;
+				chunk_p->tail_offset = slice_p->tail_offset;
 				num_dedup++;
 
 			} else if (tail_offset == 0){	// Put tail in new block
@@ -716,20 +716,20 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 				memcpy(buf_p, work_buf, (size_t)tail_size);
 				memset(buf_p + tail_size, 0, block_size - tail_size);	// zero fill the rest bytes
 				if (par3_ctx->noise_level >= 2){
-					printf("n t block[%2I64u] : map[%2I64u] chunk[%2u] file %d, offset %I64u, tail size %I64u\n",
-							block_index, map_index, chunk_index, num, file_offset, tail_size);
+					printf("n t block[%2I64u] : slice[%2I64u] chunk[%2u] file %d, offset %I64u, tail size %I64u\n",
+							block_index, slice_index, chunk_index, num, file_offset, tail_size);
 				}
 
-				// set map info
-				map_p->block = block_index;
-				map_p->tail_offset = 0;
+				// set slice info
+				slice_p->block = block_index;
+				slice_p->tail_offset = 0;
 
 				// set chunk tail info
 				chunk_p->tail_block = block_index;
 				chunk_p->tail_offset = 0;
 
 				// set block info (block for tails don't store checksum)
-				block_p->map = map_index;
+				block_p->slice = slice_index;
 				block_p->size = tail_size;
 				block_p->state = 2;
 				block_p++;
@@ -737,54 +737,54 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 
 			} else {	// Put tail after another tail
 				// copy chunk tail work_buf to input_block
-				buf_p = input_block + (block_size * map_list[index].block) + tail_offset;
+				buf_p = input_block + (block_size * slice_list[index].block) + tail_offset;
 				memcpy(buf_p, work_buf, (size_t)tail_size);
 				if (par3_ctx->noise_level >= 2){
-					printf("a t block[%2I64u] : map[%2I64u] chunk[%2u] file %d, offset %I64u, tail size %I64u, offset %I64d\n",
-							map_list[index].block, map_index, chunk_index, num, file_offset, tail_size, tail_offset);
+					printf("a t block[%2I64u] : slice[%2I64u] chunk[%2u] file %d, offset %I64u, tail size %I64u, offset %I64d\n",
+							slice_list[index].block, slice_index, chunk_index, num, file_offset, tail_size, tail_offset);
 				}
-				map_list[index].next = map_index;	// update "next" item in the front tail
+				slice_list[index].next = slice_index;	// update "next" item in the front tail
 
-				// set map info
-				map_p->block = map_list[index].block;
-				map_p->tail_offset = tail_offset;
+				// set slice info
+				slice_p->block = slice_list[index].block;
+				slice_p->tail_offset = tail_offset;
 
 				// set chunk tail info
-				chunk_p->tail_block = map_list[index].block;
+				chunk_p->tail_block = slice_list[index].block;
 				chunk_p->tail_offset = tail_offset;
 				num_pack++;
 
 				// update block info
-				block_list[map_p->block].size = tail_offset + tail_size;
+				block_list[slice_p->block].size = tail_offset + tail_size;
 			}
 
-			// set common map info
-			map_p->file = num;
-			map_p->offset = file_offset;
-			map_p->size = tail_size;
-			map_p->chunk = chunk_index;
-			map_p->next = -1;
-			map_index++;
-			if (map_index >= map_count){
-				map_count *= 2;
-				map_p = realloc(par3_ctx->map_list, sizeof(PAR3_MAP_CTX) * map_count);
-				if (map_p == NULL){
-					perror("Failed to re-allocate memory for mapping");
+			// set common slice info
+			slice_p->file = num;
+			slice_p->offset = file_offset;
+			slice_p->size = tail_size;
+			slice_p->chunk = chunk_index;
+			slice_p->next = -1;
+			slice_index++;
+			if (slice_index >= slice_count){
+				slice_count *= 2;
+				slice_p = realloc(par3_ctx->slice_list, sizeof(PAR3_SLICE_CTX) * slice_count);
+				if (slice_p == NULL){
+					perror("Failed to re-allocate memory for input file slices");
 					fclose(fp);
 					return RET_MEMORY_ERROR;
 				}
-				map_list = map_p;
-				par3_ctx->map_list = map_p;
-				map_p += map_index;
+				slice_list = slice_p;
+				par3_ctx->slice_list = slice_p;
+				slice_p += slice_index;
 			} else {
-				map_p++;
+				slice_p++;
 			}
 
 		} else if (tail_size > 0){	// When tail size is 1~39-bytes, it's saved in File Packet.
 			memcpy(buf_tail, work_buf, (size_t)tail_size);
 			memset(buf_tail + tail_size, 0, 40 - tail_size);	// zero fill the rest bytes
 			if (par3_ctx->noise_level >= 2){
-				printf("    block no  : map no  chunk[%2u] file %d, offset %I64u, tail size %I64u\n",
+				printf("    block no  : slice no  chunk[%2u] file %d, offset %I64u, tail size %I64u\n",
 						chunk_index, num, file_offset, tail_size);
 			}
 
@@ -859,24 +859,24 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 	}
 	par3_ctx->chunk_count = chunk_index;
 
-	// Re-allocate memory for actual number of map info
-	if (map_index < map_count){
+	// Re-allocate memory for actual number of input file slices
+	if (slice_index < slice_count){
 		if (par3_ctx->noise_level >= 1){
-			printf("Number of map info = %I64u (max %I64u)\n", map_index, map_count);
+			printf("Number of input file slices = %I64u (max %I64u)\n", slice_index, slice_count);
 		}
-		if (map_index > 0){
-			map_p = realloc(par3_ctx->map_list, sizeof(PAR3_MAP_CTX) * map_index);
-			if (map_p == NULL){
-				perror("Failed to re-allocate memory for mapping");
+		if (slice_index > 0){
+			slice_p = realloc(par3_ctx->slice_list, sizeof(PAR3_SLICE_CTX) * slice_index);
+			if (slice_p == NULL){
+				perror("Failed to re-allocate memory for input file slices");
 				return RET_MEMORY_ERROR;
 			}
-			par3_ctx->map_list = map_p;
+			par3_ctx->slice_list = slice_p;
 		} else {
-			free(par3_ctx->map_list);
-			par3_ctx->map_list = NULL;
+			free(par3_ctx->slice_list);
+			par3_ctx->slice_list = NULL;
 		}
 	}
-	par3_ctx->map_count = map_index;
+	par3_ctx->slice_count = slice_index;
 
 	// Update actual number of input blocks
 	if (block_index < block_count){

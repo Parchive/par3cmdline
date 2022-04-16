@@ -148,8 +148,11 @@
   <ItemGroup>
     <ClCompile Include="blake3\blake3.c" />
     <ClCompile Include="blake3\blake3_portable.c" />
+    <ClCompile Include="block_check.c" />
     <ClCompile Include="block_map.c" />
     <ClCompile Include="common.c" />
+    <ClCompile Include="libpar3_create.c" />
+    <ClCompile Include="libpar3_verify.c" />
     <ClCompile Include="map.c" />
     <ClCompile Include="map_simple.c" />
     <ClCompile Include="map_slide.c" />

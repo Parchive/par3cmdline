@@ -41,7 +41,7 @@ typedef struct {
 
 	uint32_t chunk;		// index of the first chunk
 	uint32_t chunk_num;	// number of chunk descriptions
-	uint64_t map;		// index of the first map
+	uint64_t slice;		// index of the first slice
 
 	uint64_t chk[2];	// checksum of File Packet
 
@@ -58,20 +58,20 @@ typedef struct {
 typedef struct {
 	uint32_t chunk;		// index of belong chunk description
 	uint32_t file;		// index of belong input file
-	uint64_t offset;	// offset bytes of the mapped area in belong file
-	uint64_t size;		// size of mapped area
+	uint64_t offset;	// offset bytes of slice in belong input file
+	uint64_t size;		// size of slice
 
-	uint64_t block;			// index of input block holding mapped area
-	uint64_t tail_offset;	// offset bytes of the mapped tail in belong block
-	int64_t next;			// index of next map info in a same block
+	uint64_t block;			// index of input block holding this slice
+	uint64_t tail_offset;	// offset bytes of the tail slice in belong block
+	int64_t next;			// index of next slice in a same block
 
 							// Result of verification
 	char *find_name;		// filename of belong found file
-	uint64_t find_offset;	// offset bytes of found map
-} PAR3_MAP_CTX;
+	uint64_t find_offset;	// offset bytes of found slice
+} PAR3_SLICE_CTX;
 
 typedef struct {
-	int64_t map;		// index of first map info
+	int64_t slice;		// index of the first slice (in multiple slices)
 	uint64_t size;		// data size in the block
 
 	uint64_t crc;		// CRC-64-ISO
@@ -79,7 +79,7 @@ typedef struct {
 
 	uint32_t state;	// bit flag: 1 = including full size data, 2 = including tail data
 					// Result of verification
-					// 4 = found full data, 8 = found tail data
+					// 4 = found full data, 8 = found tail data, 16 = found all tails
 					// 64 = found checksum on External Data Packet
 } PAR3_BLOCK_CTX;
 
@@ -151,8 +151,8 @@ typedef struct {
 
 	uint32_t chunk_count;
 	PAR3_CHUNK_CTX *chunk_list;		// List of chunk description
-	uint64_t map_count;
-	PAR3_MAP_CTX *map_list;			// List of mapping
+	uint64_t slice_count;
+	PAR3_SLICE_CTX *slice_list;		// List of input file slice
 
 	uint8_t *creator_packet;		// pointer to Creator Packet
 	size_t creator_packet_size;		// size of Creator Packet
@@ -197,11 +197,12 @@ uint64_t suggest_block_size(PAR3_CTX *par3_ctx);
 uint64_t calculate_block_count(PAR3_CTX *par3_ctx, uint64_t block_size);
 int sort_input_set(PAR3_CTX *par3_ctx);
 
+
 // Add text in Creator Packet or Comment Packet
 int add_creator_text(PAR3_CTX *par3_ctx, char *text);
 int add_comment_text(PAR3_CTX *par3_ctx, char *text);
 
-
+// For creation
 int par3_trial(PAR3_CTX *par3_ctx);
 int par3_create(PAR3_CTX *par3_ctx);
 
@@ -210,9 +211,9 @@ int par3_create(PAR3_CTX *par3_ctx);
 int par_search(PAR3_CTX *par3_ctx, int flag_other);
 int extra_search(PAR3_CTX *par3_ctx, char *match_path);
 
+// For verification and repair
 int par3_list(PAR3_CTX *par3_ctx);
 int par3_verify(PAR3_CTX *par3_ctx, char *temp_path);
-
 
 
 // Release internal allocated memory

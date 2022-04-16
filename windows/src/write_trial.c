@@ -53,11 +53,11 @@ static void try_data_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t each_st
 	size_t write_size, write_size2;
 	size_t packet_count, packet_to, packet_from;
 	size_t common_packet_size, packet_size, packet_offset;
-	PAR3_MAP_CTX *map_list;
+	PAR3_SLICE_CTX *slice_list;
 	PAR3_BLOCK_CTX *block_list;
 
 	block_size = par3_ctx->block_size;
-	map_list = par3_ctx->map_list;
+	slice_list = par3_ctx->slice_list;
 	block_list = par3_ctx->block_list;
 	common_packet = par3_ctx->common_packet;
 	common_packet_size = par3_ctx->common_packet_size;

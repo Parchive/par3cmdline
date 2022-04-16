@@ -11,8 +11,7 @@ int64_t crc_list_compare(PAR3_CTX *par3_ctx, uint64_t crc, uint8_t *buf, uint8_t
 void crc_list_add(PAR3_CTX *par3_ctx, uint64_t crc, uint64_t index);
 int crc_list_make(PAR3_CTX *par3_ctx);
 void crc_list_replace(PAR3_CTX *par3_ctx, uint64_t crc, uint64_t index);
-
-int64_t tail_list_compare(PAR3_CTX *par3_ctx, uint64_t crc, uint8_t *buf, uint8_t hash[16]);
+int64_t cmp_list_search(PAR3_CTX *par3_ctx, uint64_t crc, PAR3_CMP_CTX *cmp_list, uint64_t count);
 
 
 // BLAKE3

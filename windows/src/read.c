@@ -55,6 +55,10 @@ int read_vital_packet(PAR3_CTX *par3_ctx)
 	namez_len = par3_ctx->par_file_name_len;
 	namez_off = 0;
 	while (namez_off < namez_len){
+		if (par3_ctx->noise_level >= -1){
+			printf("Loading \"%s\".\n", namez + namez_off);
+		}
+
 		fp = fopen(namez + namez_off, "rb");
 		if (fp == NULL){
 			printf("Failed to open \"%s\", skip to next file.\n", namez + namez_off);
@@ -64,9 +68,6 @@ int read_vital_packet(PAR3_CTX *par3_ctx)
 
 		// get file size
 		file_size = _filelengthi64(_fileno(fp));
-		if (par3_ctx->noise_level >= 2){
-			printf("file size = %I64u, \"%s\"\n", file_size, namez + namez_off);
-		}
 
 		// Read file data at first.
 		read_size = buf_size;
@@ -193,7 +194,7 @@ int read_vital_packet(PAR3_CTX *par3_ctx)
 		}
 
 		if (par3_ctx->noise_level >= 0){
-			printf("Packets = %I64u (new %I64u), \"%s\"\n", packet_count, new_packet_count, namez + namez_off);
+			printf("Loaded %I64u new packets (found %I64u packets)\n", new_packet_count, packet_count);
 		}
 
 		namez_off += strlen(namez + namez_off) + 1;

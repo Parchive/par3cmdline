@@ -115,7 +115,7 @@ int verify_input_file(PAR3_CTX *par3_ctx, uint32_t *missing_file_count, uint32_t
 {
 	int ret;
 	uint32_t num;
-	uint64_t current_size, file_offset, find_slice;
+	uint64_t current_size, file_offset, find_slice, file_damage;
 	PAR3_FILE_CTX *file_p;
 
 	if (par3_ctx->input_file_count == 0)
@@ -180,12 +180,12 @@ int verify_input_file(PAR3_CTX *par3_ctx, uint32_t *missing_file_count, uint32_t
 			printf("crc_list[%2I64u] = 0x%016I64x , block = %I64u\n", i, par3_ctx->crc_list[i].crc, par3_ctx->crc_list[i].index);
 		}
 		for (uint64_t i = 0; i < par3_ctx->tail_count; i++){
-			printf("tail_list[%2I64u] = 0x%016I64x , map = %I64u\n", i, par3_ctx->tail_list[i].crc, par3_ctx->tail_list[i].index);
+			printf("tail_list[%2I64u] = 0x%016I64x , slice = %I64u\n", i, par3_ctx->tail_list[i].crc, par3_ctx->tail_list[i].index);
 		}
 */
 	}
 
-	if (par3_ctx->noise_level >= -1){
+	if (par3_ctx->noise_level >= 0){
 		printf("\nVerifying input files:\n\n");
 	}
 
@@ -209,9 +209,8 @@ int verify_input_file(PAR3_CTX *par3_ctx, uint32_t *missing_file_count, uint32_t
 			if (par3_ctx->noise_level >= 0){
 				printf("Opening: \"%s\"\n", file_p->name);
 			}
-			ret = check_complete_file(par3_ctx, num, current_size, &file_offset, &find_slice);
-			//printf("ret = %d, size = %I64u, offset = %I64u, slice = %I64u\n",
-			//		ret, current_size, file_offset, find_slice);
+			ret = check_complete_file(par3_ctx, num, current_size, &file_offset);
+			//printf("ret = %d, size = %I64u, offset = %I64u\n", ret, current_size, file_offset);
 			if (ret > 0)
 				return ret;	// error
 			if (ret == 0){
@@ -225,13 +224,14 @@ int verify_input_file(PAR3_CTX *par3_ctx, uint32_t *missing_file_count, uint32_t
 				*damaged_file_count += 1;
 
 				// Start slide search after the last found block position.
-				ret = check_damaged_file(par3_ctx, file_p->name, current_size, file_offset, &find_slice, NULL);
-				//printf("ret = %d, size = %I64u, offset = %I64u, slice = %I64u\n",
-				//		ret, current_size, file_offset, find_slice);
+				ret = check_damaged_file(par3_ctx, file_p->name, current_size, file_offset, &file_damage, NULL);
+				//printf("ret = %d, size = %I64u, offset = %I64u, damage = %I64u\n",
+				//		ret, current_size, file_offset, file_damage);
 				if (ret != 0)
 					return ret;
 				if (par3_ctx->noise_level >= -1){
-					printf("Target: \"%s\" - damaged. Found %I64u slices.\n", file_p->name, find_slice);
+					printf("Target: \"%s\" - damaged. %I64u of %I64u bytes available.\n",
+							file_p->name, current_size - file_damage, current_size);
 				}
 			}
 

@@ -11,15 +11,15 @@
 #include "common.h"
 
 
-// Count how many number of map info, and allocate memory for them.
-int count_map_info(PAR3_CTX *par3_ctx)
+// Count how many number of input file slices, and allocate memory for them.
+int count_slice_info(PAR3_CTX *par3_ctx)
 {
 	uint32_t chunk_count;
 	uint64_t block_size, chunk_size, tail_size;
-	uint64_t block_count, map_count;
+	uint64_t block_count, slice_count;
 	PAR3_CHUNK_CTX *chunk_p;
 	PAR3_BLOCK_CTX *block_p;
-	PAR3_MAP_CTX *map_p;
+	PAR3_SLICE_CTX *slice_p;
 
 	// Copy variables from context to local.
 	block_size = par3_ctx->block_size;
@@ -29,35 +29,35 @@ int count_map_info(PAR3_CTX *par3_ctx)
 	if ( (chunk_count == 0) || (block_size == 0) || (block_count == 0) )
 		return RET_LOGIC_ERROR;
 
-	map_count = 0;
+	slice_count = 0;
 	while (chunk_count > 0){
 		chunk_size = chunk_p->size;
 		if (chunk_size != 0){
 			if (chunk_size >= block_size){
-				map_count += chunk_size / block_size;
+				slice_count += chunk_size / block_size;
 				tail_size = chunk_size % block_size;
 			} else {
 				tail_size = chunk_size;
 			}
 			if (tail_size >= 40)
-				map_count++;
+				slice_count++;
 		}
 
 		chunk_p++;
 		chunk_count--;
 	}
 
-	par3_ctx->map_count = map_count;
+	par3_ctx->slice_count = slice_count;
 	if (par3_ctx->noise_level >= 2){
-		printf("Number of map info = %I64u\n", map_count);
+		printf("Number of input file slices = %I64u\n", slice_count);
 	}
 
-	// Allocate memory for block and map info.
-	if (par3_ctx->map_list != NULL)
-		free(par3_ctx->map_list);
-	par3_ctx->map_list = malloc(sizeof(PAR3_MAP_CTX) * map_count);
-	if (par3_ctx->map_list == NULL){
-		perror("Failed to allocate memory for mapping");
+	// Allocate memory for block and slice info.
+	if (par3_ctx->slice_list != NULL)
+		free(par3_ctx->slice_list);
+	par3_ctx->slice_list = malloc(sizeof(PAR3_SLICE_CTX) * slice_count);
+	if (par3_ctx->slice_list == NULL){
+		perror("Failed to allocate memory for input file slices");
 		return RET_MEMORY_ERROR;
 	}
 	if (par3_ctx->block_list != NULL)
@@ -68,21 +68,21 @@ int count_map_info(PAR3_CTX *par3_ctx)
 		return RET_MEMORY_ERROR;
 	}
 
-	// Initialize map info.
-	map_p = par3_ctx->map_list;
-	while (map_count > 0){
-		map_p->next = -1;
-		map_p->find_name = NULL;
-		map_p->find_offset = 0;
+	// Initialize slice info.
+	slice_p = par3_ctx->slice_list;
+	while (slice_count > 0){
+		slice_p->next = -1;
+		slice_p->find_name = NULL;
+		slice_p->find_offset = 0;
 
-		map_p++;
-		map_count--;
+		slice_p++;
+		slice_count--;
 	}
 
 	// Initialize block info.
 	block_p = par3_ctx->block_list;
 	while (block_count > 0){
-		block_p->map = -1;
+		block_p->slice = -1;
 		block_p->size = 0;
 		block_p->crc = 0;
 		memset(block_p->hash, 0, 16);
@@ -95,18 +95,18 @@ int count_map_info(PAR3_CTX *par3_ctx)
 	return 0;
 }
 
-int set_map_info(PAR3_CTX *par3_ctx)
+int set_slice_info(PAR3_CTX *par3_ctx)
 {
 	uint32_t num, num_pack, input_file_count;
 	uint32_t chunk_count, chunk_index, chunk_num;
 	int64_t index;
 	uint64_t block_size, chunk_size;
 	uint64_t block_count, file_offset, tail_offset;
-	uint64_t map_count, map_index, block_index;
+	uint64_t slice_count, slice_index, block_index;
 	uint64_t num_dedup;
 	PAR3_FILE_CTX *file_p;
 	PAR3_CHUNK_CTX *chunk_p;
-	PAR3_MAP_CTX *map_p, *map_list;
+	PAR3_SLICE_CTX *slice_p, *slice_list;
 	PAR3_BLOCK_CTX *block_list;
 
 	// Copy variables from context to local.
@@ -114,14 +114,14 @@ int set_map_info(PAR3_CTX *par3_ctx)
 	block_size = par3_ctx->block_size;
 	block_count = par3_ctx->block_count;
 	chunk_count = par3_ctx->chunk_count;
-	map_count = par3_ctx->map_count;
+	slice_count = par3_ctx->slice_count;
 	block_list = par3_ctx->block_list;
-	map_list = par3_ctx->map_list;
-	map_p = map_list;
+	slice_list = par3_ctx->slice_list;
+	slice_p = slice_list;
 
 	num_dedup = 0;
 	num_pack = 0;
-	map_index = 0;
+	slice_index = 0;
 	file_p = par3_ctx->input_file_list;
 	for (num = 0; num < input_file_count; num++){
 		if (file_p->size == 0){	// Skip empty files.
@@ -132,10 +132,10 @@ int set_map_info(PAR3_CTX *par3_ctx)
 		file_offset = 0;
 		chunk_index = file_p->chunk;	// index of the first chunk
 		chunk_num = file_p->chunk_num;	// number of chunk descriptions
-		file_p->map = map_index;		// index of the first map info
+		file_p->slice = slice_index;	// index of the first slice
 		if (par3_ctx->noise_level >= 2){
-			printf("chunk = %u + %u, map = %I64u, file size = %I64u \"%s\"\n",
-					chunk_index, chunk_num, map_index, file_p->size, file_p->name);
+			printf("chunk = %u + %u, slice = %I64u, file size = %I64u \"%s\"\n",
+					chunk_index, chunk_num, slice_index, file_p->size, file_p->name);
 		}
 
 		while (chunk_num > 0){	// check all chunk descriptions
@@ -150,54 +150,54 @@ int set_map_info(PAR3_CTX *par3_ctx)
 				//printf("chunk size = %I64u, first block = %I64u\n", chunk_size, block_index);
 
 				while (chunk_size >= block_size){
-					if (map_index >= map_count){
-						printf("There are too many map info. %I64u\n", map_index);
+					if (slice_index >= slice_count){
+						printf("There are too many input file slices. %I64u\n", slice_index);
 						return RET_LOGIC_ERROR;
 					}
 					if (block_index >= block_count){
 						printf("There are too many input blocks. %I64u\n", block_index);
 						return RET_LOGIC_ERROR;
 					}
-					index = block_list[block_index].map;
+					index = block_list[block_index].slice;
 					if (index != -1){
-						// If map info was set elready, it's a same block.
-						while (map_list[index].next != -1){
-							index = map_list[index].next;
+						// If slice info was set elready, it's a same block.
+						while (slice_list[index].next != -1){
+							index = slice_list[index].next;
 						}
-						map_list[index].next = map_index;
+						slice_list[index].next = slice_index;
 						num_dedup++;
 						if (par3_ctx->noise_level >= 2){
-							printf("old block[%2I64u] : map[%2I64u] chunk[%2u] file %d, offset %I64u\n",
-									block_index, map_index, chunk_index, num, file_offset);
+							printf("old block[%2I64u] : slice[%2I64u] chunk[%2u] file %d, offset %I64u\n",
+									block_index, slice_index, chunk_index, num, file_offset);
 						}
 
 					} else {
-						block_list[block_index].map = map_index;
+						block_list[block_index].slice = slice_index;
 						block_list[block_index].size = block_size;
 						block_list[block_index].state |= 1;
 						if (par3_ctx->noise_level >= 2){
-							printf("new block[%2I64u] : map[%2I64u] chunk[%2u] file %d, offset %I64u\n",
-									block_index, map_index, chunk_index, num, file_offset);
+							printf("new block[%2I64u] : slice[%2I64u] chunk[%2u] file %d, offset %I64u\n",
+									block_index, slice_index, chunk_index, num, file_offset);
 						}
 					}
 
-					// set map info
-					map_p->chunk = chunk_index;
-					map_p->file = num;
-					map_p->offset = file_offset;
-					map_p->size = block_size;
-					map_p->block = block_index;
-					map_p->tail_offset = 0;
-					map_p++;
-					map_index++;
+					// set slice info
+					slice_p->chunk = chunk_index;
+					slice_p->file = num;
+					slice_p->offset = file_offset;
+					slice_p->size = block_size;
+					slice_p->block = block_index;
+					slice_p->tail_offset = 0;
+					slice_p++;
+					slice_index++;
 
 					block_index++;
 					file_offset += block_size;
 					chunk_size -= block_size;
 				}
 				if (chunk_size >= 40){	// Chunk tail size is equal or larger than 40 bytes.
-					if (map_index >= map_count){
-						printf("There are too many map info. %I64u\n", map_index);
+					if (slice_index >= slice_count){
+						printf("There are too many input file slices. %I64u\n", slice_index);
 						return RET_LOGIC_ERROR;
 					}
 					block_index = chunk_p->tail_block;	// index of block holding tail
@@ -212,64 +212,64 @@ int set_map_info(PAR3_CTX *par3_ctx)
 					}
 					//printf("tail size = %I64u, belong block = %I64u, offset = %I64u\n", chunk_size, block_index, tail_offset);
 
-					index = block_list[block_index].map;
+					index = block_list[block_index].slice;
 					if (index != -1){
-						// Search map info to find same tail.
+						// Search slice info to find same tail.
 						do {
-							//printf("map[%2I64u].size = %I64u, tail_offset = %I64u\n", index, map_list[index].size, map_list[index].tail_offset);
-							if ( (map_list[index].size == chunk_size) && (map_list[index].tail_offset == tail_offset) ){
+							//printf("slice[%2I64u].size = %I64u, tail_offset = %I64u\n", index, slice_list[index].size, slice_list[index].tail_offset);
+							if ( (slice_list[index].size == chunk_size) && (slice_list[index].tail_offset == tail_offset) ){
 								break;
 							}
-							index = map_list[index].next;
+							index = slice_list[index].next;
 						} while (index != -1);
 
 						if (index != -1){
 							num_dedup++;
 							if (par3_ctx->noise_level >= 2){
-								printf("o t block[%2I64u] : map[%2I64u] chunk[%2u] file %d, offset %I64u, tail size %I64u, offset %I64u\n",
-										block_index, map_index, chunk_index, num, file_offset, chunk_size, tail_offset);
+								printf("o t block[%2I64u] : slice[%2I64u] chunk[%2u] file %d, offset %I64u, tail size %I64u, offset %I64u\n",
+										block_index, slice_index, chunk_index, num, file_offset, chunk_size, tail_offset);
 							}
 						} else {
 							num_pack++;
 							if (block_list[block_index].size < tail_offset + chunk_size)
 								block_list[block_index].size = tail_offset + chunk_size;
 							if (par3_ctx->noise_level >= 2){
-								printf("a t block[%2I64u] : map[%2I64u] chunk[%2u] file %d, offset %I64u, tail size %I64u, offset %I64u\n",
-										block_index, map_index, chunk_index, num, file_offset, chunk_size, tail_offset);
+								printf("a t block[%2I64u] : slice[%2I64u] chunk[%2u] file %d, offset %I64u, tail size %I64u, offset %I64u\n",
+										block_index, slice_index, chunk_index, num, file_offset, chunk_size, tail_offset);
 							}
 						}
 
-						// If map info was set elready, it may be a chunk tail in the same block.
-						index = block_list[block_index].map;
-						while (map_list[index].next != -1){
-							index = map_list[index].next;
+						// If slice info was set elready, it may be a chunk tail in the same block.
+						index = block_list[block_index].slice;
+						while (slice_list[index].next != -1){
+							index = slice_list[index].next;
 						}
-						map_list[index].next = map_index;
-						//printf("map[%2I64u].next = %I64u\n", index, map_index);
+						slice_list[index].next = slice_index;
+						//printf("slice[%2I64u].next = %I64u\n", index, slice_index);
 
 					} else {
-						block_list[block_index].map = map_index;
+						block_list[block_index].slice = slice_index;
 						block_list[block_index].size = tail_offset + chunk_size;
 						block_list[block_index].state |= 2;
 						if (par3_ctx->noise_level >= 2){
-							printf("n t block[%2I64u] : map[%2I64u] chunk[%2u] file %d, offset %I64u, tail size %I64u, offset %I64u\n",
-									block_index, map_index, chunk_index, num, file_offset, chunk_size, tail_offset);
+							printf("n t block[%2I64u] : slice[%2I64u] chunk[%2u] file %d, offset %I64u, tail size %I64u, offset %I64u\n",
+									block_index, slice_index, chunk_index, num, file_offset, chunk_size, tail_offset);
 						}
 					}
 
-					// set map info
-					map_p->chunk = chunk_index;
-					map_p->file = num;
-					map_p->offset = file_offset;
-					map_p->size = chunk_size;
-					map_p->block = block_index;
-					map_p->tail_offset = tail_offset;
-					map_p++;
-					map_index++;
+					// set slice info
+					slice_p->chunk = chunk_index;
+					slice_p->file = num;
+					slice_p->offset = file_offset;
+					slice_p->size = chunk_size;
+					slice_p->block = block_index;
+					slice_p->tail_offset = tail_offset;
+					slice_p++;
+					slice_index++;
 
 				} else if (chunk_size > 0){	// Chunk tail size = 1~39 bytes.
 					if (par3_ctx->noise_level >= 2){
-						printf("    block no  : map no  chunk[%2u] file %d, offset %I64u, tail size %I64u\n",
+						printf("    block no  : slice no  chunk[%2u] file %d, offset %I64u, tail size %I64u\n",
 								chunk_index, num, file_offset, chunk_size);
 					}
 
@@ -284,17 +284,17 @@ int set_map_info(PAR3_CTX *par3_ctx)
 		file_p++;
 	}
 
-	// Check all blocks have map info.
+	// Check every block has own slice.
 	for (block_index = 0; block_index < block_count; block_index++){
-		if (block_list[block_index].map == -1){
-			printf("There is no map info for input block[%I64u].\n", block_index);
+		if (block_list[block_index].slice == -1){
+			printf("There is no slice for input block[%I64u].\n", block_index);
 			return RET_INSUFFICIENT_DATA;
 		}
 	}
 
-	// Check actual number of map info
-	if (map_index != map_count){
-		printf("Number of map info = %I64u (max %I64u)\n", map_index, map_count);
+	// Check actual number of slices.
+	if (slice_index != slice_count){
+		printf("Number of input file slices = %I64u (max %I64u)\n", slice_index, slice_count);
 		return RET_LOGIC_ERROR;
 	}
 	if (par3_ctx->noise_level >= 0){

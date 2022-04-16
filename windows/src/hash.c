@@ -261,6 +261,7 @@ static int compare_crc( const void *arg1, const void *arg2 )
 }
 
 // Compare CRC-64 of blocks
+// Return index of a block, which has the same CRC-64 and fingerprint hash.
 // When no match, return -1 ~ -2. When fingerprint hash was calculated, return -3.
 int64_t crc_list_compare(PAR3_CTX *par3_ctx, uint64_t crc, uint8_t *buf, uint8_t hash[16])
 {
@@ -332,10 +333,10 @@ void crc_list_add(PAR3_CTX *par3_ctx, uint64_t crc, uint64_t index)
 int crc_list_make(PAR3_CTX *par3_ctx)
 {
 	uint64_t full_count, tail_count, index;
-	uint64_t block_size, block_count, chunk_count, map_count;
+	uint64_t block_size, block_count, chunk_count, slice_count;
 	PAR3_BLOCK_CTX *block_p;
 	PAR3_CHUNK_CTX *chunk_list;
-	PAR3_MAP_CTX *map_p;
+	PAR3_SLICE_CTX *slice_p;
 	PAR3_CMP_CTX *crc_list, *tail_list;
 
 	if (par3_ctx->block_count == 0){
@@ -367,8 +368,8 @@ int crc_list_make(PAR3_CTX *par3_ctx)
 	tail_count = 0;
 	block_p = par3_ctx->block_list;
 	chunk_list = par3_ctx->chunk_list;
-	map_count = par3_ctx->map_count;
-	map_p = par3_ctx->map_list;
+	slice_count = par3_ctx->slice_count;
+	slice_p = par3_ctx->slice_list;
 	block_size = par3_ctx->block_size;
 
 	// Find block of full size data, and set CRC of the block.
@@ -383,15 +384,15 @@ int crc_list_make(PAR3_CTX *par3_ctx)
 		block_p++;
 	}
 
-	// Find map for chunk tail, and set CRC of the chunk.
-	for (index = 0; index < map_count; index++){
-		if (map_p->size < block_size){	// This map is a chunk tail.
-			tail_list[tail_count].crc = chunk_list[map_p->chunk].tail_crc;
+	// Find slice for chunk tail, and set CRC of the chunk.
+	for (index = 0; index < slice_count; index++){
+		if (slice_p->size < block_size){	// This slice is a chunk tail.
+			tail_list[tail_count].crc = chunk_list[slice_p->chunk].tail_crc;
 			tail_list[tail_count].index = index;
 			tail_count++;
 		}
 
-		map_p++;
+		slice_p++;
 	}
 
 	// Re-allocate memory for actual number of CRC-64
@@ -465,69 +466,33 @@ void crc_list_replace(PAR3_CTX *par3_ctx, uint64_t crc, uint64_t index)
 	}
 }
 
-// Compare CRC-64 of chunk tails
-// When no match, return -1 ~ -2. When fingerprint hash was calculated, return -3.
-int64_t tail_list_compare(PAR3_CTX *par3_ctx, uint64_t crc, uint8_t *buf, uint8_t hash[16])
+// Compare CRC-64 of blocks or chunk tails
+// Return index of the first item, which has the same CRC-64.
+// When no match, return -1 ~ -2
+int64_t cmp_list_search(PAR3_CTX *par3_ctx, uint64_t crc, PAR3_CMP_CTX *cmp_list, uint64_t count)
 {
-	uint64_t count, index;
-	uint64_t block_size, tail_size, new_size;
-	PAR3_CMP_CTX cmp_key, *cmp_p, *cmp2_p;
-	PAR3_CHUNK_CTX *chunk_list;
-	PAR3_MAP_CTX *map_list;
+	int64_t index;
+	PAR3_CMP_CTX cmp_key, *cmp_p;
 
-	count = par3_ctx->tail_count;
 	if (count == 0)
 		return -1;
 
 	// Binary search
 	cmp_key.crc = crc;
-	cmp_p = (PAR3_CMP_CTX *)bsearch( &cmp_key, par3_ctx->tail_list, (size_t)count, sizeof(PAR3_CMP_CTX), compare_crc );
+	cmp_p = (PAR3_CMP_CTX *)bsearch( &cmp_key, cmp_list, (size_t)count, sizeof(PAR3_CMP_CTX), compare_crc );
 	if (cmp_p == NULL)
 		return -2;
 
-	chunk_list = par3_ctx->chunk_list;
-	map_list = par3_ctx->map_list;
-	block_size = par3_ctx->block_size;
-	tail_size = map_list[cmp_p->index].size % block_size;
-	blake3(buf, tail_size, hash);
-	if (memcmp(hash, chunk_list[map_list[cmp_p->index].chunk].tail_hash, 16) == 0)
-		return cmp_p->index;
-
 	// Search lower items of same CRC-64
-	cmp2_p = cmp_p;
-	index = cmp_p - par3_ctx->tail_list;
+	index = cmp_p - cmp_list;
 	while (index > 0){
 		index--;
-		cmp2_p--;
-		if (cmp2_p->crc != crc)
+		cmp_p--;
+		if (cmp_p->crc != crc)
 			break;
-		new_size = map_list[cmp2_p->index].size % block_size;
-		if (tail_size != new_size){
-			tail_size = new_size;
-			blake3(buf, tail_size, hash);
-		}
-		if (memcmp(hash, chunk_list[map_list[cmp2_p->index].chunk].tail_hash, 16) == 0)
-			return cmp2_p->index;
 	}
 
-	// Search higher items of same CRC-64
-	cmp2_p = cmp_p;
-	index = cmp_p - par3_ctx->tail_list;
-	while (index + 1 < count){
-		index++;
-		cmp2_p++;
-		if (cmp2_p->crc != crc)
-			break;
-		new_size = map_list[cmp2_p->index].size % block_size;
-		if (tail_size != new_size){
-			tail_size = new_size;
-			blake3(buf, tail_size, hash);
-		}
-		if (memcmp(hash, chunk_list[map_list[cmp2_p->index].chunk].tail_hash, 16) == 0)
-			return cmp2_p->index;
-	}
-
-	return -3;
+	return index;
 }
 
 

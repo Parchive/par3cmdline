@@ -143,14 +143,14 @@ static int write_data_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t each_s
 	size_t write_size, write_size2;
 	size_t packet_count, packet_to, packet_from;
 	size_t common_packet_size, packet_size, packet_offset;
-	PAR3_MAP_CTX *map_list;
+	PAR3_SLICE_CTX *slice_list;
 	PAR3_BLOCK_CTX *block_list;
 	FILE *fp;
 	blake3_hasher hasher;
 
 	block_size = par3_ctx->block_size;
 	buf_p = par3_ctx->input_block + block_size * each_start;
-	map_list = par3_ctx->map_list;
+	slice_list = par3_ctx->slice_list;
 	block_list = par3_ctx->block_list;
 	common_packet = par3_ctx->common_packet;
 	common_packet_size = par3_ctx->common_packet_size;

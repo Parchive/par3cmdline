@@ -15,25 +15,24 @@
 
 
 // offset_next = File data is complete until here.
-// find_slice = number of found slices in the file
 // return 0 = complete, -1 = not enough data, -2 = too many data
 // -3 = CRC of the first 16 KB is different, -4 = block data is different
 // -5 = chunk tail is different, -6 = tiny chunk tail is different
 // -7 = file hash is different
 int check_complete_file(PAR3_CTX *par3_ctx, uint32_t file_id,
-	uint64_t current_size, uint64_t *offset_next, uint64_t *find_slice)
+	uint64_t current_size, uint64_t *offset_next)
 {
 	uint8_t *work_buf, buf_tail[40], buf_hash[16];
 	uint32_t chunk_index, chunk_num, flag_unknown;
 	int64_t block_index;
-	uint64_t block_size, map_index;
+	uint64_t block_size, slice_index;
 	uint64_t chunk_size, tail_size;
 	uint64_t file_size, file_offset;
 	uint64_t size16k, crc16k, crc;
 	PAR3_FILE_CTX *file_p;
 	PAR3_CHUNK_CTX *chunk_list;
 	PAR3_BLOCK_CTX *block_list;
-	PAR3_MAP_CTX *map_list;
+	PAR3_SLICE_CTX *slice_list;
 	FILE *fp;
 	blake3_hasher hasher;
 
@@ -58,7 +57,7 @@ int check_complete_file(PAR3_CTX *par3_ctx, uint32_t file_id,
 	work_buf = par3_ctx->work_buf;
 	chunk_list = par3_ctx->chunk_list;
 	block_list = par3_ctx->block_list;
-	map_list = par3_ctx->map_list;
+	slice_list = par3_ctx->slice_list;
 
 	fp = fopen(file_p->name, "rb");
 	if (fp == NULL){
@@ -77,7 +76,7 @@ int check_complete_file(PAR3_CTX *par3_ctx, uint32_t file_id,
 	}
 
 	chunk_index = file_p->chunk;	// First chunk in this file
-	map_index = file_p->map;
+	slice_index = file_p->slice;
 	chunk_size = chunk_list[chunk_index].size;
 	block_index = chunk_list[chunk_index].block;
 	if (par3_ctx->noise_level >= 2){
@@ -147,13 +146,12 @@ int check_complete_file(PAR3_CTX *par3_ctx, uint32_t file_id,
 						blake3(work_buf, (size_t)block_size, buf_hash);
 						if (memcmp(buf_hash, block_list[block_index].hash, 16) == 0){
 							if (par3_ctx->noise_level >= 2){
-								printf("full block[%2I64d] : map[%2I64u] chunk[%2u] file %d, offset = %I64u\n",
-										block_index, map_index, chunk_index, file_id, file_offset);
+								printf("full block[%2I64d] : slice[%2I64u] chunk[%2u] file %d, offset = %I64u\n",
+										block_index, slice_index, chunk_index, file_id, file_offset);
 							}
-							map_list[map_index].find_name = file_p->name;
-							map_list[map_index].find_offset = file_offset;
+							slice_list[slice_index].find_name = file_p->name;
+							slice_list[slice_index].find_offset = file_offset;
 							block_list[block_index].state |= 4;
-							*find_slice += 1;
 						} else {	// BLAKE3 hash is different.
 							block_index = -1;
 						}
@@ -181,7 +179,7 @@ int check_complete_file(PAR3_CTX *par3_ctx, uint32_t file_id,
 
 				blake3_hasher_update(&hasher, work_buf, (size_t)block_size);
 				block_index++;
-				map_index++;
+				slice_index++;
 				chunk_size -= block_size;
 				file_offset += block_size;
 				if (flag_unknown == 0)
@@ -242,13 +240,12 @@ int check_complete_file(PAR3_CTX *par3_ctx, uint32_t file_id,
 					blake3(work_buf, (size_t)tail_size, buf_hash);
 					if (memcmp(buf_hash, chunk_list[chunk_index].tail_hash, 16) == 0){
 						if (par3_ctx->noise_level >= 2){
-							printf("tail block[%2I64d] : map[%2I64u] chunk[%2u] file %d, offset = %I64u, size = %I64u\n",
-									block_index, map_index, chunk_index, file_id, file_offset, tail_size);
+							printf("tail block[%2I64d] : slice[%2I64u] chunk[%2u] file %d, offset = %I64u, size = %I64u\n",
+									block_index, slice_index, chunk_index, file_id, file_offset, tail_size);
 						}
-						map_list[map_index].find_name = file_p->name;
-						map_list[map_index].find_offset = file_offset;
+						slice_list[slice_index].find_name = file_p->name;
+						slice_list[slice_index].find_offset = file_offset;
 						block_list[block_index].state |= 8;
-						*find_slice += 1;
 					} else {	// BLAKE3 hash is different.
 						block_index = -1;
 					}
@@ -261,7 +258,7 @@ int check_complete_file(PAR3_CTX *par3_ctx, uint32_t file_id,
 					return -5;
 				}
 				blake3_hasher_update(&hasher, work_buf, (size_t)tail_size);
-				map_index++;
+				slice_index++;
 				chunk_size -= tail_size;
 				file_offset += tail_size;
 				if (flag_unknown == 0)
@@ -303,7 +300,7 @@ int check_complete_file(PAR3_CTX *par3_ctx, uint32_t file_id,
 				// Compare bytes directly.
 				if (memcmp(work_buf, buf_tail, (size_t)tail_size) == 0){
 					if (par3_ctx->noise_level >= 2){
-						printf("tail block no  : map no  chunk[%2u] file %d, offset = %I64u, size = %I64u\n",
+						printf("tail block no  : slice no  chunk[%2u] file %d, offset = %I64u, size = %I64u\n",
 								chunk_index, file_id, file_offset, tail_size);
 					}
 					// Tiny chunk tail isn't counted as searching slice.
@@ -357,21 +354,20 @@ int check_complete_file(PAR3_CTX *par3_ctx, uint32_t file_id,
 		// Set block info
 		chunk_index = file_p->chunk;
 		chunk_num = file_p->chunk_num;
-		map_index = file_p->map;
+		slice_index = file_p->slice;
 		while (chunk_num > 0){
 			chunk_size = chunk_list[chunk_index].size;
 			block_index = chunk_list[chunk_index].block;
 
 			// Check all blocks in the chunk
 			while (chunk_size >= block_size){
-				if (map_list[map_index].find_name == NULL){	// When this map was not found.
+				if (slice_list[slice_index].find_name == NULL){	// When this slice was not found.
 					if (par3_ctx->noise_level >= 2){
-						printf("full block[%2I64d] : map[%2I64u] chunk[%2u] file %d, offset = %I64u, no checksum\n",
-								block_index, map_index, chunk_index, file_id, file_offset);
+						printf("full block[%2I64d] : slice[%2I64u] chunk[%2u] file %d, offset = %I64u, no checksum\n",
+								block_index, slice_index, chunk_index, file_id, file_offset);
 					}
-					map_list[map_index].find_name = file_p->name;
-					map_list[map_index].find_offset = file_offset;	// Set map at ordinary position.
-					*find_slice += 1;
+					slice_list[slice_index].find_name = file_p->name;
+					slice_list[slice_index].find_offset = file_offset;	// Set slice at ordinary position.
 
 					if ((block_list[block_index].state & 64) == 0){	// There was no checksum for this block.
 						block_list[block_index].state |= (4 | 64);	// Found block and calculated its checksum.
@@ -381,13 +377,13 @@ int check_complete_file(PAR3_CTX *par3_ctx, uint32_t file_id,
 					}
 				}
 
-				map_index++;
+				slice_index++;
 				block_index++;
 				file_offset += block_size;
 				chunk_size -= block_size;
 			}
 			if (chunk_size >= 40)
-				map_index++;
+				slice_index++;
 			file_offset += chunk_size;
 
 			chunk_index++;	// goto next chunk
@@ -404,18 +400,21 @@ int check_complete_file(PAR3_CTX *par3_ctx, uint32_t file_id,
 	return 0;
 }
 
-// This checks mapping of blocks in the file.
+// This checks available slices in the file.
 // This uses pointer of filename, instead of file ID.
 int check_damaged_file(PAR3_CTX *par3_ctx, uint8_t *filename,
-	uint64_t file_size, uint64_t file_offset, uint64_t *find_slice, uint8_t *file_hash)
+	uint64_t file_size, uint64_t file_offset, uint64_t *file_damage, uint8_t *file_hash)
 {
 	uint8_t *work_buf, buf_hash[16];
-	int64_t find_index, index;
+	int64_t find_index, block_index, slice_index;
 	uint64_t block_size, read_size, slide_offset;
-	uint64_t crc, crc40, crc_count, tail_count;
+	uint64_t crc, crc40, crc_count, tail_count, tail_size;
 	uint64_t window_mask, *window_table, window_mask40, *window_table40;
+	uint64_t damage_size, find_last, find_min, find_max;
 	PAR3_BLOCK_CTX *block_list;
-	PAR3_MAP_CTX *map_list;
+	PAR3_SLICE_CTX *slice_list;
+	PAR3_CHUNK_CTX *chunk_list;
+	PAR3_CMP_CTX *crc_list, *tail_list;
 	FILE *fp;
 	blake3_hasher hasher;
 
@@ -430,11 +429,18 @@ int check_damaged_file(PAR3_CTX *par3_ctx, uint8_t *filename,
 		return 0;
 	}
 
+	// File data till file_offset is available.
+	damage_size = 0;
+	find_last = find_max = file_offset;
+
 	// Copy variables from context to local.
 	block_size = par3_ctx->block_size;
 	work_buf = par3_ctx->work_buf;
 	block_list = par3_ctx->block_list;
-	map_list = par3_ctx->map_list;
+	slice_list = par3_ctx->slice_list;
+	chunk_list = par3_ctx->chunk_list;
+	crc_list = par3_ctx->crc_list;
+	tail_list = par3_ctx->tail_list;
 
 	// Prepare to search blocks.
 	window_mask = par3_ctx->window_mask;
@@ -480,26 +486,47 @@ int check_damaged_file(PAR3_CTX *par3_ctx, uint8_t *filename,
 	//printf("block crc = 0x%016I64x, tail crc = 0x%016I64x\n", crc, crc40);
 
 	while (file_offset < file_size){
+		// Prepare to check range of found slices
+		find_min = file_size;
+
 		// Compare current CRC-64 with full size blocks.
 		if ( (file_offset + block_size <= file_size) && (crc_count > 0) ){
 			//printf("file_offset = %I64u, block crc = 0x%016I64x\n", file_offset, crc);
 			slide_offset = 0;
 			while ( (slide_offset < block_size) && (file_offset + slide_offset + block_size <= file_size) ){
-				// find_index is a index of block for the found block.
-				find_index = crc_list_compare(par3_ctx, crc, work_buf + slide_offset, buf_hash);
-				if (find_index >= 0){	// When a block was found while slide search.
-					if (par3_ctx->noise_level >= 2){
-						printf("full block[%2I64d] : offset = %I64u + %I64u\n",
-								find_index, file_offset, slide_offset);
+				tail_size = 0;
+				// find_index is the first index of the matching CRC-64. There may be multiple items.
+				find_index = cmp_list_search(par3_ctx, crc, crc_list, crc_count);
+				while (find_index >= 0){	// When CRC-64 is same.
+					block_index = crc_list[find_index].index;	// index of block
+					if (tail_size == 0){
+						tail_size++;
+						blake3(work_buf + slide_offset, block_size, buf_hash);
 					}
-					if ((block_list[find_index].state & 4) == 0){	// When this block was not found yet.
-						// Store filename & position of this map for later reading.
-						index = block_list[find_index].map;
-						map_list[index].find_name = filename;
-						map_list[index].find_offset = file_offset + slide_offset;
-						block_list[find_index].state |= 4;
-						*find_slice += 1;
+					if (memcmp(buf_hash, block_list[block_index].hash, 16) == 0){
+						if (par3_ctx->noise_level >= 2){
+							printf("full block[%2I64d] : offset = %I64u + %I64u\n",
+									block_index, file_offset, slide_offset);
+						}
+						if ((block_list[block_index].state & 4) == 0){	// When this block was not found yet.
+							// Store filename & position of this slice for later reading.
+							slice_index = block_list[block_index].slice;
+							slice_list[slice_index].find_name = filename;
+							slice_list[slice_index].find_offset = file_offset + slide_offset;
+							block_list[block_index].state |= 4;
+						}
+						if (find_min > file_offset + slide_offset)
+							find_min = file_offset + slide_offset;
+						if (find_max < file_offset + slide_offset + block_size)
+							find_max = file_offset + slide_offset + block_size;
 					}
+
+					// Goto next item
+					find_index++;
+					if (find_index == crc_count)
+						break;
+					if (crc_list[find_index].crc != crc)
+						break;
 				}
 
 				crc = window_mask ^ crc_slide_byte(window_mask ^ crc,
@@ -513,21 +540,46 @@ int check_damaged_file(PAR3_CTX *par3_ctx, uint8_t *filename,
 			//printf("file_offset = %I64u, tail crc = 0x%016I64x\n", file_offset, crc40);
 			slide_offset = 0;
 			while ( (slide_offset < block_size) && (file_offset + slide_offset + 40 <= file_size) ){
-				// find_index is a index of map for the found chunk tail.
-				find_index = tail_list_compare(par3_ctx, crc40, work_buf + slide_offset, buf_hash);
-				if (find_index >= 0){	// When a chunk tail was found while slide search.
-					index = map_list[find_index].block;
-					if (par3_ctx->noise_level >= 2){
-						printf("tail block[%2I64u] : map[%2I64d] offset = %I64u + %I64u, tail size = %I64u, offset = %I64u\n",
-								index, find_index, file_offset, slide_offset, map_list[find_index].size, map_list[find_index].tail_offset);
+				// Because CRC-64 for chunk tails is a range of the first 40-bytes, total data may be different.
+				tail_size = 0;
+				// find_index is the first index of the matching CRC-64. There may be multiple items.
+				find_index = cmp_list_search(par3_ctx, crc40, tail_list, tail_count);
+				while (find_index >= 0){	// When CRC-64 is same.
+					slice_index = tail_list[find_index].index;	// index of slice
+					if (tail_size != slice_list[slice_index].size){
+						tail_size = slice_list[slice_index].size;
+						if (file_offset + slide_offset + tail_size <= file_size){
+							blake3(work_buf + slide_offset, tail_size, buf_hash);
+						} else {
+							// When chunk tail exceeds file data, hash value becomes zero.
+							memset(buf_hash, 0, 16);
+						}
 					}
-					if (map_list[find_index].find_name == NULL){	// When this map was not found yet.
-						// Store filename & position of this map later reading.
-						map_list[find_index].find_name = filename;
-						map_list[find_index].find_offset = file_offset + slide_offset;
-						block_list[index].state |= 8;
-						*find_slice += 1;
+					if (memcmp(buf_hash, chunk_list[slice_list[slice_index].chunk].tail_hash, 16) == 0){
+						// When a chunk tail was found while slide search.
+						block_index = slice_list[slice_index].block;
+						if (par3_ctx->noise_level >= 2){
+							printf("tail block[%2I64u] : slice[%2I64d] offset = %I64u + %I64u, tail size = %I64u, offset = %I64u\n",
+									block_index, slice_index, file_offset, slide_offset, tail_size, slice_list[slice_index].tail_offset);
+						}
+						if (slice_list[slice_index].find_name == NULL){	// When this slice was not found yet.
+							// Store filename & position of this slice for later reading.
+							slice_list[slice_index].find_name = filename;
+							slice_list[slice_index].find_offset = file_offset + slide_offset;
+							block_list[block_index].state |= 8;
+						}
+						if (find_min > file_offset + slide_offset)
+							find_min = file_offset + slide_offset;
+						if (find_max < file_offset + slide_offset + tail_size)
+							find_max = file_offset + slide_offset + tail_size;
 					}
+
+					// Goto next item
+					find_index++;
+					if (find_index == tail_count)
+						break;
+					if (tail_list[find_index].crc != crc40)
+						break;
 				}
 
 				crc40 = window_mask40 ^ crc_slide_byte(window_mask40 ^ crc40,
@@ -536,6 +588,13 @@ int check_damaged_file(PAR3_CTX *par3_ctx, uint8_t *filename,
 			}
 		}
 		//printf("block crc = 0x%016I64x, tail crc = 0x%016I64x\n", crc, crc40);
+
+		// Check range of found slices
+		if ( (find_min < file_size) && (find_min > find_last) )
+			damage_size += find_min - find_last;
+		find_last = find_max;
+		//printf("file_offset = %I64u, find_min = %I64u, find_max %I64u, damage_size = %I64u\n",
+		//		file_offset, find_min, find_max, damage_size);
 
 		// Read next block on second position.
 		file_offset += block_size;
@@ -575,6 +634,12 @@ only when skipping slide ?
 			crc40 = crc64(work_buf, 40, 0);
 */
 	}
+
+	// Check the last damaged area in this file
+	if (find_max < file_size)
+		damage_size += file_size - find_max;
+	if (file_damage != NULL)
+		*file_damage = damage_size;
 
 	if (fclose(fp) != 0){
 		perror("Failed to close input file");
