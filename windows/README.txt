@@ -99,6 +99,9 @@ If many users request, I will add optional packets in future.
 
 [ About "verify" command ]
 
+ Verification requires memory of double block size.
+When there isn't enough free memory, it will show error.
+
  You may specify extra files after PAR3 filename.
 They are PAR3 files or misnamed (and/or damaged) input files.
 These files must exist under basepath or current directory.
