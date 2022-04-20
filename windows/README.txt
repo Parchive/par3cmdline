@@ -25,8 +25,12 @@ It can create Index File and Archive Files.
 Index File includes all types of packets without duplication.
 Archive Files include Data Packets, which is a piece of input files.
 
+While verification is possible, it may be very slow at this time.
+Currently I prefer finding as many slices as possible.
+I will improve in future.
+
 It cannot create Recovery Files yet.
-It cannot Verify nor Repair yet.
+It cannot Repair yet.
 It doesn't support "PAR inside" feature yet.
 
 
@@ -44,11 +48,14 @@ Usage:
   par3 l(ist)   [options] <PAR3 file>         : List files in PAR3 file
 
 Options: (all uses)
-  -B<path> : Set the basepath to use as reference for the datafiles
+  -B<path> : Set the base-path to use as reference for the datafiles
   -v [-v]  : Be more verbose
   -q [-q]  : Be more quiet (-q -q gives silence)
   -m<n>    : Memory (in MB) to use
   --       : Treat all following arguments as filenames
+  -abs     : Enable absolute path
+Options: (verify or repair)
+  -S<n>    : Searching time limit (milli second)
 Options: (create)
   -s<n>    : Set the Block-Size (don't use both -b and -s)
   -r<n>    : Level of redundancy (%%)
@@ -60,7 +67,6 @@ Options: (create)
   -R       : Recurse into subdirectories
   -D       : Store Data packets
   -d<n>    : Enable deduplication of input blocks
-  -abs     : Enable absolute path
   -C<text> : Set comment
 
 
@@ -104,10 +110,21 @@ When there isn't enough free memory, it will show error.
 
  You may specify extra files after PAR3 filename.
 They are PAR3 files or misnamed (and/or damaged) input files.
-These files must exist under basepath or current directory.
+These files must exist under base-path or current directory when base-path isn't set.
 If you add PAR3 file (extension with .par3),
 the file will be verified as PAR3 file.
 If you add other type files, they will be verified as input files.
+
+
+
+[ About specifying "PAR3 file" and "files" ]
+
+ If you wish to create PAR3 files for a single source file,
+you may leave out the name of the PAR3 file from the command line.
+par3cmdline will then assume that you wish to base the filenames
+for the PAR3 files on the name of the source file.
+
+ You may also leave off the .par3 file extension when verifying and repairing.
 
 
 
@@ -141,6 +158,44 @@ You should set larger value than block size.
 
 
 
+[ About "-abs" or "-ABS" option ]
+
+ This option is risky. You should not set this normally.
+By setting this, absolute path of files are stored in PAR3 files at creation.
+At verification, directory tree is treated as relative path by default.
+Only when you set "-abs" option, included absolute path becomes enabled.
+When a PAR3 file doesn't include absolute path, "-abs" option is ignored.
+
+ "-ABS" option is available on Windows OS only.
+This includes a drive letter in absolute path at creation.
+When a drive letter isn't included in a PAR3 file,
+it will refer the current drive.
+
+ At verification, "-abs" and "-ABS" are different behavior to search extra files.
+When "-abs" is set, base-path for extra files doen't include a drive letter.
+When "-ABS" is set, base-path for extra files includes a drive letter.
+If you don't specify extra files nor base-path, "-abs" and "-ABS" are same.
+
+
+
+[ About "-S<n>" option ]
+
+ When searching slices is very slow, it may look like freeze.
+So there is a time limit in searching loop.
+Normally, you don't need to change behavior by this option.
+
+ If you want to find more blocks in damaged files, set this option.
+When you set -S1000, it will spend max 1000 (milli seconds) per block.
+The default value is 100 ms per each block size.
+Because it may search 2 times per each block size, it may be double time.
+
+ Be careful to set large value.
+If you set -S1000 for a damaged file of 2000 blocks,
+it will consume max 4000 seconds. (2000 * 1000 * 2 = 4000,000 ms)
+4000 seconds are 66 minutes. You may need to wait so long.
+
+
+
 [ About "-D" option ]
 
  If you wants to store source file data in PAR3 file, set this option.
@@ -159,22 +214,6 @@ Deduplication level 1 : same blocks of ordinary offset are be detected.
 Deduplication level 2 : same blocks of varied offset are detected.
 Be careful, comparing checksum of blocks is slow.
 This may be useless for random data like compressed file.
-
-
-
-[ About "-abs" or "-ABS" option ]
-
- This option is risky. You should not set this normally.
-By setting this, absolute path of files are stored in PAR3 files at creation.
-At verification, directory tree is treated as relative path by default.
-Only when you set "-abs" option, included absolute path becomes enabled.
-When a PAR3 file doesn't include absolute path, "-abs" option is ignored.
-
- "-ABS" option is available on Windows OS only.
-This includes a drive letter in absolute path at creation.
-When a drive letter isn't included in a PAR3 file,
-it will refer the current drive.
-At verification, "-abs" and "-ABS" is same. It detects drive letter automatically.
 
 
 
