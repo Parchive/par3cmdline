@@ -40,7 +40,7 @@ int par3_list(PAR3_CTX *par3_ctx)
 	return 0;
 }
 
-int par3_verify(PAR3_CTX *par3_ctx, char *temp_path)
+int par3_verify(PAR3_CTX *par3_ctx)
 {
 	int ret;
 	uint32_t missing_dir_count, missing_file_count;
@@ -99,15 +99,20 @@ int par3_verify(PAR3_CTX *par3_ctx, char *temp_path)
 
 		// Aggregate verified result of available input blocks
 		block_available = aggregate_input_block(par3_ctx);
+
+		// When blocks are not enough, check extra files next.
+		if (block_available < par3_ctx->block_count){
+			// Check extra files and misnamed files.
+			ret = verify_extra_file(par3_ctx, &missing_file_count, &damaged_file_count, &misnamed_file_count);
+			if (ret != 0)
+				return ret;
+
+			// Aggregate again
+			block_available = aggregate_input_block(par3_ctx);
+		}
 	}
 
-/*
-When blocks are not enough, check extra files next.
-At that time, temp_path may be required ?
-
-*/
-
-	if (missing_dir_count + missing_file_count + damaged_file_count + misnamed_file_count > 0){
+	if (missing_dir_count + missing_file_count + damaged_file_count > 0){
 		if (par3_ctx->noise_level >= -1){
 			printf("\nRepair is required.\n");
 		}
@@ -117,6 +122,9 @@ At that time, temp_path may be required ?
 			}
 			if (par3_ctx->input_dir_count - missing_dir_count > 0){
 				printf("%u directories are ok.\n", par3_ctx->input_dir_count - missing_dir_count);
+			}
+			if (misnamed_file_count > 0){
+				printf("%u files have the wrong name.\n", misnamed_file_count);
 			}
 			if (missing_file_count > 0){
 				printf("%u files are missing.\n", missing_file_count);

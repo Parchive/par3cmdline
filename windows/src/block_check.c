@@ -26,6 +26,9 @@ int find_identical_block(PAR3_CTX *par3_ctx)
 	for (i = 0; i < par3_ctx->crc_count; i++){
 		printf("crc_list[%2I64u] = 0x%016I64x , block = %I64u\n", i, par3_ctx->crc_list[i].crc, par3_ctx->crc_list[i].index);
 	}
+	for (i = 0; i < par3_ctx->tail_count; i++){
+		printf("tail_list[%2I64u] = 0x%016I64x , slice = %I64u\n", i, par3_ctx->tail_list[i].crc, par3_ctx->tail_list[i].index);
+	}
 */
 
 	// Compare full size blocks.
@@ -54,7 +57,7 @@ int find_identical_block(PAR3_CTX *par3_ctx)
 					if (par3_ctx->noise_level >= 2){
 						if (flag_show == 0){
 							flag_show++;
-							printf("\nComparing input file slices to found slices:\n");
+							printf("\nComparing input file slices to found slices:\n\n");
 						}
 						printf("Map slice[%2I64u] to identical slice[%2I64u] in block[%2I64u].\n",
 								slice_index, find_index, block_index);
@@ -64,12 +67,6 @@ int find_identical_block(PAR3_CTX *par3_ctx)
 				}
 				slice_index = slice_list[slice_index].next;
 			} while (slice_index != -1);
-		}
-	}
-
-	if (par3_ctx->noise_level >= 2){
-		if (flag_show > 0){
-			printf("\n");
 		}
 	}
 

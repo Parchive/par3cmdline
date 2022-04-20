@@ -115,7 +115,7 @@ int verify_input_file(PAR3_CTX *par3_ctx, uint32_t *missing_file_count, uint32_t
 {
 	int ret;
 	uint32_t num;
-	uint64_t current_size, file_offset, find_slice, file_damage;
+	uint64_t current_size, file_offset, file_damage;
 	PAR3_FILE_CTX *file_p;
 
 	if (par3_ctx->input_file_count == 0)
@@ -201,14 +201,10 @@ int verify_input_file(PAR3_CTX *par3_ctx, uint32_t *missing_file_count, uint32_t
 		ret = check_file(file_p->name, &current_size);
 		file_p->state = ret;
 		if ( (ret == 0) && ( (file_p->size > 0) || (current_size > 0) ) ){
-			file_offset = 0;
-			find_slice = 0;
-
-			//printf("Target: \"%s\" - exist (not verified yet).\n", file_p->name);
-
 			if (par3_ctx->noise_level >= 0){
 				printf("Opening: \"%s\"\n", file_p->name);
 			}
+			file_offset = 0;
 			ret = check_complete_file(par3_ctx, num, current_size, &file_offset);
 			//printf("ret = %d, size = %I64u, offset = %I64u\n", ret, current_size, file_offset);
 			if (ret > 0)
@@ -224,7 +220,7 @@ int verify_input_file(PAR3_CTX *par3_ctx, uint32_t *missing_file_count, uint32_t
 				*damaged_file_count += 1;
 
 				// Start slide search after the last found block position.
-				ret = check_damaged_file(par3_ctx, file_p->name, current_size, file_offset, &file_damage, NULL);
+				ret = check_damaged_file(par3_ctx, file_p->name, &current_size, file_offset, &file_damage, NULL);
 				//printf("ret = %d, size = %I64u, offset = %I64u, damage = %I64u\n",
 				//		ret, current_size, file_offset, file_damage);
 				if (ret != 0)
@@ -260,6 +256,96 @@ int verify_input_file(PAR3_CTX *par3_ctx, uint32_t *missing_file_count, uint32_t
 		}
 
 		file_p++;
+	}
+
+	return 0;
+}
+
+// Check extra files and misnamed files.
+int verify_extra_file(PAR3_CTX *par3_ctx, uint32_t *missing_file_count, uint32_t *damaged_file_count, uint32_t *misnamed_file_count)
+{
+	int ret, flag_show = 0;
+	char *list_name;
+	size_t len, off, list_len;
+	uint8_t buf_hash[16];
+	uint32_t num, extra_id;
+	uint64_t current_size, file_damage;
+	PAR3_FILE_CTX *file_p;
+
+	if (par3_ctx->extra_file_name_len == 0)
+		return 0;
+
+	extra_id = 0;
+	list_name = par3_ctx->extra_file_name;
+	list_len = par3_ctx->extra_file_name_len;
+	off = 0;
+	while (off < list_len){
+		len = strlen(list_name + off);
+
+		if (par3_ctx->noise_level >= 0){
+			if (flag_show == 0){
+				flag_show++;
+				printf("\nScanning extra files:\n\n");
+			}
+
+			printf("Opening: \"%s\"\n", list_name + off);
+		}
+
+		// When current_size is 0, file size is detected automatically.
+		current_size = 0;
+		// Calculate file hash to find misnamed file later.
+		ret = check_damaged_file(par3_ctx, list_name + off, &current_size, 0, &file_damage, buf_hash);
+		//printf("ret = %d, size = %I64u, damage = %I64u\n", ret, current_size, file_damage);
+		if (ret != 0)
+			return ret;
+
+/*
+		// for debug
+		printf("%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x\n",
+			buf_hash[0], buf_hash[1], buf_hash[2], buf_hash[3],
+			buf_hash[4], buf_hash[5], buf_hash[6], buf_hash[7],
+			buf_hash[8], buf_hash[9], buf_hash[10], buf_hash[11],
+			buf_hash[12], buf_hash[13], buf_hash[14], buf_hash[15]);
+*/
+
+		// Compare size and hash to find misnamed file.
+		file_p = par3_ctx->input_file_list;
+		num = par3_ctx->input_file_count;
+		while (num > 0){
+			// No need to compare to compelete input files.
+			if (file_p->state & (1 | 2)){	// missing or damaged
+				if (file_p->size == current_size){
+					if (memcmp(file_p->hash, buf_hash, 16) == 0){
+						*misnamed_file_count += 1;
+						if (file_p->state & 1){	// When this was missing file.
+							*missing_file_count -= 1;
+						} else if (file_p->state & 2){	// When this was damaged file.
+							*damaged_file_count -= 1;
+						}
+						file_p->state |= (extra_id << 3) | 4;
+
+						//printf("Extra file[%u] is misnamed file of \"%s\".\n", extra_id, file_p->name);
+						ret = 4;
+						break;
+					}
+				}
+			}
+
+			file_p++;
+			num--;
+		}
+
+		if (par3_ctx->noise_level >= -1){
+			if (ret & 4){
+				printf("Target: \"%s\" - is a match for \"%s\".\n", list_name + off, file_p->name);
+			} else {
+				printf("Target: \"%s\" - %I64u of %I64u bytes available.\n",
+						list_name + off, current_size - file_damage, current_size);
+			}
+		}
+
+		extra_id++;
+		off += len + 1;	// goto next filename
 	}
 
 	return 0;

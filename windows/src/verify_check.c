@@ -7,6 +7,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
+
+// MSVC headers
+#include <io.h>
 
 #include "blake3/blake3.h"
 #include "libpar3.h"
@@ -400,15 +404,21 @@ int check_complete_file(PAR3_CTX *par3_ctx, uint32_t file_id,
 	return 0;
 }
 
+#define CHECK_SLIDE_INTERVAL 8
+#define CHECK_SLIDE_RANGE 10
+
 // This checks available slices in the file.
 // This uses pointer of filename, instead of file ID.
 int check_damaged_file(PAR3_CTX *par3_ctx, uint8_t *filename,
-	uint64_t file_size, uint64_t file_offset, uint64_t *file_damage, uint8_t *file_hash)
+	uint64_t *current_size, uint64_t file_offset, uint64_t *file_damage, uint8_t *file_hash)
 {
-	uint8_t *work_buf, buf_hash[16];
+	uint8_t *work_buf, buf_hash[16], buf_hash2[16];
+	int flag_slide, hash_counter;
 	int64_t find_index, block_index, slice_index;
-	uint64_t block_size, read_size, slide_offset;
+	int64_t next_offset, checked_offset;
+	uint64_t file_size, block_size, read_size, slide_offset;
 	uint64_t crc, crc40, crc_count, tail_count, tail_size;
+	uint64_t temp_crc, uniform_start, uniform_end, hash_offset;
 	uint64_t window_mask, *window_table, window_mask40, *window_table40;
 	uint64_t damage_size, find_last, find_min, find_max;
 	PAR3_BLOCK_CTX *block_list;
@@ -416,16 +426,20 @@ int check_damaged_file(PAR3_CTX *par3_ctx, uint8_t *filename,
 	PAR3_CHUNK_CTX *chunk_list;
 	PAR3_CMP_CTX *crc_list, *tail_list;
 	FILE *fp;
+	clock_t time_slide, time_limit;
 	blake3_hasher hasher;
 
 	if (filename == NULL){
-		printf("Filename is bad.\n");
+		printf("File name is bad.\n");
 		return RET_LOGIC_ERROR;
 	}
-	if (par3_ctx->noise_level >= 1){
-		printf("current file size = %I64u, start = %I64u, \"%s\"\n", file_size, file_offset, filename);
+	if (current_size == NULL){
+		printf("File size is bad.\n");
+		return RET_LOGIC_ERROR;
 	}
-	if (file_offset >= file_size){
+	file_size = *current_size;
+	if ( (file_size > 0) && (file_offset >= file_size) ){
+		*file_damage = 0;
 		return 0;
 	}
 
@@ -442,6 +456,13 @@ int check_damaged_file(PAR3_CTX *par3_ctx, uint8_t *filename,
 	crc_list = par3_ctx->crc_list;
 	tail_list = par3_ctx->tail_list;
 
+	// Set time limit for slide search
+	if (par3_ctx->search_limit != 0){
+		time_limit = par3_ctx->search_limit;
+	} else {
+		time_limit = 100;	// Time out is 100 ms by default.
+	}
+
 	// Prepare to search blocks.
 	window_mask = par3_ctx->window_mask;
 	window_table = par3_ctx->window_table;
@@ -454,6 +475,20 @@ int check_damaged_file(PAR3_CTX *par3_ctx, uint8_t *filename,
 	if (fp == NULL){
 		perror("Failed to open input file");
 		return RET_FILE_IO_ERROR;
+	}
+
+	// When file size wasn't set, get the size now.
+	if (file_size == 0){
+		file_size = _filelengthi64(_fileno(fp));
+		*current_size = file_size;
+		if (file_offset >= file_size){
+			*file_damage = 0;
+			return 0;
+		}
+	}
+	*file_damage = file_size - file_offset;
+	if (par3_ctx->noise_level >= 1){
+		printf("current file size = %I64u, start = %I64u, \"%s\"\n", file_size, file_offset, filename);
 	}
 
 	// Move file pinter
@@ -475,42 +510,113 @@ int check_damaged_file(PAR3_CTX *par3_ctx, uint8_t *filename,
 		return RET_FILE_IO_ERROR;
 	}
 	//printf("file_offset = %I64u, read_size = %I64u\n", file_offset, read_size);
-	if (file_hash != NULL)
+	if (file_hash != NULL){
+		blake3_hasher_init(&hasher);
 		blake3_hasher_update(&hasher, work_buf, (size_t)read_size);
+	}
 
 	// Calculate CRC-64 of the first block.
-	if (read_size >= block_size)
+	if ( (crc_count > 0) && (read_size >= block_size) )
 		crc = crc64(work_buf, block_size, 0);
-	if (read_size >= 40)
+	if ( (tail_count > 0) && (read_size >= 40) )
 		crc40 = crc64(work_buf, 40, 0);
 	//printf("block crc = 0x%016I64x, tail crc = 0x%016I64x\n", crc, crc40);
 
+	flag_slide = 0;
+	next_offset = 0;
 	while (file_offset < file_size){
 		// Prepare to check range of found slices
 		find_min = file_size;
 
+		// Prepare to check range of uniform bytes.
+		uniform_start = 0xFFFFFFFFFFFFFFFF;
+		uniform_end = 0;
+
+		// Check predicted position at first.
+		flag_slide = 0;
+		checked_offset = -1;
+		if ( (next_offset > 0) && (file_offset + next_offset + block_size <= file_size) ){
+			//printf("Check at first, next_offset = %I64u\n", next_offset);
+			temp_crc = crc64(work_buf + next_offset, block_size, 0);
+			find_index = cmp_list_search(par3_ctx, temp_crc, crc_list, crc_count);
+			while (find_index >= 0){	// When CRC-64 is same.
+				block_index = crc_list[find_index].index;	// index of block
+				blake3(work_buf + next_offset, block_size, buf_hash);
+				if (memcmp(buf_hash, block_list[block_index].hash, 16) == 0){
+					slice_index = block_list[block_index].slice;
+					if (par3_ctx->noise_level >= 2){
+						printf("full block[%2I64d] : slice[%2I64d] offset = %I64u + %I64u next\n",
+								block_index, slice_index, file_offset, next_offset);
+					}
+					if ((block_list[block_index].state & 4) == 0){	// When this block was not found yet.
+						// Store filename & position of this slice for later reading.
+						slice_list[slice_index].find_name = filename;
+						slice_list[slice_index].find_offset = file_offset + next_offset;
+						block_list[block_index].state |= 4;
+					}
+					if (find_min > file_offset + next_offset)
+						find_min = file_offset + next_offset;
+					if (find_max < file_offset + next_offset + block_size)
+						find_max = file_offset + next_offset + block_size;
+
+					// Skip this offset while sliding search.
+					checked_offset = next_offset;
+				}
+
+				// Goto next item
+				find_index++;
+				if (find_index == crc_count)
+					break;
+				if (crc_list[find_index].crc != temp_crc)
+					break;
+			}
+		}
+		next_offset = 0;
+
 		// Compare current CRC-64 with full size blocks.
 		if ( (file_offset + block_size <= file_size) && (crc_count > 0) ){
-			//printf("file_offset = %I64u, block crc = 0x%016I64x\n", file_offset, crc);
+			//printf("slide: file_offset = %I64u, block crc = 0x%016I64x\n", file_offset, crc);
+			hash_counter = 0;
+			hash_offset = 0;
+			time_slide = clock();	// Store starting time of slide search.
 			slide_offset = 0;
 			while ( (slide_offset < block_size) && (file_offset + slide_offset + block_size <= file_size) ){
-				tail_size = 0;
-				// find_index is the first index of the matching CRC-64. There may be multiple items.
-				find_index = cmp_list_search(par3_ctx, crc, crc_list, crc_count);
+				if (slide_offset == checked_offset){
+					//printf("This offset %I64d was checked already.\n", checked_offset);
+					find_index = -1;
+					if (next_offset == 0)
+						next_offset = slide_offset;
+
+				} else {
+					tail_size = 0;
+					// find_index is the first index of the matching CRC-64. There may be multiple items.
+					find_index = cmp_list_search(par3_ctx, crc, crc_list, crc_count);
+				}
 				while (find_index >= 0){	// When CRC-64 is same.
 					block_index = crc_list[find_index].index;	// index of block
-					if (tail_size == 0){
+					if (block_list[block_index].state & 4){
+						// When this block was found already, no need to compare again.
+						//printf("Skip comparison of block[%I64u]. offset = %I64u + %I64u.\n", block_index, file_offset, slide_offset);
+						memset(buf_hash, 0, 16);
+
+					} else if (tail_size == 0){	// When it didn't hash the block data yet.
 						tail_size++;
 						blake3(work_buf + slide_offset, block_size, buf_hash);
+
+						// Count number of hashing.
+						if (hash_counter == 0)
+							hash_offset = slide_offset;
+						hash_counter++;
+						//printf("block[%I64u], hashing = %d, offset = %I64u + %I64u.\n", block_index, hash_counter, file_offset, slide_offset);
 					}
 					if (memcmp(buf_hash, block_list[block_index].hash, 16) == 0){
+						slice_index = block_list[block_index].slice;
 						if (par3_ctx->noise_level >= 2){
-							printf("full block[%2I64d] : offset = %I64u + %I64u\n",
-									block_index, file_offset, slide_offset);
+							printf("full block[%2I64d] : slice[%2I64d] offset = %I64u + %I64u\n",
+									block_index, slice_index, file_offset, slide_offset);
 						}
 						if ((block_list[block_index].state & 4) == 0){	// When this block was not found yet.
 							// Store filename & position of this slice for later reading.
-							slice_index = block_list[block_index].slice;
 							slice_list[slice_index].find_name = filename;
 							slice_list[slice_index].find_offset = file_offset + slide_offset;
 							block_list[block_index].state |= 4;
@@ -519,6 +625,10 @@ int check_damaged_file(PAR3_CTX *par3_ctx, uint8_t *filename,
 							find_min = file_offset + slide_offset;
 						if (find_max < file_offset + slide_offset + block_size)
 							find_max = file_offset + slide_offset + block_size;
+
+						// Store offset of the first found block to check at first in next loop.
+						if ( (next_offset == 0) && (slide_offset > 0) )
+							next_offset = slide_offset;
 					}
 
 					// Goto next item
@@ -529,15 +639,53 @@ int check_damaged_file(PAR3_CTX *par3_ctx, uint8_t *filename,
 						break;
 				}
 
+				temp_crc = crc;	// Save previous CRC-64 to compare later
 				crc = window_mask ^ crc_slide_byte(window_mask ^ crc,
 						work_buf[slide_offset + block_size], work_buf[slide_offset], window_table);
 				slide_offset++;
+
+				if (hash_counter >= CHECK_SLIDE_INTERVAL){	// Check freeze after sliding several bytes each.
+					// When hashing over than 8 times per 1 KB range.
+					if (slide_offset - hash_offset <= ((uint64_t)CHECK_SLIDE_INTERVAL << CHECK_SLIDE_RANGE)){
+						// When sliding over than time limit.
+						if (clock() - time_slide >= time_limit){
+							if (par3_ctx->noise_level >= 1){
+								printf("Interrupt slide block by time out. offset = %I64u + %I64u.\n", file_offset, slide_offset);
+							}
+							flag_slide |= 1;
+							break;
+						}
+					}
+					hash_counter = 0;
+					hash_offset = slide_offset;
+				}
+				if (crc == temp_crc){	// When CRC-64 is same after sliding 1 byte.
+					if (tail_size == 0)
+						blake3(work_buf + slide_offset - 1, block_size, buf_hash);
+					blake3(work_buf + slide_offset, block_size, buf_hash2);
+					if (memcmp(buf_hash, buf_hash2, 16) == 0){	// If BLAKE3 hash is same also, the data is uniform.
+						uniform_start = slide_offset - 1;
+						while ( (slide_offset < block_size) && (file_offset + slide_offset + block_size <= file_size)
+								&& (crc == temp_crc) ){	// Skip the area of uniform data.
+							crc = window_mask ^ crc_slide_byte(window_mask ^ crc,
+									work_buf[slide_offset + block_size], work_buf[slide_offset], window_table);
+							slide_offset++;
+						}
+						uniform_end = slide_offset;	// Offset of the last byte of uniform data
+						if (par3_ctx->noise_level >= 2){
+							printf("Because data is same, skip from %I64u to %I64u.\n", uniform_start, slide_offset);
+						}
+					}
+				}
 			}
 		}
 
 		// Compare current CRC-64 with chunk tails.
 		if ( (file_offset + 40 <= file_size) && (tail_count > 0) ){
-			//printf("file_offset = %I64u, tail crc = 0x%016I64x\n", file_offset, crc40);
+			//printf("slide: file_offset = %I64u, tail crc = 0x%016I64x\n", file_offset, crc40);
+			hash_counter = 0;
+			hash_offset = 0;
+			time_slide = clock();	// Store starting time of slide search.
 			slide_offset = 0;
 			while ( (slide_offset < block_size) && (file_offset + slide_offset + 40 <= file_size) ){
 				// Because CRC-64 for chunk tails is a range of the first 40-bytes, total data may be different.
@@ -548,8 +696,26 @@ int check_damaged_file(PAR3_CTX *par3_ctx, uint8_t *filename,
 					slice_index = tail_list[find_index].index;	// index of slice
 					if (tail_size != slice_list[slice_index].size){
 						tail_size = slice_list[slice_index].size;
-						if (file_offset + slide_offset + tail_size <= file_size){
+
+						if (slice_list[slice_index].find_name != NULL){
+							// When this slice was found already, no need to compare again.
+							//printf("Skip comparison of slice[%I64u]. offset = %I64u + %I64u.\n", slice_index, file_offset, slide_offset);
+							memset(buf_hash, 0, 16);
+
+						} else if ( (uniform_end > 0) && (slide_offset + tail_size < uniform_end + block_size) ){
+							// Don't compare hash value, while uniform data.
+							//printf("Skip slice[%I64u] in uniform data. offset = %I64u + %I64u.\n", slice_index, file_offset, slide_offset);
+							memset(buf_hash, 0, 16);
+
+						} else if (file_offset + slide_offset + tail_size <= file_size){
 							blake3(work_buf + slide_offset, tail_size, buf_hash);
+
+							// Count number of hashing.
+							if (hash_counter == 0)
+								hash_offset = slide_offset;
+							hash_counter++;
+							//printf("slice[%I64u], hashing = %d, offset = %I64u + %I64u.\n", slice_index, hash_counter, file_offset, slide_offset);
+
 						} else {
 							// When chunk tail exceeds file data, hash value becomes zero.
 							memset(buf_hash, 0, 16);
@@ -582,9 +748,38 @@ int check_damaged_file(PAR3_CTX *par3_ctx, uint8_t *filename,
 						break;
 				}
 
+				temp_crc = crc;	// Save previous CRC-64 to compare later
 				crc40 = window_mask40 ^ crc_slide_byte(window_mask40 ^ crc40,
 						work_buf[slide_offset + 40], work_buf[slide_offset], window_table40);
 				slide_offset++;
+
+				if (hash_counter >= CHECK_SLIDE_INTERVAL){	// Check freeze after sliding several bytes each.
+					// When hashing over than 8 times in 8 KB range. (average >= 1 time / 1 KB)
+					if (slide_offset - hash_offset <= ((uint64_t)CHECK_SLIDE_INTERVAL << CHECK_SLIDE_RANGE)){
+						// When sliding over than time limit.
+						if (clock() - time_slide >= time_limit){
+							if (par3_ctx->noise_level >= 1){
+								printf("Interrupt slide tail by time out. offset = %I64u + %I64u.\n", file_offset, slide_offset);
+							}
+							flag_slide |= 2;
+							break;
+						}
+					}
+					hash_counter = 0;
+					hash_offset = slide_offset;
+				}
+				if (crc == temp_crc){	// When CRC-64 is same after sliding 1 byte.
+					// When offset is inside of uniform data.
+					if ( (slide_offset >= uniform_start) && (slide_offset < uniform_end) ){
+						// Skip the area of uniform data.
+						slide_offset = uniform_end;
+						if (par3_ctx->noise_level >= 2){
+							printf("While data is same, skip from %I64u to %I64u.\n", uniform_start, uniform_end);
+						}
+						// No need to re-calculate CRC-64 after skip, because the value is same for uniform data.
+						// Chunk tail is smaller than block size always.
+					}
+				}
 			}
 		}
 		//printf("block crc = 0x%016I64x, tail crc = 0x%016I64x\n", crc, crc40);
@@ -624,15 +819,16 @@ int check_damaged_file(PAR3_CTX *par3_ctx, uint8_t *filename,
 				blake3_hasher_update(&hasher, work_buf + block_size, (size_t)read_size);
 		}
 
-/*
-only when skipping slide ?
 
-		// Calculate CRC-64 of next block.
-		if (file_offset + block_size <= file_size)
+		// Only when skipping slide, calculate CRC-64 of next block.
+		if ( ((flag_slide & 1) != 0) && (file_offset + block_size <= file_size) ){
+			//printf("Calculate CRC-64 of next block.\n");
 			crc = crc64(work_buf, block_size, 0);
-		if (file_offset + 40 <= file_size)
+		}
+		if ( ((flag_slide & 2) != 0) && (file_offset + 40 <= file_size) ){
+			//printf("Calculate CRC-64 of next tail.\n");
 			crc40 = crc64(work_buf, 40, 0);
-*/
+		}
 	}
 
 	// Check the last damaged area in this file

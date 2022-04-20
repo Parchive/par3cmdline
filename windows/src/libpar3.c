@@ -125,7 +125,7 @@ int path_search(PAR3_CTX *par3_ctx, char *match_path, int flag_recursive)
 	if (tmp_p != NULL){
 		match_name = tmp_p + 1;
 
-		// directory may be a relative path from basepath
+		// directory may be a relative path from base-path
 		len = (size_t)(tmp_p - match_path);
 		memcpy(new_dir + 2, match_path, len);
 		new_dir[0] = '.';
@@ -162,7 +162,7 @@ int path_search(PAR3_CTX *par3_ctx, char *match_path, int flag_recursive)
 				perror("Failed to resume working directory");
 				return 6;
 			}
-			printf("Ignoring out of basepath input file: %s\n", match_path);
+			printf("Ignoring out of base-path input file: %s\n", match_path);
 			return RET_FILE_IO_ERROR;
 		}
 		base_len++;	// add the last "/"
@@ -301,7 +301,7 @@ int extra_search(PAR3_CTX *par3_ctx, char *match_path)
 	if (tmp_p != NULL){
 		match_name = tmp_p + 1;
 
-		// directory may be a relative path from basepath
+		// directory may be a relative path from base-path
 		len = (size_t)(tmp_p - match_path);
 		memcpy(new_dir + 2, match_path, len);
 		new_dir[0] = '.';
@@ -338,13 +338,13 @@ int extra_search(PAR3_CTX *par3_ctx, char *match_path)
 				perror("Failed to resume working directory");
 				return 6;
 			}
-			printf("Ignoring out of basepath extra file: %s\n", match_path);
+			printf("Ignoring out of base-path extra file: %s\n", match_path);
 			return RET_FILE_IO_ERROR;
 		}
 		base_len++;	// add the last "/"
 
 		// replace directory mark from Windows OS style "\" to UNIX style "/"
-		tmp_p = strchr(new_dir + base_len, '\\');
+		tmp_p = strchr(new_dir, '\\');
 		while (tmp_p != NULL){
 			tmp_p[0] = '/';
 			tmp_p = strchr(tmp_p, '\\');
@@ -370,16 +370,62 @@ int extra_search(PAR3_CTX *par3_ctx, char *match_path)
 			tmp_p = strchr(tmp_p + 1, '/');
 		}
 
-		// get the relative path
-		dir_len = strlen(new_dir) - base_len;
-		memmove(new_dir, new_dir + base_len, dir_len + 1);	// copy path, which inlcudes the last null string
-		//printf("relative path = \"%s\"\n", new_dir);
+		// Extra files use absolute path, too.
+		if (par3_ctx->absolute_path != 0){
+			dir_len = strlen(new_dir);
+
+			// Options -abs and -ABS are different.
+			if (par3_ctx->absolute_path != 'A'){
+				// Remove drive letter
+				if ( (new_dir[1] == ':') && (new_dir[0] >= 'A') && (new_dir[0] <= 'Z') ){
+					dir_len -= 2;
+					memmove(new_dir, new_dir + 2, dir_len + 1);
+				}
+			}
+			//printf("asolute path = \"%s\"\n", new_dir);
+
+		} else {
+			// get the relative path
+			dir_len = strlen(new_dir) - base_len;
+			memmove(new_dir, new_dir + base_len, dir_len + 1);	// copy path, which inlcudes the last null string
+			//printf("relative path = \"%s\"\n", new_dir);
+		}
 
 	} else {
 		match_name = match_path;
 		dir_len = 0;
+
+		// Extra files use absolute path, too.
+		if (par3_ctx->absolute_path != 0){
+			// Use current directory as base path.
+			tmp_p = _getcwd(new_dir, _MAX_PATH);
+			if (tmp_p == NULL){
+				perror("Failed to get current working directory");
+				return RET_FILE_IO_ERROR;
+			}
+
+			// replace directory mark from Windows OS style "\" to UNIX style "/"
+			tmp_p = strchr(new_dir, '\\');
+			while (tmp_p != NULL){
+				tmp_p[0] = '/';
+				tmp_p = strchr(tmp_p, '\\');
+			}
+			strcat(new_dir, "/");
+			dir_len = strlen(new_dir);
+
+			// Options -abs and -ABS are different.
+			if (par3_ctx->absolute_path != 'A'){
+				// Remove drive letter
+				if ( (new_dir[1] == ':') && (new_dir[0] >= 'A') && (new_dir[0] <= 'Z') ){
+					dir_len -= 2;
+					memmove(new_dir, new_dir + 2, dir_len + 1);
+				}
+			}
+			//printf("asolute path = \"%s\"\n", new_dir);
+		}
 	}
 
+	//printf("extra file search \"%s\"\n", match_name);
 	handle = _findfirst64(match_name, &c_file);
 	if (handle != -1){
 		do {

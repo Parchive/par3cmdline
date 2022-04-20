@@ -51,7 +51,7 @@ uint64_t crc64(const uint8_t *buf, size_t size, uint64_t crc)
 {
 	uint64_t A;
 
-	crc = ~crc;
+	crc = ~crc;	// bit flipping at first
 
 	// calculate each byte until 4-bytes alignment
 	while ((size > 0) && (((size_t)buf) & 3)){
@@ -83,49 +83,8 @@ uint64_t crc64(const uint8_t *buf, size_t size, uint64_t crc)
 		size--;
 	}
 
-	return ~crc;
+	return ~crc;	// bit flipping again
 }
-
-
-/*
-While CRC-64-ISO doesn't need table look-up to calculate CRC, it may use table to reverse CRC.
-
-How to construct reverse_table[256] for CRC-64-ISO on time is following theory by Yutaka Sawada.
-
-top = crc64_table[i] >> 56;
-crc64_reverse[top] = (crc64_table[i] << 8) | i;
-
-How to calculate "A" from below equation.
-top = A ^ (A >> 1) ^ (A >> 3) ^ (A >> 4);
-
-  A7 A6 A5 A4 A3 A2 A1 A0  A-1 A-2 A-3 A-4
-^    A7 A6 A5 A4 A3 A2 A1   A0
-^          A7 A6 A5 A4 A3   A2  A1  A0
-^             A7 A6 A5 A4   A3  A2  A1  A0
-= T7 T6 T5 T4 T3 T2 T1 T0
-
-A7 = T7
-A6 = T6 ^ T7
-A5 = T5 ^ T6 ^ T7
-A4 = T4 ^ T5 ^ T6
-A3 = T3 ^ T4 ^ T5
-A2 = T2 ^ T3 ^ T4
-A1 = T1 ^ T2 ^ T3 ^ T7
-A0 = T0 ^ T1 ^ T2 ^ T6 ^ T7
-
-Then,
-A = T ^ (T >> 1) ^ (T >> 2) ^ (T >> 6) ^ (T >> 7);
-Or,
-A = T ^ (T >> 1) ^ (T >> 2); A = A ^ (A >> 6);
-
-crc64_table[A] = ( A ^ (A >> 1) ^ (A >> 3) ^ (A >> 4) ) << 56;
-(crc64_table[A] << 8) = ( A ^ (A >> 1) ^ (A >> 3) ^ (A >> 4) ) << 64; There are only A-1 A-2 A-3 A-4.
-                      = (A << 63) ^ (A << 61) ^ (A << 60);
-
-Thus,
-A = T ^ (T >> 1) ^ (T >> 2) ^ (T >> 6) ^ (T >> 7);
-crc64_reverse[T] = (A << 63) ^ (A << 61) ^ (A << 60) ^ A;
-*/
 
 // This updates CRC-64 of zeros without bit flipping.
 uint64_t crc64_update_zero(size_t size, uint64_t crc)
@@ -185,48 +144,6 @@ void init_crc_slide_table(PAR3_CTX *par3_ctx, int flag_usage)
 		// Verification needs 2 sizes for find blocks and chunk tails.
 		par3_ctx->window_mask40 = init_slide_window(40, par3_ctx->window_table40);
 	}
-
-/*
-	int i, j;
-	uint64_t crc64_table[256], crc64_reverse[256], rr;
-
-	for (i = 0; i < 256; i++){
-		// CRC-64
-		rr = i;
-		for (j = 0; j < 8; j++){
-			if (rr & 1){
-				rr = (rr >> 1) ^ CRC64_POLY;
-			} else {
-				rr = (rr >> 1);
-			}
-		}
-		crc64_table[i] = rr;
-
-		// for debug
-		rr = i;
-		rr = rr << 56;
-		rr = rr ^ (rr >> 1) ^ (rr >> 3) ^ (rr >> 4);
-		if (crc64_table[i] != rr){	// compare results
-			printf("crc64_table[%3d] = %016I64x, %016I64x\n", i, crc64_table[i], rr);
-		}
-	}
-
-	// Locate table index from the lowest 1-byte of CRC.
-	// Shift left the table by 8-bits, and put the index (0~255) in the lowest 1-byte.
-	for (i = 0; i < 256; i++){
-		crc64_reverse[(crc64_table[i] >> 56)] = (crc64_table[i] << 8) | i;
-	}
-
-	// for debug
-	for (i = 0; i < 256; i++){
-		// test on-time table construction
-		rr = i ^ (i >> 1) ^ (i >> 2) ^ (i >> 6) ^ (i >> 7);
-		rr = (rr << 63) ^ (rr << 61) ^ (rr << 60) ^ rr;
-		if (crc64_reverse[i] != rr){	// compare results
-			printf("crc64_reverse[%3d] = %016I64x, %016I64x\n", i, crc64_reverse[i], rr);
-		}
-	}
-*/
 }
 
 // Slide the CRC-64-ISO along a buffer by one byte (removing the old and adding the new).
@@ -288,24 +205,24 @@ int64_t crc_list_compare(PAR3_CTX *par3_ctx, uint64_t crc, uint8_t *buf, uint8_t
 	cmp2_p = cmp_p;
 	index = cmp_p - par3_ctx->crc_list;
 	while (index > 0){
-		index--;
 		cmp2_p--;
 		if (cmp2_p->crc != crc)
 			break;
 		if (memcmp(hash, block_list[cmp2_p->index].hash, 16) == 0)
 			return cmp2_p->index;
+		index--;
 	}
 
 	// Search higher items of same CRC-64
 	cmp2_p = cmp_p;
 	index = cmp_p - par3_ctx->crc_list;
 	while (index + 1 < count){
-		index++;
 		cmp2_p++;
 		if (cmp2_p->crc != crc)
 			break;
 		if (memcmp(hash, block_list[cmp2_p->index].hash, 16) == 0)
 			return cmp2_p->index;
+		index++;
 	}
 
 	return -3;
@@ -486,10 +403,10 @@ int64_t cmp_list_search(PAR3_CTX *par3_ctx, uint64_t crc, PAR3_CMP_CTX *cmp_list
 	// Search lower items of same CRC-64
 	index = cmp_p - cmp_list;
 	while (index > 0){
-		index--;
 		cmp_p--;
 		if (cmp_p->crc != crc)
 			break;
+		index--;
 	}
 
 	return index;

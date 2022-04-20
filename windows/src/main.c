@@ -50,11 +50,14 @@ static void print_help(void)
 "  par3 l(ist)   [options] <PAR3 file>         : List files in PAR3 file\n"
 "\n"
 "Options: (all uses)\n"
-"  -B<path> : Set the basepath to use as reference for the datafiles\n"
+"  -B<path> : Set the base-path to use as reference for the datafiles\n"
 "  -v [-v]  : Be more verbose\n"
 "  -q [-q]  : Be more quiet (-q -q gives silence)\n"
 "  -m<n>    : Memory (in MB) to use\n"
 "  --       : Treat all following arguments as filenames\n"
+"  -abs     : Enable absolute path\n"
+"Options: (verify or repair)\n"
+"  -S<n>    : Searching time limit (milli second)\n"
 "Options: (create)\n"
 "  -s<n>    : Set the Block-Size (don't use both -b and -s)\n"
 "  -r<n>    : Level of redundancy (%%)\n"
@@ -66,7 +69,6 @@ static void print_help(void)
 "  -R       : Recurse into subdirectories\n"
 "  -D       : Store Data packets\n"
 "  -d<n>    : Enable deduplication of input blocks\n"
-"  -abs     : Enable absolute path\n"
 "  -C<text> : Set comment\n"
 	);
 }
@@ -239,13 +241,17 @@ int main(int argc, char *argv[])
 					par3_ctx->memory_limit *= 1048576;	// MB
 				}
 
-			} else if ( (tmp_p[0] == 'B') && (tmp_p[1] != 0) ){	// Set the basepath manually
-				if ( ((command_operation == 'v') || (command_operation == 'r') || (command_operation == 'l'))
-						&& (par3_ctx->absolute_path != 0) ){
-					printf("Cannot specify base path and absolute path at the same time.\n");
+			} else if ( (tmp_p[0] == 'S') && (tmp_p[1] >= '1') && (tmp_p[1] <= '9') ){	// Set searching time limit
+				if ( (command_operation != 'v') && (command_operation != 'r') ){
+					printf("Cannot specify searching time limit unless reparing or verifying.\n");
+				} else if (par3_ctx->search_limit > 0){
+					printf("Cannot specify searching time limit twice.\n");
 				} else {
-					path_copy(par3_ctx->base_path, tmp_p + 1, _MAX_DIR - 32);
+					par3_ctx->search_limit = strtoul(tmp_p + 1, NULL, 10);
 				}
+
+			} else if ( (tmp_p[0] == 'B') && (tmp_p[1] != 0) ){	// Set the base-path manually
+				path_copy(par3_ctx->base_path, tmp_p + 1, _MAX_DIR - 32);
 
 			} else if ( (tmp_p[0] == 's') && (tmp_p[1] >= '1') && (tmp_p[1] <= '9') ){	// Set the block size
 				if ( (command_operation != 'c') && (command_operation != 't') ){
@@ -395,10 +401,7 @@ int main(int argc, char *argv[])
 				}
 
 			} else if ( (strcmp(tmp_p, "abs") == 0) || (strcmp(tmp_p, "ABS") == 0) ){	// Enable absolute path
-				if ( ((command_operation == 'v') || (command_operation == 'r') || (command_operation == 'l'))
-						&& (par3_ctx->base_path[0] != 0) ){
-					printf("Cannot specify base path and absolute path at the same time.\n");
-				} else if (tmp_p[0] == 'A'){
+				if (tmp_p[0] == 'A'){
 					par3_ctx->absolute_path = 'A';
 				} else {
 					par3_ctx->absolute_path = 'a';
@@ -430,7 +433,7 @@ int main(int argc, char *argv[])
 		} else {
 			// PAR filename may be a relative path from current working directory.
 			if (par3_ctx->base_path[0] != 0){
-				// if basepath isn't empty, relative from current working directory.
+				// if base-path isn't empty, relative from current working directory.
 				ret = get_absolute_path(file_name, par3_ctx->par_filename, _MAX_PATH - 8);
 				if (ret != 0){
 					printf("Failed to convert PAR filename to absolute path\n");
@@ -455,24 +458,24 @@ int main(int argc, char *argv[])
 	}
 
 	if (par3_ctx->base_path[0] != 0){
-		if (par3_ctx->absolute_path != 0){	// Convert basepath to absolute path.
+		if (par3_ctx->absolute_path != 0){	// Convert base-path to absolute path.
 			ret = get_absolute_path(file_name, par3_ctx->base_path, _MAX_PATH - 4);
 			if (ret != 0){
-				printf("Failed to convert basepath to absolute path\n");
+				printf("Failed to convert base-path to absolute path\n");
 				ret = RET_FILE_IO_ERROR;
 				goto prepare_return;
 			}
 			strcpy(par3_ctx->base_path, file_name);
 		}
 
-		// change current directory to the specified basepath
+		// change current directory to the specified base-path
 		if (_chdir(par3_ctx->base_path) != 0){
 			perror("Failed to change working directory");
 			ret = RET_FILE_IO_ERROR;
 			goto prepare_return;
 		}
 	} else if ( ((command_operation == 'c') || (command_operation == 't')) && (par3_ctx->absolute_path != 0) ){
-		// If basepath is empty at creation, current working directory becomes the absolute path.
+		// If base-path is empty at creation, current working directory becomes the absolute path.
 		if (_getcwd(par3_ctx->base_path, _MAX_PATH - 4) == NULL){
 			perror("Failed to get current working directory\n");
 			ret = RET_FILE_IO_ERROR;
@@ -483,6 +486,8 @@ int main(int argc, char *argv[])
 	if (par3_ctx->noise_level >= 0){
 		if (par3_ctx->memory_limit != 0)
 			printf("memory_limit = %I64u MB\n", par3_ctx->memory_limit >> 20);
+		if (par3_ctx->search_limit != 0)
+			printf("search_limit = %d ms\n", par3_ctx->search_limit);
 		if (par3_ctx->block_size != 0)
 			printf("Specified block size = %I64u\n", par3_ctx->block_size);
 		if (command_redundancy != 0)
@@ -510,6 +515,10 @@ int main(int argc, char *argv[])
 	}
 
 	if ( (command_operation == 'c') || (command_operation == 't') ){	// Create or Trial
+
+		// When there is no argument for input file, return to the PAR file name.
+		if (argi == argc)
+			argi--;
 
 		// search input files
 		for (; argi < argc; argi++){
@@ -661,7 +670,7 @@ int main(int argc, char *argv[])
 				printf("Listed\n");
 
 		} else {
-			ret = par3_verify(par3_ctx, file_name);
+			ret = par3_verify(par3_ctx);
 			if (ret != 0){
 				printf("Failed to verify with PAR3 file\n");
 				goto prepare_return;
@@ -672,6 +681,15 @@ int main(int argc, char *argv[])
 	} else if (command_operation == 'r'){	// Repair
 		printf("Repair isn't implemented yet.\n");
 
+/*
+			ret = par3_repair(par3_ctx, file_name);
+			if (ret != 0){
+				printf("Failed to repair with PAR3 file\n");
+				goto prepare_return;
+			}
+
+
+*/
 
 	}
 
