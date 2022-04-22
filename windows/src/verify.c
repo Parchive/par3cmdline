@@ -220,7 +220,7 @@ int verify_input_file(PAR3_CTX *par3_ctx, uint32_t *missing_file_count, uint32_t
 				*damaged_file_count += 1;
 
 				// Start slide search after the last found block position.
-				ret = check_damaged_file(par3_ctx, file_p->name, &current_size, file_offset, &file_damage, NULL);
+				ret = check_damaged_file(par3_ctx, file_p->name, current_size, file_offset, &file_damage, NULL);
 				//printf("ret = %d, size = %I64u, offset = %I64u, damage = %I64u\n",
 				//		ret, current_size, file_offset, file_damage);
 				if (ret != 0)
@@ -267,7 +267,7 @@ int verify_extra_file(PAR3_CTX *par3_ctx, uint32_t *missing_file_count, uint32_t
 	int ret, flag_show = 0;
 	char *list_name;
 	size_t len, off, list_len;
-	uint8_t buf_hash[16];
+	uint8_t buf_hash[16], *tmp_p;
 	uint32_t num, extra_id;
 	uint64_t current_size, file_damage;
 	PAR3_FILE_CTX *file_p;
@@ -291,48 +291,77 @@ int verify_extra_file(PAR3_CTX *par3_ctx, uint32_t *missing_file_count, uint32_t
 			printf("Opening: \"%s\"\n", list_name + off);
 		}
 
-		// When current_size is 0, file size is detected automatically.
-		current_size = 0;
-		// Calculate file hash to find misnamed file later.
-		ret = check_damaged_file(par3_ctx, list_name + off, &current_size, 0, &file_damage, buf_hash);
-		//printf("ret = %d, size = %I64u, damage = %I64u\n", ret, current_size, file_damage);
-		if (ret != 0)
-			return ret;
+		// Get file size
+		ret = check_file(list_name + off, &current_size);
+		if ((ret & 0xFFFF) != 0){
+			if (par3_ctx->noise_level >= -1){
+				printf("Target: \"%s\" - unknown.\n", list_name + off);
+			}
+			extra_id++;
+			off += len + 1;	// goto next filename
+			break;
+		}
 
-/*
-		// for debug
-		printf("%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x\n",
-			buf_hash[0], buf_hash[1], buf_hash[2], buf_hash[3],
-			buf_hash[4], buf_hash[5], buf_hash[6], buf_hash[7],
-			buf_hash[8], buf_hash[9], buf_hash[10], buf_hash[11],
-			buf_hash[12], buf_hash[13], buf_hash[14], buf_hash[15]);
-*/
-
-		// Compare size and hash to find misnamed file.
+		// Check possibility of misnamed file
+		tmp_p = NULL;
 		file_p = par3_ctx->input_file_list;
 		num = par3_ctx->input_file_count;
 		while (num > 0){
 			// No need to compare to compelete input files.
 			if (file_p->state & (1 | 2)){	// missing or damaged
 				if (file_p->size == current_size){
-					if (memcmp(file_p->hash, buf_hash, 16) == 0){
-						*misnamed_file_count += 1;
-						if (file_p->state & 1){	// When this was missing file.
-							*missing_file_count -= 1;
-						} else if (file_p->state & 2){	// When this was damaged file.
-							*damaged_file_count -= 1;
-						}
-						file_p->state |= (extra_id << 3) | 4;
-
-						//printf("Extra file[%u] is misnamed file of \"%s\".\n", extra_id, file_p->name);
-						ret = 4;
-						break;
-					}
+					//printf("Calculate file hash to check misnamed file later.\n");
+					tmp_p = buf_hash;
+					break;
 				}
 			}
 
 			file_p++;
 			num--;
+		}
+
+		// Calculate file hash to find misnamed file later.
+		ret = check_damaged_file(par3_ctx, list_name + off, current_size, 0, &file_damage, tmp_p);
+		//printf("ret = %d, size = %I64u, damage = %I64u\n", ret, current_size, file_damage);
+		if (ret != 0)
+			return ret;
+
+		if (tmp_p != NULL){	// Check misnamed file here
+/*
+// for debug
+printf("%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x\n",
+	buf_hash[0], buf_hash[1], buf_hash[2], buf_hash[3],
+	buf_hash[4], buf_hash[5], buf_hash[6], buf_hash[7],
+	buf_hash[8], buf_hash[9], buf_hash[10], buf_hash[11],
+	buf_hash[12], buf_hash[13], buf_hash[14], buf_hash[15]);
+*/
+
+			// Compare size and hash to find misnamed file.
+			file_p = par3_ctx->input_file_list;
+			num = par3_ctx->input_file_count;
+			while (num > 0){
+				// No need to compare to compelete input files.
+				if (file_p->state & (1 | 2)){	// missing or damaged
+					if (file_p->size == current_size){
+						if (memcmp(file_p->hash, buf_hash, 16) == 0){
+							*misnamed_file_count += 1;
+							if (file_p->state & 1){	// When this was missing file.
+								*missing_file_count -= 1;
+							} else if (file_p->state & 2){	// When this was damaged file.
+								*damaged_file_count -= 1;
+							}
+							file_p->state |= (extra_id << 3) | 4;
+
+							//printf("Extra file[%u] is misnamed file of \"%s\".\n", extra_id, file_p->name);
+							ret = 4;
+							break;
+						}
+					}
+				}
+
+				file_p++;
+				num--;
+			}
 		}
 
 		if (par3_ctx->noise_level >= -1){

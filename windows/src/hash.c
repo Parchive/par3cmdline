@@ -262,9 +262,9 @@ int crc_list_make(PAR3_CTX *par3_ctx)
 		return 0;
 	}
 
-	// Allocate list of CRC-64
+	// Allocate list of CRC-64 (double size for local copy)
 	block_count = par3_ctx->block_count;
-	crc_list = malloc(sizeof(PAR3_CMP_CTX) * block_count);
+	crc_list = malloc(sizeof(PAR3_CMP_CTX) * block_count * 2);
 	if (crc_list == NULL){
 		perror("Failed to allocate memory for comparison of CRC-64");
 		return RET_MEMORY_ERROR;
@@ -274,7 +274,7 @@ int crc_list_make(PAR3_CTX *par3_ctx)
 	// At this time, number of tails is unknown.
 	// When a chunk size is multiple of block size, the chunk has no tail.
 	chunk_count = par3_ctx->chunk_count;
-	tail_list = malloc(sizeof(PAR3_CMP_CTX) * chunk_count);
+	tail_list = malloc(sizeof(PAR3_CMP_CTX) * chunk_count * 2);
 	if (tail_list == NULL){
 		perror("Failed to allocate memory for comparison of CRC-64");
 		return RET_MEMORY_ERROR;
@@ -315,7 +315,7 @@ int crc_list_make(PAR3_CTX *par3_ctx)
 	// Re-allocate memory for actual number of CRC-64
 	if (full_count < block_count){
 		if (full_count > 0){
-			crc_list = realloc(par3_ctx->crc_list, sizeof(PAR3_CMP_CTX) * full_count);
+			crc_list = realloc(par3_ctx->crc_list, sizeof(PAR3_CMP_CTX) * full_count * 2);
 			if (crc_list == NULL){
 				perror("Failed to re-allocate memory for comparison of CRC-64");
 				return RET_MEMORY_ERROR;
@@ -328,7 +328,7 @@ int crc_list_make(PAR3_CTX *par3_ctx)
 	}
 	if (tail_count < chunk_count){
 		if (tail_count > 0){
-			tail_list = realloc(par3_ctx->tail_list, sizeof(PAR3_CMP_CTX) * tail_count);
+			tail_list = realloc(par3_ctx->tail_list, sizeof(PAR3_CMP_CTX) * tail_count * 2);
 			if (tail_list == NULL){
 				perror("Failed to re-allocate memory for comparison of CRC-64");
 				return RET_MEMORY_ERROR;
@@ -386,7 +386,7 @@ void crc_list_replace(PAR3_CTX *par3_ctx, uint64_t crc, uint64_t index)
 // Compare CRC-64 of blocks or chunk tails
 // Return index of the first item, which has the same CRC-64.
 // When no match, return -1 ~ -2
-int64_t cmp_list_search(PAR3_CTX *par3_ctx, uint64_t crc, PAR3_CMP_CTX *cmp_list, uint64_t count)
+int64_t cmp_list_search(PAR3_CTX *par3_ctx, uint64_t crc, PAR3_CMP_CTX *cmp_list, int64_t count)
 {
 	int64_t index;
 	PAR3_CMP_CTX cmp_key, *cmp_p;
@@ -410,6 +410,51 @@ int64_t cmp_list_search(PAR3_CTX *par3_ctx, uint64_t crc, PAR3_CMP_CTX *cmp_list
 	}
 
 	return index;
+}
+
+// Compare CRC-64 of blocks or chunk tails
+// When no match, return -1 ~ -3
+int64_t cmp_list_search_index(PAR3_CTX *par3_ctx, uint64_t crc, int64_t id, PAR3_CMP_CTX *cmp_list, int64_t count)
+{
+	int64_t index;
+	PAR3_CMP_CTX cmp_key, *cmp_p, *cmp2_p;
+
+	if (count == 0)
+		return -1;
+
+	// Binary search
+	cmp_key.crc = crc;
+	cmp_p = (PAR3_CMP_CTX *)bsearch( &cmp_key, cmp_list, (size_t)count, sizeof(PAR3_CMP_CTX), compare_crc );
+	if (cmp_p == NULL)
+		return -2;
+
+	// Search lower items of same CRC-64
+	cmp2_p = cmp_p;
+	index = cmp_p - cmp_list;
+	if (cmp_p->index == id)
+		return index;
+	while (index > 0){
+		cmp2_p--;
+		if (cmp2_p->crc != crc)
+			break;
+		if (cmp2_p->index == id)
+			return index;
+		index--;
+	}
+
+	// Search higher items of same CRC-64
+	cmp2_p = cmp_p;
+	index = cmp_p - cmp_list;
+	while (index + 1 < count){
+		cmp2_p++;
+		if (cmp2_p->crc != crc)
+			break;
+		if (cmp2_p->index == id)
+			return index;
+		index++;
+	}
+
+	return -3;
 }
 
 

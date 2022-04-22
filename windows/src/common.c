@@ -29,7 +29,7 @@ char * offset_file_name(char *file_path)
 	return file_path + i;
 }
 
-// detect device name
+// detect device name on Windows OS
 static int check_device_name(char *name, int len)
 {
 	if (len >= 3){
