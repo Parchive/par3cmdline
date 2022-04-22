@@ -25,9 +25,8 @@ It can create Index File and Archive Files.
 Index File includes all types of packets without duplication.
 Archive Files include Data Packets, which is a piece of input files.
 
-While verification is possible, it may be very slow at this time.
+While verification is possible, it may be slow at this time.
 Currently I prefer finding as many slices as possible.
-I will improve in future.
 
 It cannot create Recovery Files yet.
 It cannot Repair yet.
@@ -111,8 +110,7 @@ When there isn't enough free memory, it will show error.
  You may specify extra files after PAR3 filename.
 They are PAR3 files or misnamed (and/or damaged) input files.
 These files must exist under base-path or current directory when base-path isn't set.
-If you add PAR3 file (extension with .par3),
-the file will be verified as PAR3 file.
+If you add PAR3 file (extension with .par3), the file will be verified as PAR3 file.
 If you add other type files, they will be verified as input files.
 
 
