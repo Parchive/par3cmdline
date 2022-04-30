@@ -98,7 +98,7 @@ int create_recovery_block(PAR3_CTX *par3_ctx)
 		printf("Error: gf8_region_multiply\n");
 	}
 
-	printf("\n test OK !\n");
+	printf("\n GF8 test end !\n");
 }
 */
 

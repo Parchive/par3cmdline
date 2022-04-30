@@ -149,43 +149,30 @@ int gf8_reciprocal(int *galois_log_table, int y)
 }
 
 
+// Simple and support size_t for 64-bit build
 void gf8_region_multiply(int *galois_log_table,
-						char *region,		/* Region to multiply */
-						int multby,			/* Number to multiply by */
-						size_t nbytes,		/* Number of bytes in region */
-						char *r2)			/* If r2 != NULL, products go here */
+						unsigned char *region,	/* Region to multiply */
+						int multby,				/* Number to multiply by */
+						size_t nbytes,			/* Number of bytes in region */
+						unsigned char *r2)		/* If r2 != NULL, products go here */
 {
-	unsigned char *ur1, *ur2, *cp;
 	unsigned char prod;
 	size_t i;
-	int srow, j;
-	int *galois_mult_table;
-	size_t l, *lp2;
-	unsigned char *lp;
-	int sol;
+	int *galois_table;
 
-	ur1 = (unsigned char *) region;
-	ur2 = (r2 == NULL) ? ur1 : (unsigned char *) r2;
+	// Shift mult_table offset by multby
+	galois_table = galois_log_table + 256 * 2;
+	galois_table += multby * 256;
 
-	galois_mult_table = galois_log_table + 256 * 2;
-	srow = multby * 256;
 	if (r2 == NULL) {
 		for (i = 0; i < nbytes; i++) {
-			prod = galois_mult_table[srow+ur1[i]];
-			ur2[i] = prod;
+			prod = galois_table[ region[i] ];
+			region[i] = prod;
 		}
 	} else {
-		sol = sizeof(size_t);
-		lp2 = &l;
-		lp = (unsigned char *) lp2;
-		for (i = 0; i < nbytes; i += sol) {
-			cp = ur2+i;
-			lp2 = (size_t *) cp;
-			for (j = 0; j < sol; j++) {
-				prod = galois_mult_table[srow+ur1[i+j]];
-				lp[j] = prod;
-			}
-			*lp2 = (*lp2) ^ l;
+		for (i = 0; i < nbytes; i++) {
+			prod = galois_table[ region[i] ];
+			r2[i] ^= prod;
 		}
 	}
 }

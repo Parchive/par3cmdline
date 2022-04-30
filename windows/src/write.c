@@ -260,8 +260,11 @@ static int write_data_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t each_s
 				slice_index = block_list[num].slice;
 				while (slice_index != -1){
 					//printf("block = %I64u, size = %zu, offset = %zu, slice = %I64d\n", num, write_size, tail_offset, slice_index);
-					if (slice_list[slice_index].tail_offset == tail_offset)
+					// Even when chunk tails are overlaped, it will find tail slice of next position.
+					if ( (slice_list[slice_index].tail_offset + slice_list[slice_index].size > tail_offset) &&
+							(slice_list[slice_index].tail_offset <= tail_offset) ){
 						break;
+					}
 					slice_index = slice_list[slice_index].next;
 				}
 				if (slice_index == -1){	// When there is no valid slice.
