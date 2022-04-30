@@ -84,6 +84,12 @@
     <ClCompile Include="block_check.c">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
+    <ClCompile Include="galois8.c">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="block_create.c">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="libpar3.h">

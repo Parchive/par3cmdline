@@ -113,16 +113,21 @@ typedef struct {
 
 	uint8_t set_id[8];	// InputSetID
 	uint8_t attribute;	// attributes in Root Packet
-	uint8_t gf_size;	// The size of the Galois field in bytes.
+	uint8_t gf_size;	// The size of the Galois field in bytes
+
+	int galois_poly;	// The generator polynomial of the Galois field
+	int *galois_table;	// Pointer of tables for (finite) galois field arithmetic
 
 	uint64_t block_size;
 	uint64_t block_count;		// This may be max or possible value at creating.
 	PAR3_BLOCK_CTX *block_list;	// List of block information
-	uint8_t *input_block;		// When it can keep all input blocks on memory
+	uint8_t *input_data;
 
 	uint64_t first_recovery_block;
 	uint64_t recovery_block_count;
 	uint32_t recovery_file_count;
+	uint32_t redundancy_size;	// Lower 7-bit (0~100) is percent, or 101=KB, 102=MB, 103=GB.
+	uint8_t *recovery_data;
 
 	char base_path[_MAX_PATH];
 	char par_filename[_MAX_PATH];

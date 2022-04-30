@@ -71,7 +71,7 @@ int check_complete_file(PAR3_CTX *par3_ctx, uint32_t file_id,
 
 	// Only when stored CRC-64 isn't zero, check the first 16 KB.
 	crc16k = 0;
-	if (file_p->crc == 0){
+	if (file_p->crc == 0){	// // When CRC is zero, ignore the case. Such like "par inside".
 		size16k = 0;
 	} else if (file_size < 16384){
 		size16k = file_size;
@@ -347,8 +347,10 @@ int check_complete_file(PAR3_CTX *par3_ctx, uint32_t file_id,
 	// Check file's hash at the last.
 	blake3_hasher_finalize(&hasher, buf_hash, 16);
 	if (memcmp(buf_hash, file_p->hash, 16) != 0){
-		// File hash is different.
-		return -7;
+		if (mem_or16(file_p->hash) != 0){	// Ignore case of zero bytes, as it was not calculated.
+			// File hash is different.
+			return -7;
+		}
 
 	} else if (flag_unknown != 0){
 		// Even when checksum is unknown, file data is complete.

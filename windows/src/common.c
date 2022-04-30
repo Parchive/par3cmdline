@@ -454,14 +454,14 @@ size_t namez_maxlen(char *namez, size_t namez_len)
 }
 
 
-// Combine 8 or 16 bytes to 2 byte integer.
+// Combine 8 or 16 bytes to little endian 3 bytes integer.
 int mem_or8(unsigned char buf[8])
 {
-	return (buf[0] | ((buf[1] | buf[2] | buf[3] | buf[4] | buf[5] | buf[6] | buf[7]) << 8));
+	return (buf[0] | (buf[1] << 8) | ((buf[2] | buf[3] | buf[4] | buf[5] | buf[6] | buf[7]) << 16));
 }
 int mem_or16(unsigned char buf[16])
 {
-	return (buf[0] | (( buf[1] | buf[2] | buf[3] | buf[4] | buf[5] | buf[6] | buf[7] |
-			buf[8] | buf[9] | buf[10] | buf[11] | buf[12] | buf[13] | buf[14] | buf[15]) << 8));
+	return (buf[0] | (buf[1] << 8) | ((buf[2] | buf[3] | buf[4] | buf[5] | buf[6] | buf[7] |
+			buf[8] | buf[9] | buf[10] | buf[11] | buf[12] | buf[13] | buf[14] | buf[15]) << 16));
 }
 
