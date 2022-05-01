@@ -63,7 +63,7 @@ int find_identical_block(PAR3_CTX *par3_ctx)
 							}
 							if (find_index == -1){
 								// When there is no valid slice.
-								printf("Mapping information is wrong.\n");
+								printf("Mapping information for block[%I64u] is wrong.\n", block_index_i);
 								return RET_LOGIC_ERROR;
 							}
 							// Copy reading source to another.
@@ -87,7 +87,7 @@ int find_identical_block(PAR3_CTX *par3_ctx)
 						}
 						if (find_index == -1){
 							// When there is no valid slice.
-							printf("Mapping information is wrong.\n");
+							printf("Mapping information for block[%I64u] is wrong.\n", block_index_j);
 							return RET_LOGIC_ERROR;
 						}
 						// Copy reading source to another.
@@ -113,7 +113,7 @@ int find_identical_block(PAR3_CTX *par3_ctx)
 			}
 			if (find_index == -1){
 				// When there is no valid slice.
-				printf("Mapping information is wrong.\n");
+				printf("Mapping information for block[%I64u] is wrong.\n", block_index_i);
 				return RET_LOGIC_ERROR;
 			}
 			// Map other slices.

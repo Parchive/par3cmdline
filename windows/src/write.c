@@ -11,6 +11,7 @@
 #include "blake3/blake3.h"
 #include "libpar3.h"
 #include "common.h"
+#include "hash.h"
 #include "packet.h"
 
 
@@ -141,7 +142,7 @@ static int write_data_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t each_s
 	uint8_t *work_buf, *common_packet, packet_header[56];
 	uint32_t file_index, file_read;
 	int64_t slice_index;
-	uint64_t num, file_offset;
+	uint64_t num, file_offset, crc;
 	size_t read_size, tail_offset;
 	size_t write_size, write_size2;
 	size_t packet_count, packet_to, packet_from;
@@ -149,7 +150,7 @@ static int write_data_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t each_s
 	PAR3_FILE_CTX *file_list;
 	PAR3_SLICE_CTX *slice_list;
 	PAR3_BLOCK_CTX *block_list;
-	FILE *fp, *fp_read;
+	FILE *fp_write, *fp_read;
 	blake3_hasher hasher;
 
 	work_buf = par3_ctx->work_buf;
@@ -167,8 +168,8 @@ static int write_data_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t each_s
 	packet_count *= par3_ctx->common_packet_count;
 	//printf("number of repeated packets = %zu\n", packet_count);
 
-	fp = fopen(filename, "wb");
-	if (fp == NULL){
+	fp_write = fopen(filename, "wb");
+	if (fp_write == NULL){
 		perror("Failed to open Archive File");
 		return RET_FILE_IO_ERROR;
 	}
@@ -176,18 +177,18 @@ static int write_data_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t each_s
 	// Creator Packet
 	write_size = par3_ctx->creator_packet_size;
 	if (write_size > 0){
-		if (fwrite(par3_ctx->creator_packet, 1, write_size, fp) != write_size){
+		if (fwrite(par3_ctx->creator_packet, 1, write_size, fp_write) != write_size){
 			perror("Failed to write Creator Packet on Archive File");
-			fclose(fp);
+			fclose(fp_write);
 			return RET_FILE_IO_ERROR;
 		}
 	}
 
 	// First common packets
 	write_size = common_packet_size;
-	if (fwrite(common_packet, 1, write_size, fp) != write_size){
+	if (fwrite(common_packet, 1, write_size, fp_write) != write_size){
 		perror("Failed to write first common packets on Archive File");
-		fclose(fp);
+		fclose(fp_write);
 		return RET_FILE_IO_ERROR;
 	}
 
@@ -215,8 +216,8 @@ static int write_data_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t each_s
 				slice_index = slice_list[slice_index].next;
 			}
 			if (slice_index == -1){	// When there is no valid slice.
-				printf("Mapping information is wrong.\n");
-				fclose(fp);
+				printf("Mapping information for block[%I64u] is wrong.\n", num);
+				fclose(fp_write);
 				if (fp_read != NULL)
 					fclose(fp_read);
 				return RET_LOGIC_ERROR;
@@ -234,7 +235,7 @@ static int write_data_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t each_s
 				fp_read = fopen(file_list[file_index].name, "rb");
 				if (fp_read == NULL){
 					perror("Failed to open input file");
-					fclose(fp);
+					fclose(fp_write);
 					return RET_FILE_IO_ERROR;
 				}
 				file_read = file_index;
@@ -243,14 +244,14 @@ static int write_data_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t each_s
 				if (_fseeki64(fp_read, file_offset, SEEK_SET) != 0){
 					perror("Failed to seek input file");
 					fclose(fp_read);
-					fclose(fp);
+					fclose(fp_write);
 					return RET_FILE_IO_ERROR;
 				}
 			}
 			if (fread(work_buf, 1, (size_t)read_size, fp_read) != (size_t)read_size){
 				perror("Failed to read full slice on input file");
 				fclose(fp_read);
-				fclose(fp);
+				fclose(fp_write);
 				return RET_FILE_IO_ERROR;
 			}
 
@@ -268,8 +269,8 @@ static int write_data_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t each_s
 					slice_index = slice_list[slice_index].next;
 				}
 				if (slice_index == -1){	// When there is no valid slice.
-					printf("Mapping information is wrong.\n");
-					fclose(fp);
+					printf("Mapping information for block[%I64u] is wrong.\n", num);
+					fclose(fp_write);
 					if (fp_read != NULL)
 						fclose(fp_read);
 					return RET_LOGIC_ERROR;
@@ -287,7 +288,7 @@ static int write_data_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t each_s
 					fp_read = fopen(file_list[file_index].name, "rb");
 					if (fp_read == NULL){
 						perror("Failed to open input file");
-						fclose(fp);
+						fclose(fp_write);
 						return RET_FILE_IO_ERROR;
 					}
 					file_read = file_index;
@@ -296,18 +297,28 @@ static int write_data_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t each_s
 					if (_fseeki64(fp_read, file_offset, SEEK_SET) != 0){
 						perror("Failed to seek input file");
 						fclose(fp_read);
-						fclose(fp);
+						fclose(fp_write);
 						return RET_FILE_IO_ERROR;
 					}
 				}
 				if (fread(work_buf + tail_offset, 1, (size_t)read_size, fp_read) != (size_t)read_size){
 					perror("Failed to read tail slice on input file");
 					fclose(fp_read);
-					fclose(fp);
+					fclose(fp_write);
 					return RET_FILE_IO_ERROR;
 				}
 				tail_offset += read_size;
 			}
+		}
+
+		// Calculate checksum of block to confirm that input file was not changed.
+		crc = crc64(work_buf, write_size, 0);
+		if (crc != block_list[num].crc){
+			printf("Checksum of block[%I64u] is different.\n", num);
+			fclose(fp_write);
+			if (fp_read != NULL)
+				fclose(fp_read);
+			return RET_LOGIC_ERROR;
 		}
 
 		// Calculate checksum of packet here.
@@ -317,16 +328,16 @@ static int write_data_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t each_s
 		blake3_hasher_finalize(&hasher, packet_header + 8, 16);
 
 		// Write packet header and data on file.
-		if (fwrite(packet_header, 1, 56, fp) != 56){
+		if (fwrite(packet_header, 1, 56, fp_write) != 56){
 			perror("Failed to write Data Packet on Archive File");
-			fclose(fp);
+			fclose(fp_write);
 			if (fp_read != NULL)
 				fclose(fp_read);
 			return RET_FILE_IO_ERROR;
 		}
-		if (fwrite(work_buf, 1, write_size, fp) != write_size){
+		if (fwrite(work_buf, 1, write_size, fp_write) != write_size){
 			perror("Failed to write Data Packet on Archive File");
-			fclose(fp);
+			fclose(fp_write);
 			if (fp_read != NULL)
 				fclose(fp_read);
 			return RET_FILE_IO_ERROR;
@@ -355,9 +366,9 @@ static int write_data_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t each_s
 		// Write common packets
 		if (write_size > 0){
 			//printf("packet_offset = %zu, write_size = %zu, total = %zu\n", packet_offset, write_size, packet_offset + write_size);
-			if (fwrite(common_packet + packet_offset, 1, write_size, fp) != write_size){
+			if (fwrite(common_packet + packet_offset, 1, write_size, fp_write) != write_size){
 				perror("Failed to write repeated common packet on Archive File");
-				fclose(fp);
+				fclose(fp_write);
 				if (fp_read != NULL)
 					fclose(fp_read);
 				return RET_FILE_IO_ERROR;
@@ -369,9 +380,9 @@ static int write_data_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t each_s
 		}
 		if (write_size2 > 0){
 			//printf("write_size2 = %zu = packet_offset\n", write_size2);
-			if (fwrite(common_packet, 1, write_size2, fp) != write_size2){
+			if (fwrite(common_packet, 1, write_size2, fp_write) != write_size2){
 				perror("Failed to write repeated common packet on Archive File");
-				fclose(fp);
+				fclose(fp_write);
 				if (fp_read != NULL)
 					fclose(fp_read);
 				return RET_FILE_IO_ERROR;
@@ -384,9 +395,9 @@ static int write_data_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t each_s
 	// Comment Packet
 	write_size = par3_ctx->comment_packet_size;
 	if (write_size > 0){
-		if (fwrite(par3_ctx->comment_packet, 1, write_size, fp) != write_size){
+		if (fwrite(par3_ctx->comment_packet, 1, write_size, fp_write) != write_size){
 			perror("Failed to write Comment Packet on Archive File");
-			fclose(fp);
+			fclose(fp_write);
 			if (fp_read != NULL)
 				fclose(fp_read);
 			return RET_FILE_IO_ERROR;
@@ -396,11 +407,11 @@ static int write_data_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t each_s
 	if (fp_read != NULL){
 		if (fclose(fp_read) != 0){
 			perror("Failed to close input file");
-			fclose(fp);
+			fclose(fp_write);
 			return RET_FILE_IO_ERROR;
 		}
 	}
-	if (fclose(fp) != 0){
+	if (fclose(fp_write) != 0){
 		perror("Failed to close Archive File");
 		return RET_FILE_IO_ERROR;
 	}

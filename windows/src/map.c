@@ -346,6 +346,7 @@ int map_input_block(PAR3_CTX *par3_ctx)
 				// set block info (block for tails don't store checksum)
 				block_p->slice = slice_index;
 				block_p->size = tail_size;
+				block_p->crc = crc64(work_buf, (size_t)tail_size, 0);
 				block_p->state = 2;
 				block_p++;
 				block_index++;
@@ -368,6 +369,7 @@ int map_input_block(PAR3_CTX *par3_ctx)
 
 				// update block info
 				block_list[slice_p->block].size = tail_offset + tail_size;
+				block_list[slice_p->block].crc = crc64(work_buf, (size_t)tail_size, block_list[slice_p->block].crc);
 			}
 
 			// calculate CRC-64 of the first 16 KB
@@ -449,6 +451,9 @@ int map_input_block(PAR3_CTX *par3_ctx)
 	// Release temporary buffer.
 	free(crc_list);
 	par3_ctx->crc_list = NULL;
+	par3_ctx->crc_count = 0;
+	free(work_buf);
+	par3_ctx->work_buf = NULL;
 
 	// Re-allocate memory for actual number of chunk description
 	if (par3_ctx->noise_level >= 0){
