@@ -143,12 +143,6 @@ int par3_trial(PAR3_CTX *par3_ctx)
 		ret = make_matrix_packet(par3_ctx);
 		if (ret != 0)
 			return ret;
-
-		// This is for debug.
-		// Actually, no need to create recovery blocks in trial.
-//		ret = create_recovery_block(par3_ctx);
-//		if (ret != 0)
-//			return ret;
 	}
 
 	// File Packet, Directory Packet, Root Packet
@@ -165,13 +159,24 @@ int par3_trial(PAR3_CTX *par3_ctx)
 	try_index_file(par3_ctx);
 
 	// Try PAR3 files with input blocks
-	if ( (par3_ctx->block_count > 0) && (par3_ctx->data_packet != 0) ){
+	if ( (par3_ctx->block_count > 0) && ( (par3_ctx->data_packet != 0) || (par3_ctx->recovery_block_count > 0) ) ){
 		ret = duplicate_common_packet(par3_ctx);
 		if (ret != 0)
 			return ret;
-		ret = try_archive_file(par3_ctx);
-		if (ret != 0)
-			return ret;
+
+		// Write PAR3 files with input blocks
+		if (par3_ctx->data_packet != 0){
+			ret = try_archive_file(par3_ctx);
+			if (ret != 0)
+				return ret;
+		}
+
+		// Write PAR3 files with recovery blocks
+		if (par3_ctx->recovery_block_count > 0){
+			ret = try_recovery_file(par3_ctx);
+			if (ret != 0)
+				return ret;
+		}
 	}
 
 	return 0;
@@ -230,6 +235,11 @@ int par3_create(PAR3_CTX *par3_ctx)
 		if (ret != 0)
 			return ret;
 
+		// Check if it can keep all recovery blocks on memory.
+		ret = allocate_recovery_block(par3_ctx);
+		if (ret != 0)
+			return ret;
+
 		// Write PAR3 files with input blocks
 		if (par3_ctx->data_packet != 0){
 			ret = write_archive_file(par3_ctx);
@@ -237,15 +247,27 @@ int par3_create(PAR3_CTX *par3_ctx)
 				return ret;
 		}
 
+		// If there are enough memory to keep all recovery blocks,
+		// it calculates recovery blocks before writing Recovery Data Packets.
+		if (par3_ctx->ecc_method & 0x1000){
+			ret = create_recovery_block(par3_ctx);
+			if (ret < 0){
+				par3_ctx->ecc_method &= ~0x1000;
+			} else if (ret > 0){
+				return ret;
+			}
+		}
+
 		// Write PAR3 files with recovery blocks
 		if (par3_ctx->recovery_block_count > 0){
-		
-		
-		
-		
-		
-		
+			ret = write_recovery_file(par3_ctx);
+			if (ret != 0)
+				return ret;
 		}
+
+		// When recovery blocks were not created yet, calculate at here.
+
+
 	}
 
 	return 0;

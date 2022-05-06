@@ -46,116 +46,20 @@ void try_index_file(PAR3_CTX *par3_ctx)
 		printf("Size of index file = %I64u, %s\n", file_size, offset_file_name(par3_ctx->par_filename));
 }
 
-static void try_data_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t each_start, uint64_t each_count)
+
+// Try how many blocks in each file, and calculate how many digits for each block count.
+void calculate_digit_max(PAR3_CTX *par3_ctx,
+		uint64_t block_count, uint64_t first_num,
+		uint64_t *p_base_num, uint64_t *p_max_count,
+		int *p_digit_num1, int *p_digit_num2)
 {
-	uint8_t *common_packet;
-	uint64_t file_size, block_size, num;
-	size_t write_size, write_size2;
-	size_t packet_count, packet_to, packet_from;
-	size_t common_packet_size, packet_size, packet_offset;
-	PAR3_SLICE_CTX *slice_list;
-	PAR3_BLOCK_CTX *block_list;
-
-	block_size = par3_ctx->block_size;
-	slice_list = par3_ctx->slice_list;
-	block_list = par3_ctx->block_list;
-	common_packet = par3_ctx->common_packet;
-	common_packet_size = par3_ctx->common_packet_size;
-
-	// How many repetition of common packet.
-	packet_count = 0;	// reduce 1, because put 1st copy at first.
-	for (num = 2; num <= each_count; num *= 2)	// log2(each_count)
-		packet_count++;
-	//printf("each_count = %I64u, repetition = %zu\n", each_count, packet_count);
-	packet_count *= par3_ctx->common_packet_count;
-	//printf("number of repeated packets = %zu\n", packet_count);
-
-	file_size = 0;
-
-	// Creator Packet
-	file_size += par3_ctx->creator_packet_size;
-
-	// First common packets
-	file_size += common_packet_size;
-
-	// Data Packet and repeated common packets
-	packet_from = 0;
-	packet_offset = 0;
-	for (num = each_start; num < each_start + each_count; num++){
-		// data size in the block
-		write_size = block_list[num].size;
-
-		// Write packet header and data on file.
-		file_size += 56;
-		file_size += write_size;
-
-		// How many common packets to write here.
-		write_size = 0;
-		write_size2 = 0;
-		packet_to = packet_count * (num - each_start + 1) / each_count;
-		//printf("write from %zu to %zu\n", packet_from, packet_to);
-		while (packet_to - packet_from > 0){
-			// Read packet size of each packet from packet_offset, and add them.
-			memcpy(&packet_size, common_packet + packet_offset + write_size + 24, 8);
-			write_size += packet_size;
-			packet_from++;
-			if (packet_offset + write_size >= common_packet_size)
-				break;
-		}
-		while (packet_to - packet_from > 0){
-			// Read packet size of each packet from the first, and add them.
-			memcpy(&packet_size, common_packet + write_size2 + 24, 8);
-			write_size2 += packet_size;
-			packet_from++;
-		}
-
-		// Write common packets
-		if (write_size > 0){
-			//printf("packet_offset = %zu, write_size = %zu, total = %zu\n", packet_offset, write_size, packet_offset + write_size);
-			file_size += write_size;
-			// This offset doesn't exceed common_packet_size.
-			packet_offset += write_size;
-			if (packet_offset >= common_packet_size)
-				packet_offset -= common_packet_size;
-		}
-		if (write_size2 > 0){
-			//printf("write_size2 = %zu = packet_offset\n", write_size2);
-			file_size += write_size2;
-			// Current offset is saved.
-			packet_offset = write_size2;
-		}
-	}
-
-	// Comment Packet
-	file_size += par3_ctx->comment_packet_size;
-
-	if (par3_ctx->noise_level >= -1)
-		printf("Size of archive file = %I64u, %s\n", file_size, offset_file_name(filename));
-}
-
-// Write PAR3 files with Data packets (input blocks)
-int try_archive_file(PAR3_CTX *par3_ctx)
-{
-	char filename[_MAX_PATH], recovery_file_scheme;
+	char recovery_file_scheme;
 	int digit_num1, digit_num2;
 	uint32_t file_count;
-	uint64_t num, block_count, base_num;
+	uint64_t num, base_num;
 	uint64_t each_start, each_count, max_count;
-	size_t len;
 
-	block_count = par3_ctx->block_count;
-	if (block_count == 0)
-		return 0;
 	recovery_file_scheme = par3_ctx->recovery_file_scheme;
-
-	// Remove the last ".par3" from base PAR3 filename.
-	strcpy(filename, par3_ctx->par_filename);
-	len = strlen(filename);
-	if (strcmp(filename + len - 5, ".par3") == 0){
-		len -= 5;
-		filename[len] = 0;
-		//printf("len = %zu, base name = %s\n", len, filename);
-	}
 
 	// Check max number of digits.
 	file_count = par3_ctx->recovery_file_count;
@@ -253,7 +157,7 @@ int try_archive_file(PAR3_CTX *par3_ctx)
 	// Calculate how many digits for each block count.
 	//printf("max_start = %I64u, max_count = %I64u\n", each_start, max_count);
 	digit_num1 = 1;
-	num = each_start;
+	num = each_start + first_num;
 	while (num >= 10){
 		num /= 10;
 		digit_num1++;
@@ -264,14 +168,133 @@ int try_archive_file(PAR3_CTX *par3_ctx)
 		num /= 10;
 		digit_num2++;
 	}
-	if (len + 11 + digit_num1 + digit_num2 >= _MAX_PATH){
+
+	// Return values
+	*p_base_num = base_num;
+	*p_max_count = max_count;
+	*p_digit_num1 = digit_num1;
+	*p_digit_num2 = digit_num2;
+}
+
+
+static void try_data_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t each_start, uint64_t each_count)
+{
+	uint8_t *common_packet;
+	uint64_t file_size, num;
+	size_t write_size, write_size2;
+	size_t packet_count, packet_to, packet_from;
+	size_t common_packet_size, packet_size, packet_offset;
+	PAR3_BLOCK_CTX *block_list;
+
+	block_list = par3_ctx->block_list;
+	common_packet = par3_ctx->common_packet;
+	common_packet_size = par3_ctx->common_packet_size;
+
+	// How many repetition of common packet.
+	packet_count = 0;	// reduce 1, because put 1st copy at first.
+	for (num = 2; num <= each_count; num *= 2)	// log2(each_count)
+		packet_count++;
+	//printf("each_count = %I64u, repetition = %zu\n", each_count, packet_count);
+	packet_count *= par3_ctx->common_packet_count;
+	//printf("number of repeated packets = %zu\n", packet_count);
+
+	file_size = 0;
+
+	// Creator Packet
+	file_size += par3_ctx->creator_packet_size;
+
+	// First common packets
+	file_size += common_packet_size;
+
+	// Data Packet and repeated common packets
+	packet_from = 0;
+	packet_offset = 0;
+	for (num = each_start; num < each_start + each_count; num++){
+		// data size in the block
+		write_size = block_list[num].size;
+
+		// Write packet header and data on file.
+		file_size += 48 + 8;
+		file_size += write_size;
+
+		// How many common packets to write here.
+		write_size = 0;
+		write_size2 = 0;
+		packet_to = packet_count * (num - each_start + 1) / each_count;
+		//printf("write from %zu to %zu\n", packet_from, packet_to);
+		while (packet_to - packet_from > 0){
+			// Read packet size of each packet from packet_offset, and add them.
+			memcpy(&packet_size, common_packet + packet_offset + write_size + 24, 8);
+			write_size += packet_size;
+			packet_from++;
+			if (packet_offset + write_size >= common_packet_size)
+				break;
+		}
+		while (packet_to - packet_from > 0){
+			// Read packet size of each packet from the first, and add them.
+			memcpy(&packet_size, common_packet + write_size2 + 24, 8);
+			write_size2 += packet_size;
+			packet_from++;
+		}
+
+		// Write common packets
+		if (write_size > 0){
+			//printf("packet_offset = %zu, write_size = %zu, total = %zu\n", packet_offset, write_size, packet_offset + write_size);
+			file_size += write_size;
+			// This offset doesn't exceed common_packet_size.
+			packet_offset += write_size;
+			if (packet_offset >= common_packet_size)
+				packet_offset -= common_packet_size;
+		}
+		if (write_size2 > 0){
+			//printf("write_size2 = %zu = packet_offset\n", write_size2);
+			file_size += write_size2;
+			// Current offset is saved.
+			packet_offset = write_size2;
+		}
+	}
+
+	// Comment Packet
+	file_size += par3_ctx->comment_packet_size;
+
+	if (par3_ctx->noise_level >= -1)
+		printf("Size of archive file = %I64u, %s\n", file_size, offset_file_name(filename));
+}
+
+// Write PAR3 files with Data packets (input blocks)
+int try_archive_file(PAR3_CTX *par3_ctx)
+{
+	char filename[_MAX_PATH], recovery_file_scheme;
+	int digit_num1, digit_num2;
+	uint32_t file_count;
+	uint64_t block_count, base_num;
+	uint64_t each_start, each_count, max_count;
+	size_t len;
+
+	block_count = par3_ctx->block_count;
+	if (block_count == 0)
+		return 0;
+	recovery_file_scheme = par3_ctx->recovery_file_scheme;
+	file_count = par3_ctx->recovery_file_count;
+
+	// Remove the last ".par3" from base PAR3 filename.
+	strcpy(filename, par3_ctx->par_filename);
+	len = strlen(filename);
+	if (strcmp(filename + len - 5, ".par3") == 0){
+		len -= 5;
+		filename[len] = 0;
+		//printf("len = %zu, base name = %s\n", len, filename);
+	}
+
+	// Calculate block count and digits max.
+	calculate_digit_max(par3_ctx, block_count, 0, &base_num, &max_count, &digit_num1, &digit_num2);
+	if (len + 11 + digit_num1 + digit_num2 >= _MAX_PATH){	// .part#+#.par3
 		printf("PAR3 filename will be too long.\n");
 		return RET_FILE_IO_ERROR;
 	}
 
 	// Write each PAR3 file.
 	each_start = 0;
-	block_count = par3_ctx->block_count;
 	while (block_count > 0){
 		if (file_count > 0){
 			if (recovery_file_scheme == 'u'){	// Uniform
@@ -311,6 +334,170 @@ int try_archive_file(PAR3_CTX *par3_ctx)
 
 		sprintf(filename + len, ".part%0*I64u+%0*I64u.par3", digit_num1, each_start, digit_num2, each_count);
 		try_data_packet(par3_ctx, filename, each_start, each_count);
+
+		each_start += each_count;
+		block_count -= each_count;
+	}
+
+	return 0;
+}
+
+
+static void try_recovery_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t each_start, uint64_t each_count)
+{
+	uint8_t *common_packet;
+	uint64_t file_size, block_size, num;
+	size_t write_size, write_size2;
+	size_t packet_count, packet_to, packet_from;
+	size_t common_packet_size, packet_size, packet_offset;
+
+	block_size = par3_ctx->block_size;
+	common_packet = par3_ctx->common_packet;
+	common_packet_size = par3_ctx->common_packet_size;
+
+	// How many repetition of common packet.
+	packet_count = 0;	// reduce 1, because put 1st copy at first.
+	for (num = 2; num <= each_count; num *= 2)	// log2(each_count)
+		packet_count++;
+	//printf("each_count = %I64u, repetition = %zu\n", each_count, packet_count);
+	packet_count *= par3_ctx->common_packet_count;
+	//printf("number of repeated packets = %zu\n", packet_count);
+
+	file_size = 0;
+
+	// Creator Packet
+	file_size += par3_ctx->creator_packet_size;
+
+	// First common packets
+	file_size += common_packet_size;
+
+	// Recovery Data Packet and repeated common packets
+	packet_from = 0;
+	packet_offset = 0;
+	for (num = each_start; num < each_start + each_count; num++){
+		// Write packet header and dummy data on file.
+		// It will write recovery block later.
+		file_size += 48 + 40;
+		file_size += block_size;
+
+		// How many common packets to write here.
+		write_size = 0;
+		write_size2 = 0;
+		packet_to = packet_count * (num - each_start + 1) / each_count;
+		//printf("write from %zu to %zu\n", packet_from, packet_to);
+		while (packet_to - packet_from > 0){
+			// Read packet size of each packet from packet_offset, and add them.
+			memcpy(&packet_size, common_packet + packet_offset + write_size + 24, 8);
+			write_size += packet_size;
+			packet_from++;
+			if (packet_offset + write_size >= common_packet_size)
+				break;
+		}
+		while (packet_to - packet_from > 0){
+			// Read packet size of each packet from the first, and add them.
+			memcpy(&packet_size, common_packet + write_size2 + 24, 8);
+			write_size2 += packet_size;
+			packet_from++;
+		}
+
+		// Write common packets
+		if (write_size > 0){
+			//printf("packet_offset = %zu, write_size = %zu, total = %zu\n", packet_offset, write_size, packet_offset + write_size);
+			file_size += write_size;
+			// This offset doesn't exceed common_packet_size.
+			packet_offset += write_size;
+			if (packet_offset >= common_packet_size)
+				packet_offset -= common_packet_size;
+		}
+		if (write_size2 > 0){
+			//printf("write_size2 = %zu = packet_offset\n", write_size2);
+			file_size += write_size2;
+			// Current offset is saved.
+			packet_offset = write_size2;
+		}
+	}
+
+	// Comment Packet
+	file_size += par3_ctx->comment_packet_size;
+
+	if (par3_ctx->noise_level >= -1)
+		printf("Size of recovery file = %I64u, %s\n", file_size, offset_file_name(filename));
+}
+
+// Write PAR3 files with Recovery Data packets (recovery blocks are not written yet)
+int try_recovery_file(PAR3_CTX *par3_ctx)
+{
+	char filename[_MAX_PATH], recovery_file_scheme;
+	int digit_num1, digit_num2;
+	uint32_t file_count;
+	uint64_t block_count, base_num, first_num;
+	uint64_t each_start, each_count, max_count;
+	size_t len;
+
+	block_count = par3_ctx->recovery_block_count;
+	if (block_count == 0)
+		return 0;
+	recovery_file_scheme = par3_ctx->recovery_file_scheme;
+	file_count = par3_ctx->recovery_file_count;
+	first_num = par3_ctx->first_recovery_block;
+
+	// Remove the last ".par3" from base PAR3 filename.
+	strcpy(filename, par3_ctx->par_filename);
+	len = strlen(filename);
+	if (strcmp(filename + len - 5, ".par3") == 0){
+		len -= 5;
+		filename[len] = 0;
+		//printf("len = %zu, base name = %s\n", len, filename);
+	}
+
+	// Calculate block count and digits max.
+	calculate_digit_max(par3_ctx, block_count, first_num, &base_num, &max_count, &digit_num1, &digit_num2);
+	if (len + 10 + digit_num1 + digit_num2 >= _MAX_PATH){	// .vol#+#.par3
+		printf("PAR3 filename will be too long.\n");
+		return RET_FILE_IO_ERROR;
+	}
+
+	// Write each PAR3 file.
+	each_start = first_num;
+	while (block_count > 0){
+		if (file_count > 0){
+			if (recovery_file_scheme == 'u'){	// Uniform
+				each_count = max_count;
+				if (base_num > 0){
+					base_num--;
+					if (base_num == 0)
+						max_count--;
+				}
+
+			} else {	// Variable (multiply by 2)
+				each_count = base_num;
+				base_num *= 2;
+				if (each_count > block_count)
+					each_count = block_count;
+			}
+
+		} else {
+			if (recovery_file_scheme == 'u'){	// Uniform
+				each_count = block_count;
+
+			} else if (recovery_file_scheme == 'l'){	// Limit size
+				each_count = base_num;
+				base_num *= 2;
+				if (each_count > max_count)
+					each_count = max_count;
+				if (each_count > block_count)
+					each_count = block_count;
+
+			} else {	// Power of 2
+				each_count = base_num;
+				base_num *= 2;
+				if (each_count > block_count)
+					each_count = block_count;
+			}
+		}
+
+		sprintf(filename + len, ".vol%0*I64u+%0*I64u.par3", digit_num1, each_start, digit_num2, each_count);
+		try_recovery_packet(par3_ctx, filename, each_start, each_count);
 
 		each_start += each_count;
 		block_count -= each_count;

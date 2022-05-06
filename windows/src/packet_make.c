@@ -264,6 +264,7 @@ int make_matrix_packet(PAR3_CTX *par3_ctx)
 	}
 
 	// At this time, this supports only Cauchy Matrix Packet.
+	par3_ctx->ecc_method = 1;
 	tmp_p = par3_ctx->matrix_packet + 48;
 	memset(tmp_p, 0, 8);	// Index of first input block = 0 normally
 	tmp_p += 8;

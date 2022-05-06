@@ -45,7 +45,7 @@ int par3_verify(PAR3_CTX *par3_ctx)
 	int ret;
 	uint32_t missing_dir_count, missing_file_count;
 	uint32_t misnamed_file_count, damaged_file_count;
-	uint64_t block_available;
+	uint64_t block_count, block_available, recovery_block_available;
 
 	ret = read_vital_packet(par3_ctx);
 	if (ret != 0)
@@ -65,7 +65,8 @@ int par3_verify(PAR3_CTX *par3_ctx)
 	}
 
 	// Map input file slices into blocks
-	if (par3_ctx->block_count > 0){
+	block_count = par3_ctx->block_count;
+	if (block_count > 0){
 		ret = count_slice_info(par3_ctx);
 		if (ret != 0)
 			return ret;
@@ -92,6 +93,11 @@ int par3_verify(PAR3_CTX *par3_ctx)
 		return ret;
 
 	if (missing_file_count + damaged_file_count > 0){
+		// Data Packets substitute for lost input blocks.
+		ret = substitute_input_block(par3_ctx);
+		if (ret != 0)
+			return ret;
+
 		// Find identical input blocks
 		ret = find_identical_block(par3_ctx);
 		if (ret != 0)
@@ -101,7 +107,7 @@ int par3_verify(PAR3_CTX *par3_ctx)
 		block_available = aggregate_input_block(par3_ctx);
 
 		// When blocks are not enough, check extra files next.
-		if (block_available < par3_ctx->block_count){
+		if (block_available < block_count){
 			// Check extra files and misnamed files.
 			ret = verify_extra_file(par3_ctx, &missing_file_count, &damaged_file_count, &misnamed_file_count);
 			if (ret != 0)
@@ -136,31 +142,42 @@ int par3_verify(PAR3_CTX *par3_ctx)
 				printf("%u files are ok.\n", par3_ctx->input_file_count - missing_file_count - damaged_file_count - misnamed_file_count);
 			}
 			if (missing_file_count + damaged_file_count > 0){
-				printf("You have %I64u out of %I64u input blocks available.\n", block_available, par3_ctx->block_count);
+				printf("You have %I64u out of %I64u input blocks available.\n", block_available, block_count);
 			}
 		}
 
-	} else {
+		// Aggregate recovery blocks of each Matrix Packet
+		recovery_block_available = aggregate_recovery_block(par3_ctx);
+		if (block_available + recovery_block_available >= block_count){
+			if (par3_ctx->noise_level >= -1){
+				printf("Repair is possible.\n");
+			}
+			if (par3_ctx->noise_level >= 0){
+				if (block_available >= block_count){	// Found enough input blocks.
+					printf("None of the recovery blocks will be used for the repair.\n");
+				} else {
+					if (block_available + recovery_block_available > block_count){
+						printf("You have an excess of %I64u recovery blocks.\n", block_available + recovery_block_available - block_count);
+					}
+					printf("%I64u recovery blocks will be used to repair.\n", block_count - block_available);
+				}
+			}
+			return RET_REPAIR_POSSIBLE;
+
+		} else {	// Need more blocks to repair.
+			if (par3_ctx->noise_level >= -1){
+				printf("Repair is not possible.\n");
+				printf("You need %I64u more recovery blocks to be able to repair.\n", block_count - block_available - recovery_block_available);
+			}
+			return RET_REPAIR_NOT_POSSIBLE;
+		}
+
+	} else {	// There is no damaged or missing files.
 		if (par3_ctx->noise_level >= -1){
 			printf("\n");
 			printf("All files are correct, repair is not required.\n");
 		}
+		return 0;
 	}
-
-/*
-{
-	FILE *fp;
-	fp = fopen("debug_file.txt", "wb");
-	if (fp != NULL){
-	
-		fwrite(par3_ctx->par_file_name, 1, par3_ctx->par_file_name_len, fp);
-	
-		fclose(fp);
-	}
-}
-*/
-
-
-	return 0;
 }
 

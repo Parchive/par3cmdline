@@ -52,7 +52,8 @@ int * gf8_create_table(int prim_poly)
 	galois_ilog_table = galois_log_table + 256;
 	galois_mult_table = galois_log_table + 256 * 2;
 
-	galois_log_table[0] = 255;	// galois_log_table[0] is invalid, because power of 2 never becomes 0.
+	// galois_log_table[0] is invalid, because power of 2 never becomes 0.
+	galois_log_table[0] = 255;	// Instead of invalid value, set MAX value.
 	galois_ilog_table[255] = 1;	// 2 power 0 is 1. 2 power 255 is 1.
 
 	b = 1;
@@ -154,7 +155,8 @@ void gf8_region_multiply(int *galois_log_table,
 						unsigned char *region,	/* Region to multiply */
 						int multby,				/* Number to multiply by */
 						size_t nbytes,			/* Number of bytes in region */
-						unsigned char *r2)		/* If r2 != NULL, products go here */
+						unsigned char *r2,		/* If r2 != NULL, products go here */
+						int add)
 {
 	unsigned char prod;
 	size_t i;
@@ -164,10 +166,13 @@ void gf8_region_multiply(int *galois_log_table,
 	galois_table = galois_log_table + 256 * 2;
 	galois_table += multby * 256;
 
-	if (r2 == NULL) {
+	if ( (r2 == NULL) || (add == 0) ) {
+		if (r2 == NULL)
+			r2 = region;	// If r2 == NULL, products go original region.
+
 		for (i = 0; i < nbytes; i++) {
 			prod = galois_table[ region[i] ];
-			region[i] = prod;
+			r2[i] = prod;
 		}
 	} else {
 		for (i = 0; i < nbytes; i++) {

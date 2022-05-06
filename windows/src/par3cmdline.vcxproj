@@ -165,6 +165,7 @@
     <ClCompile Include="packet_make.c" />
     <ClCompile Include="packet_parse.c" />
     <ClCompile Include="read.c" />
+    <ClCompile Include="reedsolomon.c" />
     <ClCompile Include="verify.c" />
     <ClCompile Include="verify_check.c" />
     <ClCompile Include="write_trial.c" />
@@ -180,6 +181,7 @@
     <ClInclude Include="libpar3.h" />
     <ClInclude Include="packet.h" />
     <ClInclude Include="read.h" />
+    <ClInclude Include="reedsolomon.h" />
     <ClInclude Include="verify.h" />
     <ClInclude Include="write.h" />
   </ItemGroup>

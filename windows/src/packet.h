@@ -14,6 +14,7 @@ int duplicate_common_packet(PAR3_CTX *par3_ctx);
 // for verification
 
 int add_found_packet(PAR3_CTX *par3_ctx, uint8_t *packet);
+int list_found_packet(PAR3_CTX *par3_ctx, uint8_t *packet, char *filename, int64_t offset);
 int check_packet_set(PAR3_CTX *par3_ctx);
 
 int parse_vital_packet(PAR3_CTX *par3_ctx);

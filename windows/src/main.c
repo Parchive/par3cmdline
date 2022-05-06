@@ -485,7 +485,7 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	if (par3_ctx->noise_level >= 0){
+	if (par3_ctx->noise_level >= 1){
 		if (par3_ctx->memory_limit != 0)
 			printf("memory_limit = %I64u MB\n", par3_ctx->memory_limit >> 20);
 		if (par3_ctx->search_limit != 0)
@@ -505,11 +505,11 @@ int main(int argc, char *argv[])
 		if (par3_ctx->deduplication != 0)
 			printf("deduplication = level %c\n", par3_ctx->deduplication);
 		if (command_recursive != 0)
-			printf("recursive search = enabled\n");
+			printf("recursive search = enable\n");
 		if (par3_ctx->absolute_path != 0)
-			printf("Absolute path = enabled\n");
+			printf("Absolute path = enable\n");
 		if (par3_ctx->data_packet != 0)
-			printf("Data packet = stored\n");
+			printf("Data packet = store\n");
 		if (par3_ctx->base_path[0] != 0)
 			printf("Base path = \"%s\"\n", par3_ctx->base_path);
 		printf("PAR3 file = \"%s\"\n", par3_ctx->par_filename);
@@ -673,7 +673,7 @@ int main(int argc, char *argv[])
 
 		} else {
 			ret = par3_verify(par3_ctx);
-			if (ret != 0){
+			if (ret > 2){
 				printf("Failed to verify with PAR3 file\n");
 				goto prepare_return;
 			}
