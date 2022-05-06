@@ -18,7 +18,7 @@ There is basic feature only.
 Some commands and options are useless.
 There may be some mistake or failure.
 
-It keeps all input blocks and recovery blocks on memory at this time.
+It keeps many input blocks and recovery blocks on memory at this time.
 So, it cannot treat large files now.
 I will solve this problem of file IO, after I test behavior of the mechanism.
 
@@ -29,8 +29,13 @@ Archive Files include Data Packets, which is a piece of input files.
 While verification is possible, it may be slow at this time.
 Currently I prefer finding as many slices as possible.
 
+Repair feature is under construction.
+I implemented 8-bit Reed-Solomon Erasure Codes for small data for testing purpose.
+At this time, this supports only Reed-Solomon Erasure Codes with Cauchy Matrix.
+
 It cannot create Recovery Files yet.
 It cannot Repair yet.
+It doesn't use maultiple recovery codes at once.
 It doesn't support "PAR inside" feature yet.
 
 
