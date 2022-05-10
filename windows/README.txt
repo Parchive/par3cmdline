@@ -33,6 +33,10 @@ Repair feature is under construction.
 I implemented 8-bit Reed-Solomon Erasure Codes for small data for testing purpose.
 At this time, this supports only Reed-Solomon Erasure Codes with Cauchy Matrix.
 
+It can restore missing or damaged files by using Data Packets.
+It doesn't rename misnamed files yet.
+It cannot use Recovery Data Packets yet.
+
 It cannot create Recovery Files yet.
 It cannot Repair yet.
 It doesn't use maultiple recovery codes at once.
