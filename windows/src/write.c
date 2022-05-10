@@ -229,6 +229,7 @@ static int write_data_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t each_s
 			file_index = slice_list[slice_index].file;
 			file_offset = slice_list[slice_index].offset;
 			read_size = slice_list[slice_index].size;
+			//printf("Reading %zu bytes of slice[%I64d] on file[%u] for block[%I64u].\n", read_size, slice_index, file_index, num);
 			if ( (fp_read == NULL) || (file_index != file_read) ){
 				if (fp_read != NULL){	// Close previous input file.
 					fclose(fp_read);
@@ -242,13 +243,11 @@ static int write_data_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t each_s
 				}
 				file_read = file_index;
 			}
-			if (file_offset > 0){
-				if (_fseeki64(fp_read, file_offset, SEEK_SET) != 0){
-					perror("Failed to seek input file");
-					fclose(fp_read);
-					fclose(fp_write);
-					return RET_FILE_IO_ERROR;
-				}
+			if (_fseeki64(fp_read, file_offset, SEEK_SET) != 0){
+				perror("Failed to seek input file");
+				fclose(fp_read);
+				fclose(fp_write);
+				return RET_FILE_IO_ERROR;
 			}
 			if (fread(work_buf, 1, read_size, fp_read) != read_size){
 				perror("Failed to read full slice on input file");
@@ -258,6 +257,7 @@ static int write_data_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t each_s
 			}
 
 		} else {	// tail data only (one tail or packed tails)
+			//printf("Reading %zu bytes for block[%I64u].\n", read_size, num);
 			tail_offset = 0;
 			while (tail_offset < write_size){	// Read tails until data end.
 				slice_index = block_list[num].slice;
@@ -295,13 +295,11 @@ static int write_data_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t each_s
 					}
 					file_read = file_index;
 				}
-				if (file_offset > 0){
-					if (_fseeki64(fp_read, file_offset, SEEK_SET) != 0){
-						perror("Failed to seek input file");
-						fclose(fp_read);
-						fclose(fp_write);
-						return RET_FILE_IO_ERROR;
-					}
+				if (_fseeki64(fp_read, file_offset, SEEK_SET) != 0){
+					perror("Failed to seek input file");
+					fclose(fp_read);
+					fclose(fp_write);
+					return RET_FILE_IO_ERROR;
 				}
 				if (fread(work_buf + tail_offset, 1, read_size, fp_read) != read_size){
 					perror("Failed to read tail slice on input file");

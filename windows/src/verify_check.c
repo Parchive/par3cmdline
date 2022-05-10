@@ -23,7 +23,7 @@
 // -3 = CRC of the first 16 KB is different, -4 = block data is different
 // -5 = chunk tail is different, -6 = tiny chunk tail is different
 // -7 = file hash is different
-int check_complete_file(PAR3_CTX *par3_ctx, uint32_t file_id,
+int check_complete_file(PAR3_CTX *par3_ctx, char *filename, uint32_t file_id,
 	uint64_t current_size, uint64_t *offset_next)
 {
 	uint8_t *work_buf, buf_tail[40], buf_hash[16];
@@ -40,6 +40,10 @@ int check_complete_file(PAR3_CTX *par3_ctx, uint32_t file_id,
 	FILE *fp;
 	blake3_hasher hasher;
 
+	if (filename == NULL){
+		printf("File name is bad.\n");
+		return RET_LOGIC_ERROR;
+	}
 	if (file_id >= par3_ctx->input_file_count){
 		printf("File ID is bad. %u\n", file_id);
 		return RET_LOGIC_ERROR;
@@ -63,7 +67,7 @@ int check_complete_file(PAR3_CTX *par3_ctx, uint32_t file_id,
 	block_list = par3_ctx->block_list;
 	slice_list = par3_ctx->slice_list;
 
-	fp = fopen(file_p->name, "rb");
+	fp = fopen(filename, "rb");
 	if (fp == NULL){
 		perror("Failed to open input file");
 		return RET_FILE_IO_ERROR;
@@ -186,7 +190,7 @@ int check_complete_file(PAR3_CTX *par3_ctx, uint32_t file_id,
 				slice_index++;
 				chunk_size -= block_size;
 				file_offset += block_size;
-				if (flag_unknown == 0)
+				if ( (flag_unknown == 0) && (offset_next != NULL) )
 					*offset_next = file_offset;
 
 			} else if (chunk_size >= 40){
@@ -265,7 +269,7 @@ int check_complete_file(PAR3_CTX *par3_ctx, uint32_t file_id,
 				slice_index++;
 				chunk_size -= tail_size;
 				file_offset += tail_size;
-				if (flag_unknown == 0)
+				if ( (flag_unknown == 0) && (offset_next != NULL) )
 					*offset_next = file_offset;
 
 			} else if (chunk_size > 0){	// 1 ~ 39 bytes
@@ -316,7 +320,7 @@ int check_complete_file(PAR3_CTX *par3_ctx, uint32_t file_id,
 				blake3_hasher_update(&hasher, work_buf, (size_t)tail_size);
 				chunk_size -= tail_size;
 				file_offset += tail_size;
-				if (flag_unknown == 0)
+				if ( (flag_unknown == 0) && (offset_next != NULL) )
 					*offset_next = file_offset;
 			}
 
@@ -354,7 +358,8 @@ int check_complete_file(PAR3_CTX *par3_ctx, uint32_t file_id,
 
 	} else if (flag_unknown != 0){
 		// Even when checksum is unknown, file data is complete.
-		*offset_next = file_size;
+		if (offset_next != NULL)
+			*offset_next = file_size;
 		file_offset = 0;
 
 		// Set block info
@@ -411,7 +416,7 @@ int check_complete_file(PAR3_CTX *par3_ctx, uint32_t file_id,
 
 // This checks available slices in the file.
 // This uses pointer of filename, instead of file ID.
-int check_damaged_file(PAR3_CTX *par3_ctx, uint8_t *filename,
+int check_damaged_file(PAR3_CTX *par3_ctx, char *filename,
 	uint64_t file_size, uint64_t file_offset, uint64_t *file_damage, uint8_t *file_hash)
 {
 	uint8_t *work_buf, buf_hash[16], buf_hash2[16];

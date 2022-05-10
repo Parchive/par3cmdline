@@ -135,12 +135,10 @@ int create_recovery_block(PAR3_CTX *par3_ctx)
 				}
 				file_read = file_index;
 			}
-			if (file_offset > 0){
-				if (_fseeki64(fp, file_offset, SEEK_SET) != 0){
-					perror("Failed to seek input file");
-					fclose(fp);
-					return RET_FILE_IO_ERROR;
-				}
+			if (_fseeki64(fp, file_offset, SEEK_SET) != 0){
+				perror("Failed to seek input file");
+				fclose(fp);
+				return RET_FILE_IO_ERROR;
 			}
 			if (fread(work_buf, 1, read_size, fp) != read_size){
 				perror("Failed to read full slice on input file");
@@ -184,12 +182,10 @@ int create_recovery_block(PAR3_CTX *par3_ctx)
 					}
 					file_read = file_index;
 				}
-				if (file_offset > 0){
-					if (_fseeki64(fp, file_offset, SEEK_SET) != 0){
-						perror("Failed to seek input file");
-						fclose(fp);
-						return RET_FILE_IO_ERROR;
-					}
+				if (_fseeki64(fp, file_offset, SEEK_SET) != 0){
+					perror("Failed to seek input file");
+					fclose(fp);
+					return RET_FILE_IO_ERROR;
 				}
 				if (fread(work_buf + tail_offset, 1, read_size, fp) != read_size){
 					perror("Failed to read tail slice on input file");
@@ -224,7 +220,7 @@ int create_recovery_block(PAR3_CTX *par3_ctx)
 		}
 	}
 
-	free(par3_ctx->work_buf);
+	free(work_buf);
 	par3_ctx->work_buf = NULL;
 
 /*

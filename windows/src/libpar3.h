@@ -48,6 +48,7 @@ typedef struct {
 	uint32_t state;		// Result of verification (bit flag)
 						// 1 = missing, 2 = damaged
 						// 4 = misnamed, higher bit is (extra_id << 3).
+						// 0x0100 = repaired
 						// 0x8000 = not file
 } PAR3_FILE_CTX;
 
@@ -241,7 +242,7 @@ int extra_search(PAR3_CTX *par3_ctx, char *match_path);
 // For verification and repair
 int par3_list(PAR3_CTX *par3_ctx);
 int par3_verify(PAR3_CTX *par3_ctx);
-//int par3_repair(PAR3_CTX *par3_ctx, char *temp_path);
+int par3_repair(PAR3_CTX *par3_ctx, char *temp_path);
 
 // Release internal allocated memory
 void par3_release(PAR3_CTX *par3_ctx);

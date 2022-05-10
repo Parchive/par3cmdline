@@ -613,7 +613,7 @@ int main(int argc, char *argv[])
 		if (par3_ctx->noise_level >= -1)
 			printf("Done\n");
 
-	} else if ( (command_operation == 'v') || (command_operation == 'l') ){	// Verify or List
+	} else if ( (command_operation == 'v') || (command_operation == 'r') || (command_operation == 'l') ){	// Verify, Repair or List
 
 		if (command_operation != 'l'){	// Verify or Repair
 			// search extra files
@@ -671,28 +671,20 @@ int main(int argc, char *argv[])
 			if (par3_ctx->noise_level >= -1)
 				printf("Listed\n");
 
-		} else {
+		} else if (command_operation == 'v'){
 			ret = par3_verify(par3_ctx);
-			if (ret > 2){
+			if ( (ret != 0) && (ret != RET_REPAIR_POSSIBLE) && (ret != RET_REPAIR_NOT_POSSIBLE) ){
 				printf("Failed to verify with PAR3 file\n");
 				goto prepare_return;
 			}
-		}
 
-
-	} else if (command_operation == 'r'){	// Repair
-		printf("Repair isn't implemented yet.\n");
-
-/*
+		} else {
 			ret = par3_repair(par3_ctx, file_name);
-			if (ret != 0){
+			if ( (ret != 0) && (ret != RET_REPAIR_FAILED) ){
 				printf("Failed to repair with PAR3 file\n");
 				goto prepare_return;
 			}
-
-
-*/
-
+		}
 	}
 
 	ret = 0;
