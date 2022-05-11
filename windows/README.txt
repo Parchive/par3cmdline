@@ -34,7 +34,7 @@ I implemented 8-bit Reed-Solomon Erasure Codes for small data for testing purpos
 At this time, this supports only Reed-Solomon Erasure Codes with Cauchy Matrix.
 
 It can restore missing or damaged files by using Data Packets.
-It doesn't rename misnamed files yet.
+It can correct filename of misnamed files, when they were specified as extra files.
 It cannot use Recovery Data Packets yet.
 
 It cannot create Recovery Files yet.
