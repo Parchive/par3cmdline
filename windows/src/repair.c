@@ -13,6 +13,7 @@
 #include <io.h>
 
 #include "libpar3.h"
+#include "common.h"
 #include "verify.h"
 
 
@@ -288,6 +289,7 @@ static int backup_file(char *filename)
 int verify_repaired_file(PAR3_CTX *par3_ctx, char *temp_path,
 		uint32_t *missing_file_count, uint32_t *damaged_file_count, uint32_t *misnamed_file_count)
 {
+	char *file_name;
 	int ret;
 	uint32_t file_count, file_index;
 	PAR3_FILE_CTX *file_list;
@@ -318,8 +320,39 @@ int verify_repaired_file(PAR3_CTX *par3_ctx, char *temp_path,
 	*damaged_file_count = 0;
 	*misnamed_file_count = 0;
 	for (file_index = 0; file_index < file_count; file_index++){
-		// The input file is missing or damaged.
-		if ((file_list[file_index].state & 0x104) == 0x100){	// missing or damaged file was repaired.
+		// This input file is misnamed.
+		if (file_list[file_index].state & 4){
+			//printf("state = 0x%08X\n", file_list[file_index].state);
+			if (file_list[file_index].state & 2){	// The original file is damaged.
+				// Backup damaged file
+				backup_file(file_list[file_index].name);
+
+				// Or delete damaged file by purge option ?
+				// Deleting level, such like: -p, -p1, -p2
+			}
+
+			// Get wrong filename
+			ret = file_list[file_index].state >> 3;	// Index of extra file
+			file_name = namez_get(par3_ctx->extra_file_name, par3_ctx->extra_file_name_len, ret);
+
+			// Correct to original filename
+			if (rename(file_name, file_list[file_index].name) != 0){
+				perror("Failed to rename misnamed file");
+
+				// No need to return backup file.
+				*misnamed_file_count += 1;
+				if (par3_ctx->noise_level >= 0){
+					printf("Target: \"%s\" - failed.\n", file_list[file_index].name);
+				}
+
+			} else {
+				if (par3_ctx->noise_level >= 0){
+					printf("Target: \"%s\" - repaired.\n", file_list[file_index].name);
+				}
+			}
+
+		// This input file is missing or damaged.
+		} else if ((file_list[file_index].state & 0x104) == 0x100){	// This missing or damaged file was repaired.
 			sprintf(temp_path + 22, "%u.tmp", file_index);
 			ret = check_complete_file(par3_ctx, temp_path, file_index, file_list[file_index].size, NULL);
 			if (ret > 0)
@@ -370,7 +403,6 @@ int verify_repaired_file(PAR3_CTX *par3_ctx, char *temp_path,
 					printf("Target: \"%s\" - failed.\n", file_list[file_index].name);
 				}
 			}
-
 
 		// Not repaired files.
 		} else if (file_list[file_index].state & 4){

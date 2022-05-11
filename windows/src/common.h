@@ -9,6 +9,7 @@ int namez_add(char **namez, size_t *namez_len, size_t *namez_max, const char *st
 int namez_count(char *namez, size_t namez_len);
 int namez_delete(char *namez, size_t *namez_len, char *entry);
 char * namez_search(char *namez, size_t namez_len, char *match);
+char * namez_get(char *namez, size_t namez_len, int index);
 int namez_sort(char *namez, size_t namez_len);
 size_t namez_maxlen(char *namez, size_t namez_len);
 

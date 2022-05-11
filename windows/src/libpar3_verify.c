@@ -116,7 +116,7 @@ int par3_verify(PAR3_CTX *par3_ctx)
 		}
 	}
 
-	if (missing_dir_count + missing_file_count + damaged_file_count > 0){
+	if (missing_dir_count + missing_file_count + damaged_file_count + misnamed_file_count > 0){
 		if (par3_ctx->noise_level >= -1){
 			printf("\nRepair is required.\n");
 		}
@@ -254,7 +254,7 @@ int par3_repair(PAR3_CTX *par3_ctx, char *temp_path)
 		}
 	}
 
-	if (missing_dir_count + missing_file_count + damaged_file_count > 0){
+	if (missing_dir_count + missing_file_count + damaged_file_count + misnamed_file_count > 0){
 		if (par3_ctx->noise_level >= -1){
 			printf("\nRepair is required.\n");
 		}

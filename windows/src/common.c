@@ -358,6 +358,29 @@ char * namez_search(char *namez, size_t namez_len, char *match)
 	return NULL;
 }
 
+// get a name by the index
+// return found position, or NULL for outside
+char * namez_get(char *namez, size_t namez_len, int index)
+{
+	size_t len, off;
+
+	if (index < 0)
+		return NULL;
+	if (namez == NULL)
+		return NULL;
+
+	off = 0;
+	while (off < namez_len){
+		if (index == 0)
+			return namez + off;
+		index--;
+		len = strlen(namez + off);
+		off += len + 1;
+	}
+
+	return NULL;
+}
+
 static int compare_string( const void *arg1, const void *arg2 )
 {
 	return strcmp( * ( char** ) arg1, * ( char** ) arg2 );
