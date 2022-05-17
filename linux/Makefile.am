@@ -67,7 +67,9 @@ libpar3_a_SOURCES = src/block_check.c \
 bin_PROGRAMS = par3
 man_MANS = man/par3.1
 
-par3_SOURCES = src/main.c
+par3_SOURCES = src/main.c \
+	src/common.h \
+	src/common.c
 par3_LDADD = libpar3.a
 
 AM_CXXFLAGS = -Wall 
