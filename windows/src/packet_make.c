@@ -286,7 +286,8 @@ static int compare_checksum( const void *arg1, const void *arg2 )
 // File Packet, Directory Packet, Root Packet
 int make_file_packet(PAR3_CTX *par3_ctx)
 {
-	uint8_t *tmp_p, *name_p, *chk_p;
+	char *name_p;
+	uint8_t *tmp_p, *chk_p;
 	uint32_t num, max, i, packet_count, absolute_num;
 	size_t alloc_size, packet_size, total_packet_size, len;
 	size_t file_alloc_size, dir_alloc_size, root_alloc_size;

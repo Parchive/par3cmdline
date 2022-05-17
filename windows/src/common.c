@@ -117,7 +117,7 @@ int get_absolute_path(char *absolute_path, char *relative_path, size_t max)
 	size_t len;
 
 	// MSVC
-	struct _finddatai64_t c_file;
+	struct _finddata64_t c_file;
 	intptr_t handle;
 
 	// This function replaces "/" to "\" automatically.
@@ -128,7 +128,7 @@ int get_absolute_path(char *absolute_path, char *relative_path, size_t max)
 
 	// When the file exists, check each path component.
 	handle = _findfirst64(absolute_path, &c_file);
-	if (handle != -1){
+	if (handle != (intptr_t) -1){
 		_findclose(handle);
 
 		// Even when case insensitive, use the original case for path component.
@@ -159,7 +159,7 @@ int get_absolute_path(char *absolute_path, char *relative_path, size_t max)
 
 			//printf("find = %s\n", absolute_path);
 			handle = _findfirst64(absolute_path, &c_file);
-			if (handle != -1){
+			if (handle != (intptr_t) -1){
 				_findclose(handle);
 
 				//printf("component = %s\n", c_file.name);
