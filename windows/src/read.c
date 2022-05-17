@@ -25,7 +25,7 @@ int read_vital_packet(PAR3_CTX *par3_ctx)
 	int ret;
 	size_t namez_len, namez_off;
 	size_t buf_size, read_size, max, offset;
-	uint64_t file_size, packet_size;
+	uint64_t file_size, file_offset, packet_size;
 	uint64_t packet_count, new_packet_count;
 	FILE *fp;
 
@@ -73,9 +73,7 @@ int read_vital_packet(PAR3_CTX *par3_ctx)
 		read_size = buf_size;
 		if (file_size < buf_size)
 			read_size = file_size;
-		if (par3_ctx->noise_level >= 2){
-			printf("file data = %I64u, read_size = %zu, remain = %zu\n", file_size, read_size, file_size - read_size);
-		}
+		//printf("file data = %I64u, read_size = %zu, remain = %zu\n", file_size, read_size, file_size - read_size);
 		if (fread(buf, 1, read_size, fp) != read_size){
 			printf("Failed to read \"%s\", skip to next file.\n", namez + namez_off);
 			namez_off += strlen(namez + namez_off) + 1;
@@ -85,6 +83,7 @@ int read_vital_packet(PAR3_CTX *par3_ctx)
 		file_size -= read_size;
 		max = read_size;
 
+		file_offset = 0;
 		packet_count = 0;
 		new_packet_count = 0;
 		offset = 0;
@@ -116,9 +115,7 @@ int read_vital_packet(PAR3_CTX *par3_ctx)
 
 					// slide data to top
 					memmove(buf, buf + offset, buf_size - offset);
-					if (par3_ctx->noise_level >= 2){
-						printf("file data = %I64u, offset = %zu, read_size = %zu, ", file_size, offset, read_size);
-					}
+					//printf("file data = %I64u, offset = %zu, read_size = %zu, ", file_size, offset, read_size);
 					if (fread(buf + buf_size - offset, 1, read_size, fp) != read_size){
 						printf("Failed to read \"%s\", skip to next file.\n", namez + namez_off);
 						namez_off += strlen(namez + namez_off) + 1;
@@ -127,9 +124,8 @@ int read_vital_packet(PAR3_CTX *par3_ctx)
 					}
 					file_size -= read_size;
 					max = buf_size - offset + read_size;
-					if (par3_ctx->noise_level >= 2){
-						printf("remain = %I64u, max = %zu\n", file_size, max);
-					}
+					//printf("remain = %I64u, max = %zu\n", file_size, max);
+					file_offset += offset;
 					offset = 0;
 				}
 
@@ -145,11 +141,14 @@ int read_vital_packet(PAR3_CTX *par3_ctx)
 				// read packet type
 				memcpy(packet_type, buf + (offset + 40), 8);
 				if (par3_ctx->noise_level >= 2){
-					printf("offset =%6zu, size =%5I64u, type = %s\n", offset, packet_size, packet_type);
+					printf("offset =%6I64u, size =%5I64u, type = %s\n", file_offset + offset, packet_size, packet_type);
 				}
 
 				// store the found packet
 				ret = add_found_packet(par3_ctx, buf + offset);
+				if (ret == -2){
+					ret = list_found_packet(par3_ctx, buf + offset, namez + namez_off, file_offset + offset);
+				}
 				if (ret > 0){
 					fclose(fp);
 					return ret;
@@ -169,9 +168,7 @@ int read_vital_packet(PAR3_CTX *par3_ctx)
 
 				// slide data to top
 				memmove(buf, buf + offset, buf_size - offset);
-				if (par3_ctx->noise_level >= 2){
-					printf("file_size = %I64u, offset = %zu, read_size = %zu, ", file_size, offset, read_size);
-				}
+				//printf("file_size = %I64u, offset = %zu, read_size = %zu, ", file_size, offset, read_size);
 				if (fread(buf + buf_size - offset, 1, read_size, fp) != read_size){
 					printf("Failed to read \"%s\", skip to next file.\n", namez + namez_off);
 					namez_off += strlen(namez + namez_off) + 1;
@@ -180,9 +177,8 @@ int read_vital_packet(PAR3_CTX *par3_ctx)
 				}
 				file_size -= read_size;
 				max = buf_size - offset + read_size;
-				if (par3_ctx->noise_level >= 2){
-					printf("remain = %I64u, max = %zu\n", file_size, max);
-				}
+				//printf("remain = %I64u, max = %zu\n", file_size, max);
+				file_offset += offset;
 				offset = 0;
 			}
 		}
@@ -220,6 +216,10 @@ int read_vital_packet(PAR3_CTX *par3_ctx)
 			printf("Number of Root Packets          =%3u (%4I64d bytes)\n", par3_ctx->root_packet_count, par3_ctx->root_packet_size);
 		if (par3_ctx->ext_data_packet_count > 0)
 			printf("Number of External Data Packets =%3u (%4I64d bytes)\n", par3_ctx->ext_data_packet_count, par3_ctx->ext_data_packet_size);
+		if (par3_ctx->data_packet_count > 0)
+			printf("Number of Data Packets          =%3I64u\n", par3_ctx->data_packet_count);
+		if (par3_ctx->rec_data_packet_count > 0)
+			printf("Number of Recovery Data Packets =%3I64u\n", par3_ctx->rec_data_packet_count);
 	}
 	ret = check_packet_set(par3_ctx);
 	if (ret != 0)

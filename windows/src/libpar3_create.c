@@ -11,6 +11,7 @@
 #include "map.h"
 #include "packet.h"
 #include "write.h"
+#include "block.h"
 
 
 // add text in Creator Packet
@@ -87,6 +88,26 @@ int add_comment_text(PAR3_CTX *par3_ctx, char *text)
 }
 
 
+// Calculate creating amount of recovery blocks from given redundancy.
+static void calculate_recovery_count(PAR3_CTX *par3_ctx)
+{
+	if (par3_ctx->block_count == 0){
+		par3_ctx->redundancy_size = 0;
+		par3_ctx->recovery_block_count = 0;
+		return;	// There is no input block.
+	}
+	if (par3_ctx->redundancy_size == 0)
+		return;	// Not specified
+	if (par3_ctx->recovery_block_count > 0)
+		return;	// Set already
+
+	// If redundancy_size is in range (0 ~ 100), it's a percent rate value.
+	// When there is remainder at division, round up the quotient.
+	par3_ctx->recovery_block_count = (par3_ctx->block_count * par3_ctx->redundancy_size + 99) / 100;
+	//printf("recovery_block_count = %I64u\n", par3_ctx->recovery_block_count);
+}
+
+
 int par3_trial(PAR3_CTX *par3_ctx)
 {
 	int ret;
@@ -99,13 +120,21 @@ int par3_trial(PAR3_CTX *par3_ctx)
 	} else if (par3_ctx->deduplication == '2'){	// Deduplication with slide search
 		ret = map_input_block_slide(par3_ctx);
 	} else {
-		ret = map_input_block_simple(par3_ctx);
+		// Because this doesn't read file data, InputSetID will differ.
+		ret = map_input_block_trial(par3_ctx);
+
+		// This is for debug.
+		// When no deduplication, no need to read input files in trial.
+//		ret = map_input_block_simple(par3_ctx);
 	}
 	if (ret != 0)
 		return ret;
 
+	// Call this function before creating Start Packet.
+	calculate_recovery_count(par3_ctx);
+
 	// Creator Packet, Comment Packet, Start Packet
-	ret = make_start_packet(par3_ctx);
+	ret = make_start_packet(par3_ctx, 1);
 	if (ret != 0)
 		return ret;
 
@@ -130,13 +159,24 @@ int par3_trial(PAR3_CTX *par3_ctx)
 	try_index_file(par3_ctx);
 
 	// Try PAR3 files with input blocks
-	if ( (par3_ctx->block_count > 0) && (par3_ctx->data_packet != 0) ){
+	if ( (par3_ctx->block_count > 0) && ( (par3_ctx->data_packet != 0) || (par3_ctx->recovery_block_count > 0) ) ){
 		ret = duplicate_common_packet(par3_ctx);
 		if (ret != 0)
 			return ret;
-		ret = try_archive_file(par3_ctx);
-		if (ret != 0)
-			return ret;
+
+		// Write PAR3 files with input blocks
+		if (par3_ctx->data_packet != 0){
+			ret = try_archive_file(par3_ctx);
+			if (ret != 0)
+				return ret;
+		}
+
+		// Write PAR3 files with recovery blocks
+		if (par3_ctx->recovery_block_count > 0){
+			ret = try_recovery_file(par3_ctx);
+			if (ret != 0)
+				return ret;
+		}
 	}
 
 	return 0;
@@ -159,8 +199,11 @@ int par3_create(PAR3_CTX *par3_ctx)
 	if (ret != 0)
 		return ret;
 
+	// Call this function before creating Start Packet.
+	calculate_recovery_count(par3_ctx);
+
 	// Creator Packet, Comment Packet, Start Packet
-	ret = make_start_packet(par3_ctx);
+	ret = make_start_packet(par3_ctx, 0);
 	if (ret != 0)
 		return ret;
 
@@ -186,14 +229,45 @@ int par3_create(PAR3_CTX *par3_ctx)
 	if (ret != 0)
 		return ret;
 
-	// Write PAR3 files with input blocks
-	if ( (par3_ctx->block_count > 0) && (par3_ctx->data_packet != 0) ){
+	// Write other PAR3 files
+	if ( (par3_ctx->block_count > 0) && ( (par3_ctx->data_packet != 0) || (par3_ctx->recovery_block_count > 0) ) ){
 		ret = duplicate_common_packet(par3_ctx);
 		if (ret != 0)
 			return ret;
-		ret = write_archive_file(par3_ctx);
+
+		// Check if it can keep all recovery blocks on memory.
+		ret = allocate_recovery_block(par3_ctx);
 		if (ret != 0)
 			return ret;
+
+		// Write PAR3 files with input blocks
+		if (par3_ctx->data_packet != 0){
+			ret = write_archive_file(par3_ctx);
+			if (ret != 0)
+				return ret;
+		}
+
+		// If there are enough memory to keep all recovery blocks,
+		// it calculates recovery blocks before writing Recovery Data Packets.
+		if (par3_ctx->ecc_method & 0x1000){
+			ret = create_recovery_block(par3_ctx);
+			if (ret < 0){
+				par3_ctx->ecc_method &= ~0x1000;
+			} else if (ret > 0){
+				return ret;
+			}
+		}
+
+		// Write PAR3 files with recovery blocks
+		if (par3_ctx->recovery_block_count > 0){
+			ret = write_recovery_file(par3_ctx);
+			if (ret != 0)
+				return ret;
+		}
+
+		// When recovery blocks were not created yet, calculate at here.
+
+
 	}
 
 	return 0;

@@ -84,7 +84,6 @@ int main(int argc, char *argv[])
 	// command-line options
 	char command_operation;
 	char command_recursive = 0;
-	unsigned int command_redundancy = 0;
 
 	// For non UTF-8 code page system
 	ret = 1;
@@ -271,13 +270,16 @@ int main(int argc, char *argv[])
 			} else if ( (tmp_p[0] == 'r') && (tmp_p[1] >= '0') && (tmp_p[1] <= '9') ){	// Set the amount of redundancy required
 				if ( (command_operation != 'c') && (command_operation != 't') ){
 					printf("Cannot specify redundancy unless creating.\n");
-				} else if (command_redundancy > 0){
+				} else if (par3_ctx->redundancy_size > 0){
 					printf("Cannot specify redundancy twice.\n");
 				} else if (par3_ctx->recovery_block_count > 0){
 					printf("Cannot specify both redundancy and recovery block count.\n");
 				} else {
-					command_redundancy = strtoul(tmp_p + 1, NULL, 10);
-					if (command_redundancy > 0){
+					par3_ctx->redundancy_size = strtoul(tmp_p + 1, NULL, 10);
+					if (par3_ctx->redundancy_size > 100){
+						printf("Invalid redundancy option: %u\n", par3_ctx->redundancy_size);
+						par3_ctx->redundancy_size = 0;	// reset
+					} else if (par3_ctx->redundancy_size > 0){
 						if (add_creator_text(par3_ctx, tmp_p - 1) != 0){
 							ret = RET_MEMORY_ERROR;
 							goto prepare_return;
@@ -290,7 +292,7 @@ int main(int argc, char *argv[])
 					printf("Cannot specify recovery block count unless creating.\n");
 				} else if (par3_ctx->recovery_block_count > 0){
 					printf("Cannot specify recovery block count twice.\n");
-				} else if (command_redundancy > 0){
+				} else if (par3_ctx->redundancy_size > 0){
 					printf("Cannot specify both recovery block count and redundancy.\n");
 				} else {
 					par3_ctx->recovery_block_count = strtoull(tmp_p + 1, NULL, 10);
@@ -483,15 +485,15 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	if (par3_ctx->noise_level >= 0){
+	if (par3_ctx->noise_level >= 1){
 		if (par3_ctx->memory_limit != 0)
 			printf("memory_limit = %I64u MB\n", par3_ctx->memory_limit >> 20);
 		if (par3_ctx->search_limit != 0)
 			printf("search_limit = %d ms\n", par3_ctx->search_limit);
 		if (par3_ctx->block_size != 0)
 			printf("Specified block size = %I64u\n", par3_ctx->block_size);
-		if (command_redundancy != 0)
-			printf("command_redundancy = %u\n", command_redundancy);
+		if (par3_ctx->redundancy_size != 0)
+			printf("redundancy_size = %u\n", par3_ctx->redundancy_size);
 		if (par3_ctx->recovery_block_count != 0)
 			printf("recovery_block_count = %I64u\n", par3_ctx->recovery_block_count);
 		if (par3_ctx->first_recovery_block != 0)
@@ -503,11 +505,11 @@ int main(int argc, char *argv[])
 		if (par3_ctx->deduplication != 0)
 			printf("deduplication = level %c\n", par3_ctx->deduplication);
 		if (command_recursive != 0)
-			printf("recursive search = enabled\n");
+			printf("recursive search = enable\n");
 		if (par3_ctx->absolute_path != 0)
-			printf("Absolute path = enabled\n");
+			printf("Absolute path = enable\n");
 		if (par3_ctx->data_packet != 0)
-			printf("Data packet = stored\n");
+			printf("Data packet = store\n");
 		if (par3_ctx->base_path[0] != 0)
 			printf("Base path = \"%s\"\n", par3_ctx->base_path);
 		printf("PAR3 file = \"%s\"\n", par3_ctx->par_filename);
@@ -611,7 +613,7 @@ int main(int argc, char *argv[])
 		if (par3_ctx->noise_level >= -1)
 			printf("Done\n");
 
-	} else if ( (command_operation == 'v') || (command_operation == 'l') ){	// Verify or List
+	} else if ( (command_operation == 'v') || (command_operation == 'r') || (command_operation == 'l') ){	// Verify, Repair or List
 
 		if (command_operation != 'l'){	// Verify or Repair
 			// search extra files
@@ -669,28 +671,20 @@ int main(int argc, char *argv[])
 			if (par3_ctx->noise_level >= -1)
 				printf("Listed\n");
 
-		} else {
+		} else if (command_operation == 'v'){
 			ret = par3_verify(par3_ctx);
-			if (ret != 0){
+			if ( (ret != 0) && (ret != RET_REPAIR_POSSIBLE) && (ret != RET_REPAIR_NOT_POSSIBLE) ){
 				printf("Failed to verify with PAR3 file\n");
 				goto prepare_return;
 			}
-		}
 
-
-	} else if (command_operation == 'r'){	// Repair
-		printf("Repair isn't implemented yet.\n");
-
-/*
+		} else {
 			ret = par3_repair(par3_ctx, file_name);
-			if (ret != 0){
+			if ( (ret != 0) && (ret != RET_REPAIR_FAILED) ){
 				printf("Failed to repair with PAR3 file\n");
 				goto prepare_return;
 			}
-
-
-*/
-
+		}
 	}
 
 	ret = 0;
