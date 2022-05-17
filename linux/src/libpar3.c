@@ -1059,9 +1059,17 @@ void par3_release(PAR3_CTX *par3_ctx)
 		free(par3_ctx->block_list);
 		par3_ctx->block_list = NULL;
 	}
-	if (par3_ctx->input_block){
-		free(par3_ctx->input_block);
-		par3_ctx->input_block = NULL;
+	if (par3_ctx->input_data){
+		free(par3_ctx->input_data);
+		par3_ctx->input_data = NULL;
+	}
+	if (par3_ctx->recovery_data){
+		free(par3_ctx->recovery_data);
+		par3_ctx->recovery_data = NULL;
+	}
+	if (par3_ctx->galois_table){
+		free(par3_ctx->galois_table);
+		par3_ctx->galois_table = NULL;
 	}
 	if (par3_ctx->work_buf){
 		free(par3_ctx->work_buf);
@@ -1124,6 +1132,16 @@ void par3_release(PAR3_CTX *par3_ctx)
 		par3_ctx->common_packet = NULL;
 		par3_ctx->common_packet_size = 0;
 		par3_ctx->common_packet_count = 0;
+	}
+	if (par3_ctx->data_packet_list){
+		free(par3_ctx->data_packet_list);
+		par3_ctx->data_packet_list = NULL;
+		par3_ctx->data_packet_count = 0;
+	}
+	if (par3_ctx->rec_data_packet_list){
+		free(par3_ctx->rec_data_packet_list);
+		par3_ctx->rec_data_packet_list = NULL;
+		par3_ctx->rec_data_packet_count = 0;
 	}
 }
 
