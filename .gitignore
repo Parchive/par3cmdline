@@ -30,3 +30,11 @@
 *.exe
 *.out
 *.app
+
+
+# Linux files
+*.o
+
+# Emacs temporary files
+*~
+\#*\#
