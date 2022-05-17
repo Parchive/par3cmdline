@@ -27,7 +27,7 @@ static int path_search_recursive(PAR3_CTX *par3_ctx, char *sub_dir)
 	size_t dir_len;
 
 	// MSVC
-	struct _finddata64_t c_file;
+	struct _finddatai64_t c_file;
 	intptr_t handle;
 
 	//printf("recursive search \"%s\"\n", sub_dir);
@@ -117,7 +117,7 @@ int path_search(PAR3_CTX *par3_ctx, char *match_path, int flag_recursive)
 	size_t dir_len, len, base_len;
 
 	// MSVC
-	struct _finddata64_t c_file;
+	struct _finddatai64_t c_file;
 	intptr_t handle;
 
 	// when match_path includes directory, change to the directory at first
@@ -293,7 +293,7 @@ int extra_search(PAR3_CTX *par3_ctx, char *match_path)
 	size_t dir_len, len, base_len;
 
 	// MSVC
-	struct _finddata64_t c_file;
+	struct _finddatai64_t c_file;
 	intptr_t handle;
 
 	// when match_path includes directory, change to the directory at first
@@ -836,7 +836,7 @@ int par_search(PAR3_CTX *par3_ctx, char *base_name, int flag_other)
 	uint64_t max_file_size;
 
 	// MSVC
-	struct _finddata64_t c_file;
+	struct _finddatai64_t c_file;
 	intptr_t handle;
 
 	file_count = 0;
