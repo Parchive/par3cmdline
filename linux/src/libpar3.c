@@ -13,7 +13,13 @@
 #include <sys/stat.h>
 
 #if __linux__
+
 #define _stat64 stat
+
+#include <strings.h>
+#define _strnicmp strncasecmp
+#define _stricmp strcasecmp
+
 #elif _WIN32
 #endif
 

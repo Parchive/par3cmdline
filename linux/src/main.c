@@ -15,6 +15,10 @@
 #define _chdir  chdir
 #define _getcwd getcwd
 
+#include <strings.h>
+#define _strnicmp strncasecmp
+#define _stricmp strcasecmp
+
 /* This definition of _MAX_FNAME works for GCC on POSIX systems */
 #include <limits.h>
 #define _MAX_FNAME NAME_MAX

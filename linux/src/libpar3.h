@@ -7,11 +7,6 @@
 #include <linux/limits.h>
 #define _MAX_PATH PATH_MAX
 
-
-#define _strnicmp strncasecmp
-#define _stricmp strcasecmp
-
-
 #define PRINT64 "l"
 
 #elif _WIN32
