@@ -66,6 +66,7 @@ typedef struct {
 	uint32_t state;		// Result of verification (bit flag)
 						// 1 = missing, 2 = damaged
 						// 4 = misnamed, higher bit is (extra_id << 3).
+						// 0x0100 = repaired
 						// 0x8000 = not file
 } PAR3_FILE_CTX;
 
@@ -77,7 +78,7 @@ typedef struct {
 typedef struct {
 	uint32_t chunk;		// index of belong chunk description
 	uint32_t file;		// index of belong input file
-	uint64_t offset;	// offset bytes of slice in belong input file
+	int64_t offset;		// offset bytes of slice in belong input file
 	uint64_t size;		// size of slice
 
 	uint64_t block;			// index of input block holding this slice
@@ -86,7 +87,7 @@ typedef struct {
 
 							// Result of verification
 	char *find_name;		// filename of belong found file
-	uint64_t find_offset;	// offset bytes of found slice
+	int64_t find_offset;	// offset bytes of found slice
 } PAR3_SLICE_CTX;
 
 typedef struct {
@@ -106,6 +107,16 @@ typedef struct {
 	uint64_t index;	// index of block
 	uint64_t crc;	// CRC-64 of block
 } PAR3_CMP_CTX;
+
+typedef struct {
+	uint64_t id;		// InputSetID
+	uint8_t root[16];	// checksum from Root packet
+	uint8_t matrix[16];	// checksum from Matrix packet
+
+	uint64_t index;		// index of block
+	char *name;			// name of belong file
+	int64_t offset;		// offset bytes of packet
+} PAR3_PKT_CTX;
 
 typedef struct {
 	// Command-line options
@@ -131,16 +142,26 @@ typedef struct {
 
 	uint8_t set_id[8];	// InputSetID
 	uint8_t attribute;	// attributes in Root Packet
-	uint8_t gf_size;	// The size of the Galois field in bytes.
+	uint8_t gf_size;	// The size of the Galois field in bytes
+
+	int galois_poly;	// The generator polynomial of the Galois field
+	int *galois_table;	// Pointer of tables for (finite) galois field arithmetic
+	int ecc_method;		// Bit flag: 1 = Reed-Solomon Erasure Codes with Cauchy Matrix
+						//           2 = Erasure Codes with Sparse Random Matrix (no support yet)
+						//           4 = LDPC (no support yet)
+						//      0x1000 = Keep all recovery blocks on memory
+						//  0x####0000 = offset of using Matrix Packet
 
 	uint64_t block_size;
 	uint64_t block_count;		// This may be max or possible value at creating.
 	PAR3_BLOCK_CTX *block_list;	// List of block information
-	uint8_t *input_block;		// When it can keep all input blocks on memory
+	uint8_t *input_data;
 
 	uint64_t first_recovery_block;
 	uint64_t recovery_block_count;
 	uint32_t recovery_file_count;
+	uint32_t redundancy_size;	// Lower 7-bit (0~100) is percent, or 101=KB, 102=MB, 103=GB.
+	uint8_t *recovery_data;
 
 	char base_path[_MAX_PATH];
 	char par_filename[_MAX_PATH];
@@ -206,6 +227,11 @@ typedef struct {
 	size_t common_packet_size;		// total size of duplicated common packets
 	size_t common_packet_count;
 
+	PAR3_PKT_CTX *data_packet_list;		// List of Data Packets
+	uint64_t data_packet_count;
+	PAR3_PKT_CTX *rec_data_packet_list;	// List of Recovery Data Packets
+	uint64_t rec_data_packet_count;
+
 } PAR3_CTX;
 
 
@@ -234,7 +260,7 @@ int extra_search(PAR3_CTX *par3_ctx, char *match_path);
 // For verification and repair
 int par3_list(PAR3_CTX *par3_ctx);
 int par3_verify(PAR3_CTX *par3_ctx);
-//int par3_repair(PAR3_CTX *par3_ctx, char *temp_path);
+int par3_repair(PAR3_CTX *par3_ctx, char *temp_path);
 
 // Release internal allocated memory
 void par3_release(PAR3_CTX *par3_ctx);

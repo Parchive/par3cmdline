@@ -374,6 +374,29 @@ char * namez_search(char *namez, size_t namez_len, char *match)
 	return NULL;
 }
 
+// get a name by the index
+// return found position, or NULL for outside
+char * namez_get(char *namez, size_t namez_len, int index)
+{
+	size_t len, off;
+
+	if (index < 0)
+		return NULL;
+	if (namez == NULL)
+		return NULL;
+
+	off = 0;
+	while (off < namez_len){
+		if (index == 0)
+			return namez + off;
+		index--;
+		len = strlen(namez + off);
+		off += len + 1;
+	}
+
+	return NULL;
+}
+
 static int compare_string( const void *arg1, const void *arg2 )
 {
 	return strcmp( * ( char** ) arg1, * ( char** ) arg2 );
@@ -470,14 +493,14 @@ size_t namez_maxlen(char *namez, size_t namez_len)
 }
 
 
-// Combine 8 or 16 bytes to 2 byte integer.
+// Combine 8 or 16 bytes to little endian 3 bytes integer.
 int mem_or8(unsigned char buf[8])
 {
-	return (buf[0] | ((buf[1] | buf[2] | buf[3] | buf[4] | buf[5] | buf[6] | buf[7]) << 8));
+	return (buf[0] | (buf[1] << 8) | ((buf[2] | buf[3] | buf[4] | buf[5] | buf[6] | buf[7]) << 16));
 }
 int mem_or16(unsigned char buf[16])
 {
-	return (buf[0] | (( buf[1] | buf[2] | buf[3] | buf[4] | buf[5] | buf[6] | buf[7] |
-			buf[8] | buf[9] | buf[10] | buf[11] | buf[12] | buf[13] | buf[14] | buf[15]) << 8));
+	return (buf[0] | (buf[1] << 8) | ((buf[2] | buf[3] | buf[4] | buf[5] | buf[6] | buf[7] |
+			buf[8] | buf[9] | buf[10] | buf[11] | buf[12] | buf[13] | buf[14] | buf[15]) << 16));
 }
 

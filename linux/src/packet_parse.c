@@ -345,8 +345,9 @@ static int construct_directory_tree(PAR3_CTX *par3_ctx, uint8_t *checksum, size_
 						// chunk descriptions
 						file_p->size = 0;
 						file_p->chunk = par3_ctx->chunk_count;
+						file_p->chunk_num = 0;
 						offset += 1 + 16 * num;
-						if (offset < packet_size){
+						if (offset < packet_size){	// When there are chunk descriptions.
 							ret = parse_chunk_description(par3_ctx, file_packet + packet_offset + offset, packet_size - offset);
 							if (ret != 0)
 								return ret;

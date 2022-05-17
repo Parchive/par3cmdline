@@ -18,8 +18,9 @@ There is basic feature only.
 Some commands and options are useless.
 There may be some mistake or failure.
 
-It keeps all input blocks on memory at this time.
+It keeps many input blocks and recovery blocks on memory at this time.
 So, it cannot treat large files now.
+I will solve this problem of file IO, after I test behavior of the mechanism.
 
 It can create Index File and Archive Files.
 Index File includes all types of packets without duplication.
@@ -28,8 +29,17 @@ Archive Files include Data Packets, which is a piece of input files.
 While verification is possible, it may be slow at this time.
 Currently I prefer finding as many slices as possible.
 
+Repair feature is under construction.
+I implemented 8-bit Reed-Solomon Erasure Codes for small data for testing purpose.
+At this time, this supports only Reed-Solomon Erasure Codes with Cauchy Matrix.
+
+It can restore missing or damaged files by using Data Packets.
+It can correct filename of misnamed files, when they were specified as extra files.
+It cannot use Recovery Data Packets yet.
+
 It cannot create Recovery Files yet.
 It cannot Repair yet.
+It doesn't use maultiple recovery codes at once.
 It doesn't support "PAR inside" feature yet.
 
 
@@ -70,6 +80,15 @@ Options: (create)
 
 
 
+[ About "create" command ]
+
+ You may use "wild card" matching to specify names of input files or directories.
+Be careful to set both "-R" and "*", because all files and directories will be listed.
+It may be safe to use partial wild card like "*.txt".
+Filename may include sub-directory, like "zipfolder/*.zip".
+
+
+
 [ About "trial" command ]
 
  If you want to see how PAR3 files will be created, use this command.
@@ -78,10 +97,8 @@ It's useful to see file size or how many files.
 
  Though it doesn't write data, it reads file data for deduplication.
 So, it may be slow for large files.
-
-If you don't enable deduplication, it may be possible to trial without file reading.
-At that time, Set ID is unknown.
-But, I did not implement such feature yet.
+If you don't enable deduplication, it's possible to trial without file reading.
+At that time, InputSetID is unknown.
 
 
 
@@ -131,8 +148,7 @@ for the PAR3 files on the name of the source file.
  By setting "-v", it may show more detail information.
 When setting double "-v -v" or "-vv", it may show debug information.
 For example, mapping of all blocks is shown at creation.
-If file size is large and there are many blocks,
-output lines may be too many.
+If file size is large and there are many blocks, output lines may be too many.
 Use the option only for debug usage with small files.
 
 
@@ -199,7 +215,7 @@ it will consume max 4000 seconds. (2000 * 1000 * 2 = 4000,000 ms)
  If you wants to store source file data in PAR3 file, set this option.
 It's silimar to non compressed archive file.
 An archive file may contain some splitted pieces of source file.
-The number of archive files and their size depend on options: -u, -l, -n<n>.
+The number of archive files and their size depend on options: "-u", "-l", "-n<n>".
 The name of archive files is like below;
 something.part#+#.par3
 
@@ -218,7 +234,7 @@ This may be useless for random data like compressed file.
 [ About "-C<text>" option ]
 
  When you want to include space in comment, cover the comment by "".
-When you may set comment multiple times, they are joined with "\n" between each line.
+When you set comment multiple times, they are joined with "\n" between each line.
 
 Example of comment is like below;
 

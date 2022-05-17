@@ -15,14 +15,14 @@
 // map input file slices into input blocks with slide search
 int map_input_block_slide(PAR3_CTX *par3_ctx)
 {
-	uint8_t *input_block, *buf_p, *work_buf;
-	uint8_t buf_tail[40], buf_hash[16];
+	uint8_t *buf_p, *work_buf, buf_tail[40], buf_hash[16];
 	uint32_t num, num_pack, input_file_count;
 	uint32_t chunk_count, chunk_index, chunk_num;
 	int64_t find_index, previous_index, tail_offset;
 	uint64_t block_size, tail_size, file_offset;
 	uint64_t file_size, read_size, slide_offset;
-	uint64_t block_count, block_index, slice_count, slice_index, index;
+	uint64_t block_count, block_index;
+	uint64_t slice_count, slice_index, index, last_index;
 	uint64_t crc, crc_slide, window_mask, *window_table, num_dedup;
 	PAR3_FILE_CTX *file_p;
 	PAR3_CHUNK_CTX *chunk_p, *chunk_list;
@@ -89,22 +89,13 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 	par3_ctx->crc_list = crc_list;
 	par3_ctx->crc_count = 0;	// There is no item yet.
 
-	// Allocate buffer to store file data temporary.
+	// Allocate memory to store file data temporary.
 	work_buf = malloc(block_size * 2);
 	if (work_buf == NULL){
-		perror("Failed to allocate memory for temporary file data");
+		perror("Failed to allocate memory for input data");
 		return RET_MEMORY_ERROR;
 	}
 	par3_ctx->work_buf = work_buf;
-
-	// Try to allocate all input blocks on memory
-	buf_p = malloc(block_size * block_count);
-	if (buf_p == NULL){
-		perror("Failed to allocate memory for input file data");
-		return RET_MEMORY_ERROR;
-	}
-	input_block = buf_p;
-	par3_ctx->input_block = buf_p;
 
 	// Read data of input files on memory
 	num_dedup = 0;
@@ -201,6 +192,12 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 								if (chunk_p->tail_crc == chunk_list[slice_list[index].chunk].tail_crc){
 									if (memcmp(chunk_p->tail_hash, chunk_list[slice_list[index].chunk].tail_hash, 16) == 0){
 										tail_offset = -1;
+
+										// find the last slice info in the block
+										last_index = index;
+										while (slice_list[last_index].next != -1){
+											last_index = slice_list[last_index].next;
+										}
 										break;
 									}
 								}
@@ -214,9 +211,9 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 									tail_offset = block_list[index].size;
 
 									// find the last slice info in the block
-									index = block_list[index].slice;
-									while (slice_list[index].next != -1){
-										index = slice_list[index].next;
+									last_index = block_list[index].slice;
+									while (slice_list[last_index].next != -1){
+										last_index = slice_list[last_index].next;
 									}
 									break;
 								}
@@ -229,7 +226,7 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 								printf("o t block[%2"PRINT64"u] : slice[%2"PRINT64"u] chunk[%2u] file %d, offset %"PRINT64"u, tail size %"PRINT64"u, offset %"PRINT64"u\n",
 										slice_list[index].block, slice_index, chunk_index, num, file_offset, tail_size, slice_list[index].tail_offset);
 							}
-							slice_list[index].next = slice_index;	// These same tails have same offset and size.
+							slice_list[last_index].next = slice_index;	// These same tails have same offset and size.
 
 							// set slice info
 							slice_p->block = slice_list[index].block;
@@ -241,10 +238,6 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 							num_dedup++;
 
 						} else if (tail_offset == 0){	// Put tail in new block
-							// copy chunk tail work_buf to input_block
-							buf_p = input_block + (block_size * block_index);
-							memcpy(buf_p, work_buf, (size_t)tail_size);
-							memset(buf_p + tail_size, 0, block_size - tail_size);	// zero fill the rest bytes
 							if (par3_ctx->noise_level >= 2){
 								printf("n t block[%2"PRINT64"u] : slice[%2"PRINT64"u] chunk[%2u] file %d, offset %"PRINT64"u, tail size %"PRINT64"u\n",
 										block_index, slice_index, chunk_index, num, file_offset, tail_size);
@@ -261,31 +254,30 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 							// set block info (block for tails don't store checksum)
 							block_p->slice = slice_index;
 							block_p->size = tail_size;
+							block_p->crc = crc64(work_buf, (size_t)tail_size, 0);
 							block_p->state = 2;
 							block_p++;
 							block_index++;
 
 						} else {	// Put tail after another tail
-							// copy chunk tail work_buf to input_block
-							buf_p = input_block + (block_size * slice_list[index].block) + tail_offset;
-							memcpy(buf_p, work_buf, (size_t)tail_size);
 							if (par3_ctx->noise_level >= 2){
 								printf("a t block[%2"PRINT64"u] : slice[%2"PRINT64"u] chunk[%2u] file %d, offset %"PRINT64"u, tail size %"PRINT64"u, offset %"PRINT64"d\n",
-										slice_list[index].block, slice_index, chunk_index, num, file_offset, tail_size, tail_offset);
+										index, slice_index, chunk_index, num, file_offset, tail_size, tail_offset);
 							}
-							slice_list[index].next = slice_index;	// update "next" item in the front tail
+							slice_list[last_index].next = slice_index;	// update "next" item in the front tail
 
 							// set slice info
-							slice_p->block = slice_list[index].block;
+							slice_p->block = index;
 							slice_p->tail_offset = tail_offset;
 
 							// set chunk tail info
-							chunk_p->tail_block = slice_list[index].block;
+							chunk_p->tail_block = index;
 							chunk_p->tail_offset = tail_offset;
 							num_pack++;
 
 							// update block info
 							block_list[slice_p->block].size = tail_offset + tail_size;
+							block_list[slice_p->block].crc = crc64(work_buf, (size_t)tail_size, block_list[slice_p->block].crc);
 						}
 
 						// set common slice info
@@ -310,8 +302,8 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 							slice_p++;
 						}
 
-					} else {	// When tail size is 1~39-bytes, it's saved in File Packet.
-						memcpy(buf_tail, work_buf, (size_t)tail_size);
+					} else {	// When tail size is 1~39 bytes, it's saved in File Packet.
+						memcpy(buf_tail, work_buf, tail_size);	// block size may be smaller than 40 bytes.
 						memset(buf_tail + tail_size, 0, 40 - tail_size);	// zero fill the rest bytes
 						if (par3_ctx->noise_level >= 2){
 							printf("    block no  : slice no  chunk[%2u] file %d, offset %"PRINT64"u, tail size %"PRINT64"u\n",
@@ -497,10 +489,6 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 						slice_p++;
 					}
 
-					// Copy block from work_buf to input_block.
-					buf_p = input_block + (block_size * block_index);
-					memcpy(buf_p, work_buf, (size_t)block_size);
-
 					block_p++;
 					block_index++;
 
@@ -671,6 +659,12 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 					if (chunk_p->tail_crc == chunk_list[slice_list[index].chunk].tail_crc){
 						if (memcmp(chunk_p->tail_hash, chunk_list[slice_list[index].chunk].tail_hash, 16) == 0){
 							tail_offset = -1;
+
+							// find the last slice info in the block
+							last_index = index;
+							while (slice_list[last_index].next != -1){
+								last_index = slice_list[last_index].next;
+							}
 							break;
 						}
 					}
@@ -684,9 +678,9 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 						tail_offset = block_list[index].size;
 
 						// find the last slice info in the block
-						index = block_list[index].slice;
-						while (slice_list[index].next != -1){
-							index = slice_list[index].next;
+						last_index = block_list[index].slice;
+						while (slice_list[last_index].next != -1){
+							last_index = slice_list[last_index].next;
 						}
 						break;
 					}
@@ -699,7 +693,7 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 					printf("o t block[%2"PRINT64"u] : slice[%2"PRINT64"u] chunk[%2u] file %d, offset %"PRINT64"u, tail size %"PRINT64"u, offset %"PRINT64"u\n",
 							slice_list[index].block, slice_index, chunk_index, num, file_offset, tail_size, slice_list[index].tail_offset);
 				}
-				slice_list[index].next = slice_index;	// These same tails have same offset and size.
+				slice_list[last_index].next = slice_index;	// These same tails have same offset and size.
 
 				// set slice info
 				slice_p->block = slice_list[index].block;
@@ -711,10 +705,6 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 				num_dedup++;
 
 			} else if (tail_offset == 0){	// Put tail in new block
-				// copy chunk tail work_buf to input_block
-				buf_p = input_block + (block_size * block_index);
-				memcpy(buf_p, work_buf, (size_t)tail_size);
-				memset(buf_p + tail_size, 0, block_size - tail_size);	// zero fill the rest bytes
 				if (par3_ctx->noise_level >= 2){
 					printf("n t block[%2"PRINT64"u] : slice[%2"PRINT64"u] chunk[%2u] file %d, offset %"PRINT64"u, tail size %"PRINT64"u\n",
 							block_index, slice_index, chunk_index, num, file_offset, tail_size);
@@ -731,31 +721,30 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 				// set block info (block for tails don't store checksum)
 				block_p->slice = slice_index;
 				block_p->size = tail_size;
+				block_p->crc = crc64(work_buf, (size_t)tail_size, 0);
 				block_p->state = 2;
 				block_p++;
 				block_index++;
 
 			} else {	// Put tail after another tail
-				// copy chunk tail work_buf to input_block
-				buf_p = input_block + (block_size * slice_list[index].block) + tail_offset;
-				memcpy(buf_p, work_buf, (size_t)tail_size);
 				if (par3_ctx->noise_level >= 2){
 					printf("a t block[%2"PRINT64"u] : slice[%2"PRINT64"u] chunk[%2u] file %d, offset %"PRINT64"u, tail size %"PRINT64"u, offset %"PRINT64"d\n",
-							slice_list[index].block, slice_index, chunk_index, num, file_offset, tail_size, tail_offset);
+							index, slice_index, chunk_index, num, file_offset, tail_size, tail_offset);
 				}
-				slice_list[index].next = slice_index;	// update "next" item in the front tail
+				slice_list[last_index].next = slice_index;	// update "next" item in the front tail
 
 				// set slice info
-				slice_p->block = slice_list[index].block;
+				slice_p->block = index;
 				slice_p->tail_offset = tail_offset;
 
 				// set chunk tail info
-				chunk_p->tail_block = slice_list[index].block;
+				chunk_p->tail_block = index;
 				chunk_p->tail_offset = tail_offset;
 				num_pack++;
 
 				// update block info
 				block_list[slice_p->block].size = tail_offset + tail_size;
+				block_list[slice_p->block].crc = crc64(work_buf, (size_t)tail_size, block_list[slice_p->block].crc);
 			}
 
 			// set common slice info
@@ -780,8 +769,8 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 				slice_p++;
 			}
 
-		} else if (tail_size > 0){	// When tail size is 1~39-bytes, it's saved in File Packet.
-			memcpy(buf_tail, work_buf, (size_t)tail_size);
+		} else if (tail_size > 0){	// When tail size is 1~39 bytes, it's saved in File Packet.
+			memcpy(buf_tail, work_buf, tail_size);	// block size may be smaller than 40 bytes.
 			memset(buf_tail + tail_size, 0, 40 - tail_size);	// zero fill the rest bytes
 			if (par3_ctx->noise_level >= 2){
 				printf("    block no  : slice no  chunk[%2u] file %d, offset %"PRINT64"u, tail size %"PRINT64"u\n",

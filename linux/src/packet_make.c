@@ -144,7 +144,7 @@ static int generate_set_id(PAR3_CTX *par3_ctx, uint8_t *buf, size_t body_size)
 }
 
 // Start Packet, Creator Packet, Comment Packet
-int make_start_packet(PAR3_CTX *par3_ctx)
+int make_start_packet(PAR3_CTX *par3_ctx, int flag_trial)
 {
 	uint8_t *tmp_p;
 	size_t packet_size;
@@ -179,32 +179,37 @@ int make_start_packet(PAR3_CTX *par3_ctx)
 	tmp_p += 24;
 	memcpy(tmp_p, &(par3_ctx->block_size), 8);	// Block size
 	tmp_p += 8;
-	if (par3_ctx->block_count > 128){
+	if ( (par3_ctx->block_count > 128) || (par3_ctx->recovery_block_count > 128) ){
 		// When there are 129 or more input blocks, use 16-bit Galois Field (0x1100B).
+		par3_ctx->galois_poly = 0x1100B;
 		tmp_p[0] = 2;
 		tmp_p[1] = 0x0B;
 		tmp_p[2] = 0x10;
 	} else if (par3_ctx->block_count > 0){
 		// When there are 128 or less input blocks, use 8-bit Galois Field (0x11D).
+		par3_ctx->galois_poly = 0x11D;
 		tmp_p[0] = 1;
 		tmp_p[1] = 0x1D;
 	} else {
 		// When there is no input blocks, no need to set Galois Field.
+		par3_ctx->galois_poly = 0;
 		tmp_p[0] = 0;
 	}
 	par3_ctx->start_packet_size = packet_size;
 	par3_ctx->start_packet_count = 1;
 	//printf("Start Packet body size = %zu\n", par3_ctx->start_packet_size - 48);
 
-	// generate InputSetID
-	if (generate_set_id(par3_ctx, par3_ctx->start_packet + 48, par3_ctx->start_packet_size - 48) != 0){
-		return RET_LOGIC_ERROR;
-	}
-	memcpy(par3_ctx->set_id, par3_ctx->start_packet + 32, 8);
-	if (par3_ctx->noise_level >= 2){
-		printf("InputSetID = %02X %02X %02X %02X %02X %02X %02X %02X\n",
-				par3_ctx->set_id[0], par3_ctx->set_id[1], par3_ctx->set_id[2], par3_ctx->set_id[3],
-				par3_ctx->set_id[4], par3_ctx->set_id[5], par3_ctx->set_id[6], par3_ctx->set_id[7]);
+	if (flag_trial == 0){	// Trial mode doesn't calculate InputSetID.
+		// generate InputSetID
+		if (generate_set_id(par3_ctx, par3_ctx->start_packet + 48, par3_ctx->start_packet_size - 48) != 0){
+			return RET_LOGIC_ERROR;
+		}
+		memcpy(par3_ctx->set_id, par3_ctx->start_packet + 32, 8);
+		if (par3_ctx->noise_level >= 2){
+			printf("InputSetID = %02X %02X %02X %02X %02X %02X %02X %02X\n",
+					par3_ctx->set_id[0], par3_ctx->set_id[1], par3_ctx->set_id[2], par3_ctx->set_id[3],
+					par3_ctx->set_id[4], par3_ctx->set_id[5], par3_ctx->set_id[6], par3_ctx->set_id[7]);
+		}
 	}
 
 	// Because SetID was written already, ignore SetID here.
@@ -259,6 +264,7 @@ int make_matrix_packet(PAR3_CTX *par3_ctx)
 	}
 
 	// At this time, this supports only Cauchy Matrix Packet.
+	par3_ctx->ecc_method = 1;
 	tmp_p = par3_ctx->matrix_packet + 48;
 	memset(tmp_p, 0, 8);	// Index of first input block = 0 normally
 	tmp_p += 8;

@@ -43,10 +43,11 @@ static int check_directory(char *path)
 #endif
 
 // Check existense of each input directory.
-int check_input_directory(PAR3_CTX *par3_ctx, uint32_t *missing_dir_count)
+// Return number of missing directories.
+uint32_t check_input_directory(PAR3_CTX *par3_ctx)
 {
 	int ret;
-	uint32_t num;
+	uint32_t num, missing_dir_count;
 	PAR3_DIR_CTX *dir_p;
 
 	if (par3_ctx->input_dir_count == 0)
@@ -56,6 +57,7 @@ int check_input_directory(PAR3_CTX *par3_ctx, uint32_t *missing_dir_count)
 		printf("\nVerifying input directories:\n\n");
 	}
 
+	missing_dir_count = 0;
 	num = par3_ctx->input_dir_count;
 	dir_p = par3_ctx->input_dir_list;
 	while (num > 0){
@@ -68,7 +70,7 @@ int check_input_directory(PAR3_CTX *par3_ctx, uint32_t *missing_dir_count)
 				printf(" - found.\n");
 			}
 		} else if (ret == 1){
-			*missing_dir_count += 1;
+			missing_dir_count++;
 			if (par3_ctx->noise_level >= -1){
 				printf(" - missing.\n");
 			}
@@ -86,7 +88,7 @@ int check_input_directory(PAR3_CTX *par3_ctx, uint32_t *missing_dir_count)
 		num--;
 	}
 
-	return 0;
+	return missing_dir_count;
 }
 
 #ifdef __linux__
@@ -213,7 +215,7 @@ int verify_input_file(PAR3_CTX *par3_ctx, uint32_t *missing_file_count, uint32_t
 				printf("Opening: \"%s\"\n", file_p->name);
 			}
 			file_offset = 0;
-			ret = check_complete_file(par3_ctx, num, current_size, &file_offset);
+			ret = check_complete_file(par3_ctx, file_p->name, num, current_size, &file_offset);
 			//printf("ret = %d, size = %"PRINT64"u, offset = %"PRINT64"u\n", ret, current_size, file_offset);
 			if (ret > 0)
 				return ret;	// error

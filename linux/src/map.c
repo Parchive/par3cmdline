@@ -11,27 +11,17 @@
 #include "libpar3.h"
 #include "hash.h"
 
-/*
-I implement on memory function at first to test construction and behavior.
-Practical version must memory check and support large file size.
-
-When file data is on memory, it doesn't need mapping from blocks to files.
-It will read data from memory, instead of from real files.
-
-If there are same files in different directories,
-it may be possible to detect the duplication by comparing found blocks.
-*/
 
 // map input file slices into input blocks without slide search
 int map_input_block(PAR3_CTX *par3_ctx)
 {
-	uint8_t *input_block, *buf_p;
-	uint8_t buf_tail[40], buf_hash[16];
+	uint8_t *work_buf, buf_tail[40], buf_hash[16];
 	uint32_t num, num_pack, input_file_count;
 	uint32_t chunk_count, chunk_index, chunk_num;
 	int64_t find_index, previous_index, tail_offset;
 	uint64_t block_size, tail_size, file_offset;
-	uint64_t block_count, block_index, slice_index, index;
+	uint64_t block_count, block_index;
+	uint64_t slice_index, index, last_index;
 	uint64_t crc, num_dedup;
 	PAR3_FILE_CTX *file_p;
 	PAR3_CHUNK_CTX *chunk_p, *chunk_list;
@@ -90,14 +80,12 @@ int map_input_block(PAR3_CTX *par3_ctx)
 	par3_ctx->crc_list = crc_list;
 	par3_ctx->crc_count = 0;	// There is no item yet.
 
-	// Try to allocate all input blocks on memory
-	buf_p = malloc(block_size * block_count);
-	if (buf_p == NULL){
+	// Allocate memory to store file data temporary.
+	work_buf = malloc(block_size);
+	if (work_buf == NULL){
 		perror("Failed to allocate memory for input file data");
 		return RET_MEMORY_ERROR;
 	}
-	input_block = buf_p;
-	par3_ctx->input_block = buf_p;
 
 	// Read data of input files on memory
 	num_dedup = 0;
@@ -133,10 +121,8 @@ int map_input_block(PAR3_CTX *par3_ctx)
 		// Read full size blocks
 		file_offset = 0;
 		while (file_offset + block_size <= file_p->size){
-			buf_p = input_block + (block_size * block_index);
-
 			// read full block from input file
-			if (fread(buf_p, 1, (size_t)block_size, fp) != (size_t)block_size){
+			if (fread(work_buf, 1, (size_t)block_size, fp) != (size_t)block_size){
 				perror("Failed to read full size chunk on input file");
 				fclose(fp);
 				return RET_FILE_IO_ERROR;
@@ -144,15 +130,15 @@ int map_input_block(PAR3_CTX *par3_ctx)
 
 			// calculate CRC-64 of the first 16 KB
 			if (file_offset + block_size < 16384){
-				file_p->crc = crc64(buf_p, (size_t)block_size, file_p->crc);
+				file_p->crc = crc64(work_buf, (size_t)block_size, file_p->crc);
 			} else if (file_offset < 16384){
-				file_p->crc = crc64(buf_p, (size_t)(16384 - file_offset), file_p->crc);
+				file_p->crc = crc64(work_buf, (size_t)(16384 - file_offset), file_p->crc);
 			}
-			blake3_hasher_update(&hasher, buf_p, (size_t)block_size);
+			blake3_hasher_update(&hasher, work_buf, (size_t)block_size);
 
 			// Compare current CRC-64 with previous blocks.
-			crc = crc64(buf_p, (size_t)block_size, 0);
-			find_index = crc_list_compare(par3_ctx, crc, buf_p, buf_hash);
+			crc = crc64(work_buf, (size_t)block_size, 0);
+			find_index = crc_list_compare(par3_ctx, crc, work_buf, buf_hash);
 			//printf("find_index = %"PRINT64"d, previous_index = %"PRINT64"d\n", find_index, previous_index);
 			if (find_index < 0){	// No match
 				// Add full size block into list
@@ -165,7 +151,7 @@ int map_input_block(PAR3_CTX *par3_ctx)
 				if (find_index == -3){
 					memcpy(block_p->hash, buf_hash, 16);
 				} else {
-					blake3(buf_p, (size_t)block_size, block_p->hash);
+					blake3(work_buf, (size_t)block_size, block_p->hash);
 				}
 				block_p->state = 1;
 
@@ -279,16 +265,15 @@ int map_input_block(PAR3_CTX *par3_ctx)
 		//printf("tail_size = %"PRINT64"u, file size = %"PRINT64"u, offset %"PRINT64"u\n", tail_size, file_p->size, file_offset);
 		if (tail_size >= 40){
 			// read chunk tail from input file on temporary block
-			buf_p = input_block + (block_size * block_index);
-			if (fread(buf_p, 1, (size_t)tail_size, fp) != (size_t)tail_size){
+			if (fread(work_buf, 1, (size_t)tail_size, fp) != (size_t)tail_size){
 				perror("Failed to read tail chunk on input file");
 				fclose(fp);
 				return RET_FILE_IO_ERROR;
 			}
 
 			// calculate checksum of chunk tail
-			chunk_p->tail_crc = crc64(buf_p, 40, 0);
-			blake3(buf_p, (size_t)tail_size, chunk_p->tail_hash);
+			chunk_p->tail_crc = crc64(work_buf, 40, 0);
+			blake3(work_buf, (size_t)tail_size, chunk_p->tail_hash);
 
 			// search existing tails of same data
 			tail_offset = 0;
@@ -299,6 +284,12 @@ int map_input_block(PAR3_CTX *par3_ctx)
 					if (chunk_p->tail_crc == chunk_list[slice_list[index].chunk].tail_crc){
 						if (memcmp(chunk_p->tail_hash, chunk_list[slice_list[index].chunk].tail_hash, 16) == 0){
 							tail_offset = -1;
+
+							// find the last slice info in the block
+							last_index = index;
+							while (slice_list[last_index].next != -1){
+								last_index = slice_list[last_index].next;
+							}
 							break;
 						}
 					}
@@ -312,9 +303,9 @@ int map_input_block(PAR3_CTX *par3_ctx)
 						tail_offset = block_list[index].size;
 
 						// find the last slice info in the block
-						index = block_list[index].slice;
-						while (slice_list[index].next != -1){
-							index = slice_list[index].next;
+						last_index = block_list[index].slice;
+						while (slice_list[last_index].next != -1){
+							last_index = slice_list[last_index].next;
 						}
 						break;
 					}
@@ -327,7 +318,7 @@ int map_input_block(PAR3_CTX *par3_ctx)
 					printf("o t block[%2"PRINT64"u] : slice[%2"PRINT64"u] chunk[%2u] file %d, offset %"PRINT64"u, tail size %"PRINT64"u, offset %"PRINT64"u\n",
 							slice_list[index].block, slice_index, chunk_index, num, file_offset, tail_size, slice_list[index].tail_offset);
 				}
-				slice_list[index].next = slice_index;	// These same tails have same offset and size.
+				slice_list[last_index].next = slice_index;	// These same tails have same offset and size.
 
 				// set slice info
 				slice_p->block = slice_list[index].block;
@@ -339,8 +330,6 @@ int map_input_block(PAR3_CTX *par3_ctx)
 				num_dedup++;
 
 			} else if (tail_offset == 0){	// Put tail in new block
-				//buf_p = input_block + (block_size * block_index);
-				memset(buf_p + tail_size, 0, block_size - tail_size);	// zero fill the rest bytes
 				if (par3_ctx->noise_level >= 2){
 					printf("n t block[%2"PRINT64"u] : slice[%2"PRINT64"u] chunk[%2u] file %d, offset %"PRINT64"u, tail size %"PRINT64"u\n",
 							block_index, slice_index, chunk_index, num, file_offset, tail_size);
@@ -357,40 +346,39 @@ int map_input_block(PAR3_CTX *par3_ctx)
 				// set block info (block for tails don't store checksum)
 				block_p->slice = slice_index;
 				block_p->size = tail_size;
+				block_p->crc = crc64(work_buf, (size_t)tail_size, 0);
 				block_p->state = 2;
 				block_p++;
 				block_index++;
 
 			} else {	// Put tail after another tail
-				// copy chunk tail from temporary block
-				buf_p = input_block + (block_size * slice_list[index].block) + tail_offset;
-				memcpy(buf_p, input_block + (block_size * block_index), (size_t)tail_size);
 				if (par3_ctx->noise_level >= 2){
 					printf("a t block[%2"PRINT64"u] : slice[%2"PRINT64"u] chunk[%2u] file %d, offset %"PRINT64"u, tail size %"PRINT64"u, offset %"PRINT64"d\n",
-							slice_list[index].block, slice_index, chunk_index, num, file_offset, tail_size, tail_offset);
+							index, slice_index, chunk_index, num, file_offset, tail_size, tail_offset);
 				}
-				slice_list[index].next = slice_index;	// update "next" item in the previous tail
+				slice_list[last_index].next = slice_index;	// update "next" item in the previous tail
 
 				// set slice info
-				slice_p->block = slice_list[index].block;
+				slice_p->block = index;
 				slice_p->tail_offset = tail_offset;
 
 				// set chunk tail info
-				chunk_p->tail_block = slice_list[index].block;
+				chunk_p->tail_block = index;
 				chunk_p->tail_offset = tail_offset;
 				num_pack++;
 
 				// update block info
 				block_list[slice_p->block].size = tail_offset + tail_size;
+				block_list[slice_p->block].crc = crc64(work_buf, (size_t)tail_size, block_list[slice_p->block].crc);
 			}
 
 			// calculate CRC-64 of the first 16 KB
 			if (file_offset + tail_size < 16384){
-				file_p->crc = crc64(buf_p, (size_t)tail_size, file_p->crc);
+				file_p->crc = crc64(work_buf, (size_t)tail_size, file_p->crc);
 			} else if (file_offset < 16384){
-				file_p->crc = crc64(buf_p, (size_t)(16384 - file_offset), file_p->crc);
+				file_p->crc = crc64(work_buf, (size_t)(16384 - file_offset), file_p->crc);
 			}
-			blake3_hasher_update(&hasher, buf_p, (size_t)tail_size);
+			blake3_hasher_update(&hasher, work_buf, (size_t)tail_size);
 
 			// set common slice info
 			slice_p->file = num;
@@ -402,7 +390,7 @@ int map_input_block(PAR3_CTX *par3_ctx)
 			slice_index++;
 
 		} else if (tail_size > 0){
-			// When tail size is 1~39-bytes, it's saved in File Packet.
+			// When tail size is 1~39 bytes, it's saved in File Packet.
 			if (fread(buf_tail, 1, (size_t)tail_size, fp) != (size_t)tail_size){
 				perror("Failed to read tail chunk on input file");
 				fclose(fp);
@@ -463,6 +451,9 @@ int map_input_block(PAR3_CTX *par3_ctx)
 	// Release temporary buffer.
 	free(crc_list);
 	par3_ctx->crc_list = NULL;
+	par3_ctx->crc_count = 0;
+	free(work_buf);
+	par3_ctx->work_buf = NULL;
 
 	// Re-allocate memory for actual number of chunk description
 	if (par3_ctx->noise_level >= 0){
