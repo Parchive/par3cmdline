@@ -8,6 +8,11 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef __linux__
+#elif _WIN32
+#include <io.h>
+#endif
+
 #include "blake3/blake3.h"
 #include "libpar3.h"
 #include "common.h"

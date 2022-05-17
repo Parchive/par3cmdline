@@ -132,7 +132,7 @@ int get_absolute_path(char *absolute_path, char *relative_path, size_t max)
 	size_t len;
 
 	// MSVC
-	struct _finddata64_t c_file;
+	struct _finddatai64_t c_file;
 	intptr_t handle;
 
 	// This function replaces "/" to "\" automatically.
