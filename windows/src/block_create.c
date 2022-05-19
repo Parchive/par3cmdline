@@ -37,18 +37,18 @@ int allocate_recovery_block(PAR3_CTX *par3_ctx)
 
 	// Set memory alignment of block data to be 8 for 64-bit OS.
 	// Increase at least 1 byte as checksum.
-	region_size = (par3_ctx->block_size + 1 + 7) & ~8;
+	region_size = (par3_ctx->block_size + 1 + 7) & ~7;
 	if (par3_ctx->noise_level >= 2){
 		printf("Aligned size of block data = %zu\n", region_size);
 	}
-	alloc_size = region_size * par3_ctx->recovery_block_count;
 
 	// Limited memory usage
+	alloc_size = region_size * par3_ctx->recovery_block_count;
 	if ( (par3_ctx->memory_limit > 0) && (alloc_size > par3_ctx->memory_limit) )
 		return 0;
 
-	par3_ctx->recovery_data = malloc(alloc_size);
-	if (par3_ctx->recovery_data == NULL){
+	par3_ctx->block_data = malloc(alloc_size);
+	if (par3_ctx->block_data == NULL){
 		// When it cannot allocate memory, it will retry later.
 		par3_ctx->ecc_method &= ~0x1000;
 	} else {
@@ -77,7 +77,7 @@ int create_recovery_block(PAR3_CTX *par3_ctx)
 		return -1;
 
 	// GF tables and recovery blocks must be stored on memory.
-	if ( (par3_ctx->galois_table == NULL) || (par3_ctx->recovery_data == NULL) )
+	if ( (par3_ctx->galois_table == NULL) || (par3_ctx->block_data == NULL) )
 		return -1;
 
 	// Only when it uses Reed-Solomon Erasure Codes.
@@ -91,13 +91,17 @@ int create_recovery_block(PAR3_CTX *par3_ctx)
 	block_list = par3_ctx->block_list;
 
 	// Allocate memory to read one input block and parity.
-	region_size = (block_size + 1 + 7) & ~8;
+	region_size = (block_size + 1 + 7) & ~7;
 	work_buf = malloc(region_size);
 	if (work_buf == NULL){
 		perror("Failed to allocate memory for input data");
 		return RET_MEMORY_ERROR;
 	}
 	par3_ctx->work_buf = work_buf;
+
+	if (par3_ctx->noise_level >= 1){
+		printf("\nCalculating recovery blocks:\n\n");
+	}
 
 	// Reed-Solomon Erasure Codes
 	file_read = -1;
@@ -123,6 +127,9 @@ int create_recovery_block(PAR3_CTX *par3_ctx)
 			file_index = slice_list[slice_index].file;
 			file_offset = slice_list[slice_index].offset;
 			read_size = slice_list[slice_index].size;
+			if (par3_ctx->noise_level >= 1){
+				printf("Reading %zu bytes of slice[%I64d] for input block[%d]\n", read_size, slice_index, x_index);
+			}
 			if ( (fp == NULL) || (file_index != file_read) ){
 				if (fp != NULL){	// Close previous input file.
 					fclose(fp);
@@ -147,6 +154,9 @@ int create_recovery_block(PAR3_CTX *par3_ctx)
 			}
 
 		} else {	// tail data only (one tail or packed tails)
+			if (par3_ctx->noise_level >= 1){
+				printf("Reading %I64u bytes for input block[%d]\n", data_size, x_index);
+			}
 			tail_offset = 0;
 			while (tail_offset < data_size){	// Read tails until data end.
 				slice_index = block_list[x_index].slice;
@@ -222,6 +232,10 @@ int create_recovery_block(PAR3_CTX *par3_ctx)
 
 	free(work_buf);
 	par3_ctx->work_buf = NULL;
+
+	if (par3_ctx->noise_level >= 1){
+		printf("\n");
+	}
 
 /*
 {	// for debug

@@ -434,7 +434,7 @@ int write_archive_file(PAR3_CTX *par3_ctx)
 	file_count = par3_ctx->recovery_file_count;
 
 	// Allocate memory to read one input block and parity.
-	region_size = (par3_ctx->block_size + 1 + 7) & ~8;
+	region_size = (par3_ctx->block_size + 1 + 7) & ~7;
 	par3_ctx->work_buf = malloc(region_size);
 	if (par3_ctx->work_buf == NULL){
 		perror("Failed to allocate memory for input data");
@@ -530,8 +530,8 @@ static int write_recovery_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t ea
 	common_packet = par3_ctx->common_packet;
 	common_packet_size = par3_ctx->common_packet_size;
 
-	region_size = (block_size + 1 + 7) & ~8;
-	buf_p = par3_ctx->recovery_data;
+	region_size = (block_size + 1 + 7) & ~7;
+	buf_p = par3_ctx->block_data;
 	if (par3_ctx->ecc_method & 0x1000){
 		// Move to the position of starting recovery block
 		buf_p += (each_start - par3_ctx->first_recovery_block) * region_size;
@@ -590,7 +590,7 @@ static int write_recovery_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t ea
 		if (par3_ctx->ecc_method & 0x1000){
 			// Check parity of recovery block to confirm that calculation was correct.
 			if (region_check_parity(buf_p, region_size, block_size) != 0){
-				printf("Parity of block[%I64u] is different.\n", num);
+				printf("Parity of recovery block[%I64u] is different.\n", num);
 				fclose(fp);
 				return RET_LOGIC_ERROR;
 			}

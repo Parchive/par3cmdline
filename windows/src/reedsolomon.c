@@ -10,6 +10,8 @@
 
 #include "libpar3.h"
 #include "galois.h"
+#include "hash.h"
+#include "reedsolomon.h"
 
 
 // Create all recovery blocks from one input block.
@@ -26,10 +28,10 @@ void rs_create_one_all(PAR3_CTX *par3_ctx, int x_index)
 	first_num = (int)(par3_ctx->first_recovery_block);
 	gf_table = par3_ctx->galois_table;
 	work_buf = par3_ctx->work_buf;
-	buf_p = par3_ctx->recovery_data;
+	buf_p = par3_ctx->block_data;
 
 	// For every recovery block
-	region_size = (par3_ctx->block_size + 1 + 7) & ~8;
+	region_size = (par3_ctx->block_size + 1 + 7) & ~7;
 	for (y_index = 0; y_index < recovery_block_count; y_index++){
 		// Calculate Matrix elements
 		if (par3_ctx->galois_poly == 0x1100B){	// 16-bit Galois Field
@@ -43,9 +45,119 @@ void rs_create_one_all(PAR3_CTX *par3_ctx, int x_index)
 			// If x_index == 0, just put values.
 			// If x_index > 0, add values on previous values.
 			gf8_region_multiply(gf_table, work_buf, element, region_size, buf_p, x_index);
+
+/*
+			// for debug
+			if (region_check_parity(buf_p, region_size, par3_ctx->block_size) != 0){
+				printf("Parity of recovery block[%d] is different.\n", y_index + first_num);
+			}
+*/
+
 			buf_p += region_size;
 		}
 		//printf("x = %d, R = %d, y_R = %d, element = %d\n", x_index, y_index + first_num, y_R, element);
 	}
+}
+
+// Construct matrix for Cauchy Reed-Solomon, and solve linear equation.
+int rs_compute_matrix(PAR3_CTX *par3_ctx, uint64_t lost_count)
+{
+	int ret;
+	int *lost_id, *recv_id;
+	size_t alloc_size, region_size;
+	uint64_t count, index, id;
+	PAR3_BLOCK_CTX *block_list;
+	PAR3_PKT_CTX *packet_list;
+
+	if (par3_ctx->gf_size == 2){	// 16-bit Galois Field
+		printf("16-bit Galois Field isn't implemented yet.\n");
+		return RET_LOGIC_ERROR;
+
+	} else if (par3_ctx->gf_size == 1){	// 8-bit Galois Field
+		par3_ctx->galois_table = gf8_create_table(par3_ctx->galois_poly);
+	}
+	if (par3_ctx->galois_table == NULL){
+		printf("Failed to create tables for Galois Field (0x%X)\n", par3_ctx->galois_poly);
+		return RET_MEMORY_ERROR;
+	}
+
+	// Only when it uses Reed-Solomon Erasure Codes.
+	if ((par3_ctx->ecc_method & 1) == 0)
+		return 0;
+
+	// Make list of index (lost input blocks and using recovery blocks)
+	lost_id = (int *) malloc(sizeof(int) * lost_count * 2);
+	if (lost_id == NULL){
+		printf("Failed to make list for using blocks\n");
+		return RET_MEMORY_ERROR;
+	}
+	recv_id = lost_id + lost_count;
+	par3_ctx->id_list = lost_id;
+
+	// Set index of using recovery blocks
+	packet_list = par3_ctx->rec_data_packet_list;
+	count = par3_ctx->rec_data_packet_count;
+	id = 0;
+	for (index = 0; index < count; index++){
+		// Is it required to check Matrix Packet ?
+		recv_id[id] = (int)(packet_list[index].index);
+		//printf("recv_id[%I64u] = %d\n", id, recv_id[id]);
+		id++;
+
+		// If there are more blocks than required, just ignore them.
+		// Cauchy Matrix should be invertible always.
+		// Or, is it safe to keep more for full rank ?
+		if (id >= lost_count)
+			break;
+	}
+
+	// Set index of lost input blocks
+	block_list = par3_ctx->block_list;
+	count = par3_ctx->block_count;
+	id = 0;
+	for (index = 0; index < count; index++){
+		if ((block_list[index].state & (4 | 16)) == 0){
+			if (id >= lost_count){
+				printf("Number of lost input blocks is wrong.\n");
+				return RET_LOGIC_ERROR;
+			}
+
+			lost_id[id] = (int)index;
+			//printf("lost_id[%I64u] = %d\n", id, lost_id[id]);
+			id++;
+		}
+	}
+
+	// Make matrix
+	if (par3_ctx->gf_size == 2){	// 16-bit Reed-Solomon Codes
+	
+	} else if (par3_ctx->gf_size == 1){	// 8-bit Reed-Solomon Codes
+		ret = rs8_gaussian_elimination(par3_ctx, (int)lost_count);
+		if (ret != 0)
+			return ret;
+	}
+
+	// Set memory alignment of block data to be 8 for 64-bit OS.
+	// Increase at least 1 byte as checksum.
+	region_size = (par3_ctx->block_size + 1 + 7) & ~7;
+	if (par3_ctx->noise_level >= 2){
+		printf("\nAligned size of block data = %zu\n", region_size);
+	}
+
+	// Limited memory usage
+	alloc_size = region_size * lost_count;
+	if ( (par3_ctx->memory_limit > 0) && (alloc_size > par3_ctx->memory_limit) )
+		return 0;
+
+	// Allocate memory to keep lost blocks
+	par3_ctx->block_data = malloc(alloc_size);
+	if (par3_ctx->block_data == NULL){
+		// When it cannot allocate memory, it will retry later.
+		par3_ctx->ecc_method &= ~0x1000;
+	} else {
+		par3_ctx->ecc_method |= 0x1000;	// Keep all lost blocks on memory
+	}
+
+	return 0;
 }
 

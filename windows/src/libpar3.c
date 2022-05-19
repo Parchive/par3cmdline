@@ -1024,6 +1024,7 @@ void par3_release(PAR3_CTX *par3_ctx)
 		par3_ctx->par_file_name_len = 0;
 		par3_ctx->par_file_name_max = 0;
 	}
+
 	if (par3_ctx->chunk_list){
 		free(par3_ctx->chunk_list);
 		par3_ctx->chunk_list = NULL;
@@ -1038,13 +1039,10 @@ void par3_release(PAR3_CTX *par3_ctx)
 		free(par3_ctx->block_list);
 		par3_ctx->block_list = NULL;
 	}
-	if (par3_ctx->input_data){
-		free(par3_ctx->input_data);
-		par3_ctx->input_data = NULL;
-	}
-	if (par3_ctx->recovery_data){
-		free(par3_ctx->recovery_data);
-		par3_ctx->recovery_data = NULL;
+
+	if (par3_ctx->block_data){
+		free(par3_ctx->block_data);
+		par3_ctx->block_data = NULL;
 	}
 	if (par3_ctx->galois_table){
 		free(par3_ctx->galois_table);
@@ -1058,6 +1056,7 @@ void par3_release(PAR3_CTX *par3_ctx)
 		free(par3_ctx->crc_list);
 		par3_ctx->crc_list = NULL;
 	}
+
 	if (par3_ctx->creator_packet){
 		free(par3_ctx->creator_packet);
 		par3_ctx->creator_packet = NULL;
@@ -1121,6 +1120,15 @@ void par3_release(PAR3_CTX *par3_ctx)
 		free(par3_ctx->rec_data_packet_list);
 		par3_ctx->rec_data_packet_list = NULL;
 		par3_ctx->rec_data_packet_count = 0;
+	}
+
+	if (par3_ctx->id_list){
+		free(par3_ctx->id_list);
+		par3_ctx->id_list = NULL;
+	}
+	if (par3_ctx->matrix){
+		free(par3_ctx->matrix);
+		par3_ctx->matrix = NULL;
 	}
 }
 

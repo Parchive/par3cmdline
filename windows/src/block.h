@@ -13,3 +13,8 @@ int find_identical_block(PAR3_CTX *par3_ctx);
 uint64_t aggregate_input_block(PAR3_CTX *par3_ctx);
 uint64_t aggregate_recovery_block(PAR3_CTX *par3_ctx);
 
+
+// For repair
+int recover_lost_block(PAR3_CTX *par3_ctx, char *temp_path, int lost_count);
+
+

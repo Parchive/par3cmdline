@@ -151,6 +151,7 @@
     <ClCompile Include="block_check.c" />
     <ClCompile Include="block_create.c" />
     <ClCompile Include="block_map.c" />
+    <ClCompile Include="block_recover.c" />
     <ClCompile Include="common.c" />
     <ClCompile Include="galois8.c" />
     <ClCompile Include="libpar3_create.c" />
@@ -166,6 +167,7 @@
     <ClCompile Include="packet_parse.c" />
     <ClCompile Include="read.c" />
     <ClCompile Include="reedsolomon.c" />
+    <ClCompile Include="reedsolomon8.c" />
     <ClCompile Include="repair.c" />
     <ClCompile Include="verify.c" />
     <ClCompile Include="verify_check.c" />

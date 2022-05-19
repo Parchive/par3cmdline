@@ -1,6 +1,8 @@
 
 uint32_t reconstruct_directory_tree(PAR3_CTX *par3_ctx);
 
+int create_temp_file(PAR3_CTX *par3_ctx, char *temp_path);
+
 int restore_input_file(PAR3_CTX *par3_ctx, char *temp_path);
 
 int verify_repaired_file(PAR3_CTX *par3_ctx, char *temp_path,

@@ -87,10 +87,68 @@ uint32_t reconstruct_directory_tree(PAR3_CTX *par3_ctx)
 	return failed_dir_count;
 }
 
-// Create temporary files and restore content of input files
+// Create temporary files for lost input files
+int create_temp_file(PAR3_CTX *par3_ctx, char *temp_path)
+{
+	uint8_t zero_buf[1];
+	uint32_t file_count, file_index;
+	PAR3_FILE_CTX *file_list;
+	FILE *fp;
+
+	if (par3_ctx->input_file_count == 0)
+		return 0;
+
+	file_count = par3_ctx->input_file_count;
+	file_list = par3_ctx->input_file_list;
+	zero_buf[0] = 0;
+
+	// Base name of temporary file
+	sprintf(temp_path, "par3_%02X%02X%02X%02X%02X%02X%02X%02X_",
+			par3_ctx->set_id[0], par3_ctx->set_id[1], par3_ctx->set_id[2], par3_ctx->set_id[3],
+			par3_ctx->set_id[4], par3_ctx->set_id[5], par3_ctx->set_id[6], par3_ctx->set_id[7]);
+
+	for (file_index = 0; file_index < file_count; file_index++){
+		// The input file is missing or damaged.
+		if ( ((file_list[file_index].state & 3) != 0) && ((file_list[file_index].state & 4) == 0) ){
+			sprintf(temp_path + 22, "%u.tmp", file_index);
+			//fp = fopen(temp_path, "wbx");	// Error at over writing temporary file
+			fp = fopen(temp_path, "wb");	// There is a risk of over writing existing file of same name.
+			if (fp == NULL){
+				perror("Failed to create temporary file");
+				return RET_FILE_IO_ERROR;
+			}
+
+// read & write mode "r+" may be good.
+/*
+			// When a file is opend in "append mode", fseek cannot beyond the end of the file.
+			if (file_list[file_index].size > 0){
+				if (_fseeki64(fp, file_list[file_index].size - 1, SEEK_SET) != 0){
+					perror("Failed to seek temporary file");
+					fclose(fp);
+					return RET_FILE_IO_ERROR;
+				}
+				if (fwrite(zero_buf, 1, 1, fp) != 1){
+					perror("Failed to zero fill temporary file");
+					fclose(fp);
+					return RET_FILE_IO_ERROR;
+				}
+			}
+*/
+
+			if (fclose(fp) != 0){
+				perror("Failed to close temporary file");
+				return RET_FILE_IO_ERROR;
+			}
+		}
+	}
+
+	return 0;
+}
+
+// Restore content of input files
 int restore_input_file(PAR3_CTX *par3_ctx, char *temp_path)
 {
-	char *file_name, *find_name;
+	char *file_read, *find_name;
 	uint8_t *work_buf, buf_tail[40];
 	uint32_t file_count, file_index;
 	uint32_t chunk_index, chunk_num;
@@ -128,15 +186,15 @@ int restore_input_file(PAR3_CTX *par3_ctx, char *temp_path)
 		printf("\nRestoring input files:\n\n");
 	}
 
-	file_name = NULL;
+	file_read = NULL;
 	fp_read = NULL;
 	for (file_index = 0; file_index < file_count; file_index++){
 		// The input file is missing or damaged.
 		if ( ((file_list[file_index].state & 3) != 0) && ((file_list[file_index].state & 4) == 0) ){
 			sprintf(temp_path + 22, "%u.tmp", file_index);
-			fp_write = fopen(temp_path, "wbx");
+			fp_write = fopen(temp_path, "r+b");
 			if (fp_write == NULL){
-				perror("Failed to create temporary file");
+				perror("Failed to open temporary file");
 				return RET_FILE_IO_ERROR;
 			}
 
@@ -161,7 +219,7 @@ int restore_input_file(PAR3_CTX *par3_ctx, char *temp_path)
 					}
 
 					// Read input file slice from another file.
-					if ( (fp_read == NULL) || (find_name != file_name) ){
+					if ( (fp_read == NULL) || (find_name != file_read) ){
 						if (fp_read != NULL){	// Close previous another file.
 							fclose(fp_read);
 							fp_read = NULL;
@@ -172,7 +230,7 @@ int restore_input_file(PAR3_CTX *par3_ctx, char *temp_path)
 							fclose(fp_write);
 							return RET_FILE_IO_ERROR;
 						}
-						file_name = find_name;
+						file_read = find_name;
 					}
 					if (_fseeki64(fp_read, file_offset, SEEK_SET) != 0){
 						perror("Failed to seek another file");
@@ -198,7 +256,7 @@ int restore_input_file(PAR3_CTX *par3_ctx, char *temp_path)
 					}
 */
 					if (fwrite(work_buf, 1, slice_size, fp_write) != slice_size){
-						perror("Failed to write full slice on temporary file");
+						perror("Failed to write slice on temporary file");
 						fclose(fp_read);
 						fclose(fp_write);
 						return RET_FILE_IO_ERROR;
@@ -219,7 +277,7 @@ int restore_input_file(PAR3_CTX *par3_ctx, char *temp_path)
 
 					// Write input file slice on temporary file.
 					if (fwrite(buf_tail, 1, slice_size, fp_write) != slice_size){
-						perror("Failed to write full slice on temporary file");
+						perror("Failed to write tiny slice on temporary file");
 						fclose(fp_read);
 						fclose(fp_write);
 						return RET_FILE_IO_ERROR;
@@ -289,6 +347,7 @@ static int backup_file(char *filename)
 int verify_repaired_file(PAR3_CTX *par3_ctx, char *temp_path,
 		uint32_t *missing_file_count, uint32_t *damaged_file_count, uint32_t *misnamed_file_count)
 {
+	int flag_show = 0;
 	char *file_name;
 	int ret;
 	uint32_t file_count, file_index;
@@ -312,16 +371,19 @@ int verify_repaired_file(PAR3_CTX *par3_ctx, char *temp_path,
 			par3_ctx->set_id[0], par3_ctx->set_id[1], par3_ctx->set_id[2], par3_ctx->set_id[3],
 			par3_ctx->set_id[4], par3_ctx->set_id[5], par3_ctx->set_id[6], par3_ctx->set_id[7]);
 
-	if (par3_ctx->noise_level >= 0){
-		printf("\nVerifying repaired files:\n\n");
-	}
-
 	*missing_file_count = 0;
 	*damaged_file_count = 0;
 	*misnamed_file_count = 0;
 	for (file_index = 0; file_index < file_count; file_index++){
 		// This input file is misnamed.
 		if (file_list[file_index].state & 4){
+			if (par3_ctx->noise_level >= 0){
+				if (flag_show == 0){
+					flag_show++;
+					printf("\nVerifying repaired files:\n\n");
+				}
+			}
+
 			//printf("state = 0x%08X\n", file_list[file_index].state);
 			if (file_list[file_index].state & 2){	// The original file is damaged.
 				// Backup damaged file
@@ -353,6 +415,13 @@ int verify_repaired_file(PAR3_CTX *par3_ctx, char *temp_path,
 
 		// This input file is missing or damaged.
 		} else if ((file_list[file_index].state & 0x104) == 0x100){	// This missing or damaged file was repaired.
+			if (par3_ctx->noise_level >= 0){
+				if (flag_show == 0){
+					flag_show++;
+					printf("\nVerifying repaired files:\n\n");
+				}
+			}
+
 			sprintf(temp_path + 22, "%u.tmp", file_index);
 			ret = check_complete_file(par3_ctx, temp_path, file_index, file_list[file_index].size, NULL);
 			if (ret > 0)
@@ -391,9 +460,11 @@ int verify_repaired_file(PAR3_CTX *par3_ctx, char *temp_path,
 
 			} else {	// Repaired file is bad.
 				// Delete the temporary file
+/*
 				if (remove(temp_path) != 0){
 					perror("Failed to delete temporary file");
 				}
+*/
 				if (file_list[file_index].state & 2){
 					*damaged_file_count += 1;
 				} else if (file_list[file_index].state & 1){

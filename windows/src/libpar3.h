@@ -131,19 +131,21 @@ typedef struct {
 	int ecc_method;		// Bit flag: 1 = Reed-Solomon Erasure Codes with Cauchy Matrix
 						//           2 = Erasure Codes with Sparse Random Matrix (no support yet)
 						//           4 = LDPC (no support yet)
-						//      0x1000 = Keep all recovery blocks on memory
+						//      0x1000 = Keep all recovery blocks or lost blocks on memory
 						//  0x####0000 = offset of using Matrix Packet
+
+	int *id_list;		// for inverting matrix of Reed-Solomon Codes
+	void *matrix;
 
 	uint64_t block_size;
 	uint64_t block_count;		// This may be max or possible value at creating.
 	PAR3_BLOCK_CTX *block_list;	// List of block information
-	uint8_t *input_data;
+	uint8_t *block_data;
 
 	uint64_t first_recovery_block;
 	uint64_t recovery_block_count;
 	uint32_t recovery_file_count;
 	uint32_t redundancy_size;	// Lower 7-bit (0~100) is percent, or 101=KB, 102=MB, 103=GB.
-	uint8_t *recovery_data;
 
 	char base_path[_MAX_PATH];
 	char par_filename[_MAX_PATH];
@@ -243,6 +245,7 @@ int extra_search(PAR3_CTX *par3_ctx, char *match_path);
 int par3_list(PAR3_CTX *par3_ctx);
 int par3_verify(PAR3_CTX *par3_ctx);
 int par3_repair(PAR3_CTX *par3_ctx, char *temp_path);
+
 
 // Release internal allocated memory
 void par3_release(PAR3_CTX *par3_ctx);

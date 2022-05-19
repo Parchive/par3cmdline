@@ -533,6 +533,10 @@ int parse_vital_packet(PAR3_CTX *par3_ctx)
 			printf("Size of Galois Field is too large, %u\n", par3_ctx->gf_size);
 			return RET_LOGIC_ERROR;
 		}
+		if ( (par3_ctx->gf_size > 0) && (par3_ctx->gf_size < 4) ){
+			memcpy(&(par3_ctx->galois_poly), par3_ctx->start_packet + 48 + 41, par3_ctx->gf_size);
+			par3_ctx->galois_poly |= 1 << (par3_ctx->gf_size * 8);
+		}
 		if (packet_size != 48 + 41 + par3_ctx->gf_size){	// check packet size was valid
 			printf("Start Packet size is wrong, %I64u\n", packet_size);
 			return RET_LOGIC_ERROR;
@@ -542,6 +546,7 @@ int parse_vital_packet(PAR3_CTX *par3_ctx)
 		printf("\n");
 		printf("Block size = %I64u\n", par3_ctx->block_size);
 		printf("Galois field size = %u\n", par3_ctx->gf_size);
+		printf("Galois field generator = 0x%X\n", par3_ctx->galois_poly);
 	}
 
 	// Read Root Packet
