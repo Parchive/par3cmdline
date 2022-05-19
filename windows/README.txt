@@ -7,39 +7,47 @@ The latest PAR3 specification is available at:
 https://github.com/Parchive/par3cmdline/files/8318148/Parity_Volume_Set_Specification_v3.0.md
 
 
+ I wrote this in C language for Visual C++ 2019 64-bit compiler.
+You can compile this by Microsoft Visual Studio Community 2019.
+Because this uses much memory, I support 64-bit build only on 64-bit OS.
 
-This is for testing usage only.
+ Because some features of gcc don't work on Windows OS,
+I could not use MinGW (gcc for Windows).
+(Such like UTF-8, file access, or C runtime library.)
+
+
+ This is for testing usage only.
 The implementation may be change largely.
 Though I tried to follow the style of par2cmdline,
 some options or behavior or output text may be different.
 
-This is under construction.
+ This is under construction.
 There is basic feature only.
 Some commands and options are useless.
 There may be some mistake or failure.
 
-It keeps many input blocks and recovery blocks on memory at this time.
+ It keeps many input blocks and recovery blocks on memory at this time.
 So, it cannot treat large files now.
 I will solve this problem of file IO, after I test behavior of the mechanism.
 
-It can create Index File and Archive Files.
+ It can create Index File and Archive Files.
 Index File includes all types of packets without duplication.
 Archive Files include Data Packets, which is a piece of input files.
 
-While verification is possible, it may be slow at this time.
+ While verification is possible, it may be slow at this time.
 Currently I prefer finding as many slices as possible.
 
-Repair feature is under construction.
+ Repair feature is under construction.
 I implemented 8-bit Reed-Solomon Erasure Codes for small data for testing purpose.
 At this time, this supports only Reed-Solomon Erasure Codes with Cauchy Matrix.
 
-It can restore missing or damaged files by using Data Packets.
+ It can restore missing or damaged files by using Data Packets.
 It can correct filename of misnamed files, when they were specified as extra files.
 It cannot use Recovery Data Packets yet.
 
 It cannot create Recovery Files yet.
 It cannot Repair yet.
-It doesn't use maultiple recovery codes at once.
+It doesn't use maultiple Recovery Codes at once.
 It doesn't support "PAR inside" feature yet.
 
 
