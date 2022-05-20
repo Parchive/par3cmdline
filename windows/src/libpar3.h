@@ -132,7 +132,6 @@ typedef struct {
 						//           2 = Erasure Codes with Sparse Random Matrix (no support yet)
 						//           4 = LDPC (no support yet)
 						//      0x1000 = Keep all recovery blocks or lost blocks on memory
-						//  0x####0000 = offset of using Matrix Packet
 
 	int *id_list;		// for inverting matrix of Reed-Solomon Codes
 	void *matrix;
@@ -192,6 +191,7 @@ typedef struct {
 	uint8_t *matrix_packet;			// pointer to Matrix Packets
 	size_t matrix_packet_size;		// total size of Matrix Packets
 	uint32_t matrix_packet_count;
+	size_t matrix_packet_offset;	// offset of using Matrix Packet for recovery
 
 	uint8_t *file_packet;			// pointer to File Packets
 	size_t file_packet_size;		// total size of File Packets

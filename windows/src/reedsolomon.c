@@ -62,6 +62,7 @@ void rs_create_one_all(PAR3_CTX *par3_ctx, int x_index)
 // Construct matrix for Cauchy Reed-Solomon, and solve linear equation.
 int rs_compute_matrix(PAR3_CTX *par3_ctx, uint64_t lost_count)
 {
+	uint8_t *packet_checksum;
 	int ret;
 	int *lost_id, *recv_id;
 	size_t alloc_size, region_size;
@@ -94,21 +95,26 @@ int rs_compute_matrix(PAR3_CTX *par3_ctx, uint64_t lost_count)
 	recv_id = lost_id + lost_count;
 	par3_ctx->id_list = lost_id;
 
+	// Get checksum of using Matrix Packet
+	packet_checksum = par3_ctx->matrix_packet + par3_ctx->matrix_packet_offset + 8;
+
 	// Set index of using recovery blocks
 	packet_list = par3_ctx->rec_data_packet_list;
 	count = par3_ctx->rec_data_packet_count;
 	id = 0;
 	for (index = 0; index < count; index++){
-		// Is it required to check Matrix Packet ?
-		recv_id[id] = (int)(packet_list[index].index);
-		//printf("recv_id[%I64u] = %d\n", id, recv_id[id]);
-		id++;
+		// Search only Recovery Data Packets belong to using Matrix Packet
+		if (memcmp(packet_list[index].matrix, packet_checksum, 16) == 0){
+			recv_id[id] = (int)(packet_list[index].index);
+			//printf("recv_id[%I64u] = %d\n", id, recv_id[id]);
+			id++;
 
-		// If there are more blocks than required, just ignore them.
-		// Cauchy Matrix should be invertible always.
-		// Or, is it safe to keep more for full rank ?
-		if (id >= lost_count)
-			break;
+			// If there are more blocks than required, just ignore them.
+			// Cauchy Matrix should be invertible always.
+			// Or, is it safe to keep more for full rank ?
+			if (id >= lost_count)
+				break;
+		}
 	}
 
 	// Set index of lost input blocks

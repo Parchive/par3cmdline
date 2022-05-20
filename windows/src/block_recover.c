@@ -35,7 +35,7 @@ int recover_lost_block(PAR3_CTX *par3_ctx, char *temp_path, int lost_count)
 	uint8_t *work_buf, buf_tail[40];
 	uint8_t *block_data, *matrix;
 	int *gf_table, *lost_id, *recv_id;
-	int block_count, block_index, region_count;
+	int block_count, block_index, matrix_width;
 	int x, y, factor;
 	uint32_t file_count, file_index, file_write;
 	uint32_t chunk_index, chunk_num;
@@ -69,8 +69,9 @@ int recover_lost_block(PAR3_CTX *par3_ctx, char *temp_path, int lost_count)
 	packet_count = par3_ctx->rec_data_packet_count;
 
 	region_size = (block_size + 1 + 7) & ~7;
-	// Matrix lines are aligned.
-	region_count = (block_count + lost_count + 7) & ~7;
+
+	// Matrix rows are aligned to 8 bytes.
+	matrix_width = (block_count + lost_count + 7) & ~7;
 
 	// Zero fill lost blocks
 	memset(block_data, 0, region_size * lost_count);
@@ -276,7 +277,7 @@ int recover_lost_block(PAR3_CTX *par3_ctx, char *temp_path, int lost_count)
 
 			// Recover (multiple & add to) lost input blocks
 			for (y = 0; y < lost_count; y++){
-				factor = matrix[region_count * y + block_index];
+				factor = matrix[matrix_width * y + block_index];
 				//printf("lost block[%d] += input block[%d] * %2x\n", lost_id[y], block_index, factor);
 				gf8_region_multiply(gf_table, work_buf, factor, region_size, block_data + region_size * y, 1);
 			}
@@ -342,7 +343,7 @@ int recover_lost_block(PAR3_CTX *par3_ctx, char *temp_path, int lost_count)
 
 		// Recover (multiple & add to) lost input blocks
 		for (y = 0; y < lost_count; y++){
-			factor = matrix[region_count * y + block_count + x];
+			factor = matrix[matrix_width * y + block_count + x];
 			//printf("lost block[%d] += recovery block[%d] * %2x\n", lost_id[y], block_index, factor);
 			gf8_region_multiply(gf_table, work_buf, factor, region_size, block_data + region_size * y, 1);
 		}

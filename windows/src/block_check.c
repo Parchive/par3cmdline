@@ -355,6 +355,7 @@ uint64_t aggregate_recovery_block(PAR3_CTX *par3_ctx)
 			if (find_count > find_count_max){
 				find_count_max = find_count;
 				par3_ctx->ecc_method |= 1;
+				par3_ctx->matrix_packet_offset = offset;
 			}
 		}
 
