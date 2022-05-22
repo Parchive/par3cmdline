@@ -20,11 +20,14 @@ int allocate_recovery_block(PAR3_CTX *par3_ctx)
 
 	// Allocate tables before blocks.
 	if (par3_ctx->galois_poly == 0x1100B){	// 16-bit Galois Field (0x1100B).
-		printf("16-bit Galois Field isn't implemented yet.\n");
-		return RET_LOGIC_ERROR;
+		par3_ctx->galois_table = gf16_create_table(par3_ctx->galois_poly);
 
 	} else if (par3_ctx->galois_poly == 0x11D){	// 8-bit Galois Field (0x11D).
 		par3_ctx->galois_table = gf8_create_table(par3_ctx->galois_poly);
+
+	} else {
+		printf("Galois Field (0x%X) isn't supported.\n", par3_ctx->galois_poly);
+		return RET_LOGIC_ERROR;
 	}
 	if (par3_ctx->galois_table == NULL){
 		printf("Failed to create tables for Galois Field (0x%X)\n", par3_ctx->galois_poly);
@@ -236,60 +239,6 @@ int create_recovery_block(PAR3_CTX *par3_ctx)
 	if (par3_ctx->noise_level >= 1){
 		printf("\n");
 	}
-
-/*
-{	// for debug
-	int x, y, z, w;
-	unsigned char buf1[256], buf2[256], buf3[256];
-
-	for (y = 1; y < 256; y++){
-		// z = 1 / y
-		z = gf8_divide(par3_ctx->galois_table, 1, y);
-		w = gf8_reciprocal(par3_ctx->galois_table, y);
-		if (z != w){
-			printf("Error: y = %d, 1/y = %d, %d\n", y, z, w);
-			break;
-		}
-
-		for (x = 0; x < 256; x++){
-			// z = x * y
-			z = gf8_multiply(par3_ctx->galois_table, x, y);
-			w = gf8_fast_multiply(par3_ctx->galois_table, x, y);
-			if (z != w){
-				printf("Error: x = %d, y = %d, x*y = %d, %d\n", x, y, z, w);
-				break;
-			} else {
-				w = gf8_divide(par3_ctx->galois_table, z, y);
-				if (w != x){
-					printf("Error: x = %d, y = %d, x*y = %d, x*y/y = %d\n", x, y, z, w);
-					x = y = 256;
-					break;
-				}
-				if (x > 0){
-					w = gf8_divide(par3_ctx->galois_table, z, x);
-					if (w != y){
-						printf("Error: x = %d, y = %d, x*y = %d, x*y/x = %d\n", x, y, z, w);
-						x = y = 256;
-						break;
-					}
-				}
-			}
-		}
-	}
-
-	for (x = 0; x < 256; x++){
-		buf1[x] = x;
-		buf2[x] = 255;
-		buf3[x] = gf8_multiply(par3_ctx->galois_table, x, 255) ^ 255;
-	}
-	gf8_region_multiply(par3_ctx->galois_table, buf1, 255, 256, buf2, 1);
-	if (memcmp(buf2, buf3, 256) != 0){
-		printf("Error: gf8_region_multiply\n");
-	}
-
-	printf("\n GF8 test end !\n");
-}
-*/
 
 	return 0;
 }

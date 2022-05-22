@@ -153,6 +153,7 @@
     <ClCompile Include="block_map.c" />
     <ClCompile Include="block_recover.c" />
     <ClCompile Include="common.c" />
+    <ClCompile Include="galois16.c" />
     <ClCompile Include="galois8.c" />
     <ClCompile Include="libpar3_create.c" />
     <ClCompile Include="libpar3_verify.c" />

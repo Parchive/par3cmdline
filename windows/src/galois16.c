@@ -1,4 +1,4 @@
-// This is based on source code of Jerasure (v1.2), and modified for 8-bit Galois Field.
+// This is based on source code of Jerasure (v1.2), and modified for 16-bit Galois Field.
 
 /* Galois.c
  * James S. Plank
@@ -38,54 +38,30 @@ plank@cs.utk.edu
 #include <stdlib.h>
 
 
-// Create tables for 8-bit Galois Field
+// Create tables for 16-bit Galois Field
 // Return main pointer of tables.
-int * gf8_create_table(int prim_poly)
+int * gf16_create_table(int prim_poly)
 {
 	int j, b;
-	int x, y, logx, sum_j;
-	int *galois_log_table, *galois_ilog_table, *galois_mult_table;
+	int *galois_log_table, *galois_ilog_table;
 
 	// Allocate tables on memory
-	galois_log_table = (int *) malloc(sizeof(int) * 256 * (1 + 1 + 256));
+	galois_log_table = (int *) malloc(sizeof(int) * 65536 * 2);
 	if (galois_log_table == NULL)
 		return NULL;
-	galois_ilog_table = galois_log_table + 256;
-	galois_mult_table = galois_log_table + 256 * 2;
+	galois_ilog_table = galois_log_table + 65536;
 
 	// galois_log_table[0] is invalid, because power of 2 never becomes 0.
-	galois_log_table[0] = 255;	// Instead of invalid value, set MAX value.
-	galois_ilog_table[255] = 1;	// 2 power 0 is 1. 2 power 255 is 1.
+	galois_log_table[0] = 65535;	// Instead of invalid value, set MAX value.
+	galois_ilog_table[65535] = 1;	// 2 power 0 is 1. 2 power 65535 is 1.
 
 	b = 1;
-	for (j = 0; j < 255; j++) {
+	for (j = 0; j < 65535; j++) {
 		galois_log_table[b] = j;
 		galois_ilog_table[j] = b;
 		b = b << 1;
-		if (b & 256)
-			b = (b ^ prim_poly) & 255;
-	}
-
-	// Set multiply tables for x = 0
-	j = 0;
-	galois_mult_table[j] = 0;	// y = 0
-	j++;
-	for (y = 1; y < 256; y++){	// y > 0
-		galois_mult_table[j] = 0;
-		j++;
-	}
-
-	for (x = 1; x < 256; x++){	// x > 0
-		galois_mult_table[j] = 0;	// y = 0
-		j++;
-		logx = galois_log_table[x];
-		for (y = 1; y < 256; y++){	// y > 0
-			sum_j = logx + galois_log_table[y];
-			if (sum_j >= 255)
-				sum_j -= 255;
-			galois_mult_table[j] = galois_ilog_table[sum_j];
-			j++;
-		}
+		if (b & 65536)
+			b = (b ^ prim_poly) & 65535;
 	}
 
 	return galois_log_table;
@@ -93,37 +69,24 @@ int * gf8_create_table(int prim_poly)
 
 
 // Return (x * y)
-/*
-// Normal slow version
-int gf8_multiply(int *galois_log_table, int x, int y)
+int gf16_multiply(int *galois_log_table, int x, int y)
 {
 	int sum_j;
 	int *galois_ilog_table;
 
 	if (x == 0 || y == 0)
 		return 0;
-	galois_ilog_table = galois_log_table + 256;
+	galois_ilog_table = galois_log_table + 65536;
 
 	sum_j = galois_log_table[x] + galois_log_table[y];
-	if (sum_j >= 255)
-		sum_j -= 255;
+	if (sum_j >= 65535)
+		sum_j -= 65535;
 
 	return galois_ilog_table[sum_j];
 }
-*/
-
-// Using galois_mult_table
-int gf8_multiply(int *galois_log_table, int x, int y)
-{
-	int *galois_mult_table;
-
-	galois_mult_table = galois_log_table + 256 * 2;
-
-	return galois_mult_table[(x << 8) | y];
-}
 
 // Return (x / y)
-int gf8_divide(int *galois_log_table, int x, int y)
+int gf16_divide(int *galois_log_table, int x, int y)
 {
 	int sum_j;
 	int *galois_ilog_table;
@@ -132,55 +95,78 @@ int gf8_divide(int *galois_log_table, int x, int y)
 		return -1;	// Error: division by zero
 	if (x == 0)
 		return 0;
-	galois_ilog_table = galois_log_table + 256;
+	galois_ilog_table = galois_log_table + 65536;
 
 	sum_j = galois_log_table[x] - galois_log_table[y];
 	if (sum_j < 0)
-		sum_j += 255;
+		sum_j += 65535;
 
 	return galois_ilog_table[sum_j];
 }
 
 // Return (1 / y)
-int gf8_reciprocal(int *galois_log_table, int y)
+int gf16_reciprocal(int *galois_log_table, int y)
 {
 	int *galois_ilog_table;
 
 	if (y == 0)
 		return -1;	// Error: division by zero
-	galois_ilog_table = galois_log_table + 256;
+	galois_ilog_table = galois_log_table + 65536;
 
-	return galois_ilog_table[ 255 - galois_log_table[y] ];
+	return galois_ilog_table[ 65535 - galois_log_table[y] ];
 }
 
 
 // Simplify and support size_t for 64-bit build
-void gf8_region_multiply(int *galois_log_table,
+void gf16_region_multiply(int *galois_log_table,
 						uint8_t *region,	/* Region to multiply */
 						int multby,			/* Number to multiply by */
 						size_t nbytes,		/* Number of bytes in region */
 						uint8_t *r2,		/* If r2 != NULL, products go here */
 						int add)
 {
-	uint8_t prod;
+	uint16_t *ur1, *ur2;
+	int prod, log1;
 	size_t i;
-	int *galois_mult_table;
+	int *galois_ilog_table;
 
-	galois_mult_table = galois_log_table + 256 * 2;
-	galois_mult_table += multby * 256;	// Shift mult_table offset by multby
+	ur1 = (uint16_t *) region;
+	ur2 = (r2 == NULL) ? ur1 : (uint16_t *) r2;
+	nbytes /= 2;	// Convert unit from byte to count.
+
+	if (multby == 0) {
+		if (add == 0){
+			while (nbytes != 0){
+				*ur2 = 0;
+				ur2++;
+				nbytes--;
+			}
+		}
+		return;
+	}
+
+	galois_ilog_table = galois_log_table + 65536;
+	log1 = galois_log_table[multby];
 
 	if ( (r2 == NULL) || (add == 0) ) {
-		if (r2 == NULL)
-			r2 = region;	// If r2 == NULL, products go original region.
-
 		for (i = 0; i < nbytes; i++) {
-			prod = galois_mult_table[ region[i] ];
-			r2[i] = prod;
+			if (ur1[i] == 0) {
+				ur2[i] = 0;
+			} else {
+				prod = galois_log_table[ur1[i]] + log1;
+				if (prod >= 65535)
+					prod -= 65535;
+				ur2[i] = galois_ilog_table[prod];
+			}
 		}
 	} else {
 		for (i = 0; i < nbytes; i++) {
-			prod = galois_mult_table[ region[i] ];
-			r2[i] ^= prod;
+			if (ur1[i] != 0) {
+				prod = galois_log_table[ur1[i]] + log1;
+				if (prod >= 65535)
+					prod -= 65535;
+				ur2[i] ^= galois_ilog_table[prod];
+			}
 		}
 	}
 }

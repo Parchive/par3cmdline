@@ -36,7 +36,11 @@ void rs_create_one_all(PAR3_CTX *par3_ctx, int x_index)
 		// Calculate Matrix elements
 		if (par3_ctx->galois_poly == 0x1100B){	// 16-bit Galois Field
 			y_R = 65535 - (y_index + first_num);
+			element = gf16_reciprocal(gf_table, x_index ^ y_R);	// inv( x_index ^ y_R )
 
+			// If x_index == 0, just put values.
+			// If x_index > 0, add values on previous values.
+			gf16_region_multiply(gf_table, work_buf, element, region_size, buf_p, x_index);
 
 		} else {	// 8-bit Galois Field
 			y_R = 255 - (y_index + first_num);
@@ -45,17 +49,18 @@ void rs_create_one_all(PAR3_CTX *par3_ctx, int x_index)
 			// If x_index == 0, just put values.
 			// If x_index > 0, add values on previous values.
 			gf8_region_multiply(gf_table, work_buf, element, region_size, buf_p, x_index);
+		}
 
 /*
-			// for debug
-			if (region_check_parity(buf_p, region_size, par3_ctx->block_size) != 0){
-				printf("Parity of recovery block[%d] is different.\n", y_index + first_num);
-			}
-*/
-
-			buf_p += region_size;
+		// for debug
+		if (region_check_parity(buf_p, region_size, par3_ctx->block_size) != 0){
+			printf("Parity of recovery block[%d] is different.\n", y_index + first_num);
+			break;
 		}
+*/
 		//printf("x = %d, R = %d, y_R = %d, element = %d\n", x_index, y_index + first_num, y_R, element);
+
+		buf_p += region_size;
 	}
 }
 
@@ -76,6 +81,10 @@ int rs_compute_matrix(PAR3_CTX *par3_ctx, uint64_t lost_count)
 
 	} else if (par3_ctx->gf_size == 1){	// 8-bit Galois Field
 		par3_ctx->galois_table = gf8_create_table(par3_ctx->galois_poly);
+
+	} else {
+		printf("Galois Field (0x%X) isn't supported.\n", par3_ctx->galois_poly);
+		return RET_LOGIC_ERROR;
 	}
 	if (par3_ctx->galois_table == NULL){
 		printf("Failed to create tables for Galois Field (0x%X)\n", par3_ctx->galois_poly);
@@ -141,6 +150,7 @@ int rs_compute_matrix(PAR3_CTX *par3_ctx, uint64_t lost_count)
 		ret = rs8_gaussian_elimination(par3_ctx, (int)lost_count);
 		if (ret != 0)
 			return ret;
+
 	}
 
 	// Set memory alignment of block data to be 8 for 64-bit OS.
