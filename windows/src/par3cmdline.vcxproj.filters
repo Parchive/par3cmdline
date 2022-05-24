@@ -105,6 +105,9 @@
     <ClCompile Include="galois16.c">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
+    <ClCompile Include="reedsolomon16.c">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="libpar3.h">

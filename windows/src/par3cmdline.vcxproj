@@ -168,6 +168,7 @@
     <ClCompile Include="packet_parse.c" />
     <ClCompile Include="read.c" />
     <ClCompile Include="reedsolomon.c" />
+    <ClCompile Include="reedsolomon16.c" />
     <ClCompile Include="reedsolomon8.c" />
     <ClCompile Include="repair.c" />
     <ClCompile Include="verify.c" />

@@ -76,8 +76,7 @@ int rs_compute_matrix(PAR3_CTX *par3_ctx, uint64_t lost_count)
 	PAR3_PKT_CTX *packet_list;
 
 	if (par3_ctx->gf_size == 2){	// 16-bit Galois Field
-		printf("16-bit Galois Field isn't implemented yet.\n");
-		return RET_LOGIC_ERROR;
+		par3_ctx->galois_table = gf16_create_table(par3_ctx->galois_poly);
 
 	} else if (par3_ctx->gf_size == 1){	// 8-bit Galois Field
 		par3_ctx->galois_table = gf8_create_table(par3_ctx->galois_poly);
@@ -145,12 +144,14 @@ int rs_compute_matrix(PAR3_CTX *par3_ctx, uint64_t lost_count)
 
 	// Make matrix
 	if (par3_ctx->gf_size == 2){	// 16-bit Reed-Solomon Codes
-	
+		ret = rs16_gaussian_elimination(par3_ctx, (int)lost_count);
+		if (ret != 0)
+			return ret;
+
 	} else if (par3_ctx->gf_size == 1){	// 8-bit Reed-Solomon Codes
 		ret = rs8_gaussian_elimination(par3_ctx, (int)lost_count);
 		if (ret != 0)
 			return ret;
-
 	}
 
 	// Set memory alignment of block data to be 8 for 64-bit OS.

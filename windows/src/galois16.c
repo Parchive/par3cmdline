@@ -159,6 +159,33 @@ void gf16_region_multiply(int *galois_log_table,
 				ur2[i] = galois_ilog_table[prod];
 			}
 		}
+
+/*
+	// XOR in 4 pack isn't so fast. No worth to do.
+	} else if ( (((uintptr_t)ur2 & 7) == 0) && ((nbytes & 3) == 0) ) {
+		// Data aligmnent is 8 bytes.
+		int j;
+		uint64_t *lp4, qw;	// quad word, 2 bytes * 4
+		uint16_t *lp;
+
+		lp4 = &qw;
+		lp = (uint16_t *)lp4;
+		for (i = 0; i < nbytes; i += 4) {
+			lp4 = (uint64_t *)(ur2 + i);
+			for (j = 0; j < 4; j++) {
+				if (ur1[i + j] == 0) {
+					lp[j] = 0;
+				} else {
+					prod = galois_log_table[ur1[i + j]] + log1;
+					if (prod >= 65535)
+						prod -= 65535;
+					lp[j] = galois_ilog_table[prod];
+				}
+			}
+			*lp4 = (*lp4) ^ qw;
+		}
+*/
+
 	} else {
 		for (i = 0; i < nbytes; i++) {
 			if (ur1[i] != 0) {

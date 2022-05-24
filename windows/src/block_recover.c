@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #include "libpar3.h"
 #include "galois.h"
@@ -31,12 +32,14 @@ write chunk tails
 */
 int recover_lost_block(PAR3_CTX *par3_ctx, char *temp_path, int lost_count)
 {
+	void *matrix;
 	char *file_read, *file_name;
 	uint8_t *work_buf, buf_tail[40];
-	uint8_t *block_data, *matrix;
+	uint8_t *block_data, gf_size;
 	int *gf_table, *lost_id, *recv_id;
 	int block_count, block_index, matrix_width;
 	int x, y, factor;
+	int progress_old, progress_now, progress;
 	uint32_t file_count, file_index, file_write;
 	uint32_t chunk_index, chunk_num;
 	size_t slice_size;
@@ -50,16 +53,19 @@ int recover_lost_block(PAR3_CTX *par3_ctx, char *temp_path, int lost_count)
 	PAR3_FILE_CTX *file_list;
 	PAR3_PKT_CTX *packet_list;
 	FILE *fp_read, *fp_write;
+	time_t time_old, time_now;
+	clock_t clock_now;
 
 	//printf("\n ecc_method = 0x%x, lost_count = %d\n", par3_ctx->ecc_method, lost_count);
 
 	file_count = par3_ctx->input_file_count;
 	block_size = par3_ctx->block_size;
 	block_count = (int)(par3_ctx->block_count);
+	gf_size = par3_ctx->gf_size;
 	gf_table = par3_ctx->galois_table;
+	matrix = par3_ctx->matrix;
 	lost_id = par3_ctx->id_list;
 	recv_id = lost_id + lost_count;
-	matrix = par3_ctx->matrix;
 	block_data = par3_ctx->block_data;
 	block_list = par3_ctx->block_list;
 	slice_list = par3_ctx->slice_list;
@@ -71,7 +77,11 @@ int recover_lost_block(PAR3_CTX *par3_ctx, char *temp_path, int lost_count)
 	region_size = (block_size + 1 + 7) & ~7;
 
 	// Matrix rows are aligned to 8 bytes.
-	matrix_width = (block_count + lost_count + 7) & ~7;
+	if (gf_size == 2){
+		matrix_width = (block_count + lost_count + 3) & ~3;
+	} else {
+		matrix_width = (block_count + lost_count + 7) & ~7;
+	}
 
 	// Zero fill lost blocks
 	memset(block_data, 0, region_size * lost_count);
@@ -89,8 +99,12 @@ int recover_lost_block(PAR3_CTX *par3_ctx, char *temp_path, int lost_count)
 			par3_ctx->set_id[0], par3_ctx->set_id[1], par3_ctx->set_id[2], par3_ctx->set_id[3],
 			par3_ctx->set_id[4], par3_ctx->set_id[5], par3_ctx->set_id[6], par3_ctx->set_id[7]);
 
-	if (par3_ctx->noise_level >= 1){
-		printf("\nRecovering lost input blocks:\n\n");
+	if (par3_ctx->noise_level >= 0){
+		printf("\nRecovering lost input blocks:\n");
+		progress = 0;
+		progress_old = 0;
+		time_old = time(NULL);
+		clock_now = clock();
 	}
 
 	// Read available input blocks
@@ -122,7 +136,7 @@ int recover_lost_block(PAR3_CTX *par3_ctx, char *temp_path, int lost_count)
 			slice_size = slice_list[slice_index].size;
 			file_offset = slice_list[slice_index].find_offset;
 			file_name = slice_list[slice_index].find_name;
-			if (par3_ctx->noise_level >= 1){
+			if (par3_ctx->noise_level >= 2){
 				printf("Reading %zu bytes of slice[%I64d] for input block[%d]\n", slice_size, slice_index, block_index);
 			}
 			if ( (fp_read == NULL) || (file_name != file_read) ){
@@ -155,7 +169,7 @@ int recover_lost_block(PAR3_CTX *par3_ctx, char *temp_path, int lost_count)
 			}
 
 		} else if (block_list[block_index].state & 16){	// All tail data is available. (one tail or packed tails)
-			if (par3_ctx->noise_level >= 1){
+			if (par3_ctx->noise_level >= 2){
 				printf("Reading %I64u bytes for input block[%d]\n", data_size, block_index);
 			}
 			tail_offset = 0;
@@ -277,9 +291,30 @@ int recover_lost_block(PAR3_CTX *par3_ctx, char *temp_path, int lost_count)
 
 			// Recover (multiple & add to) lost input blocks
 			for (y = 0; y < lost_count; y++){
-				factor = matrix[matrix_width * y + block_index];
+				if (gf_size == 2){
+					factor = ((uint16_t *)matrix)[matrix_width * y + block_index];
+					gf16_region_multiply(gf_table, work_buf, factor, region_size, block_data + region_size * y, 1);
+				} else {
+					factor = ((uint8_t *)matrix)[matrix_width * y + block_index];
+					gf8_region_multiply(gf_table, work_buf, factor, region_size, block_data + region_size * y, 1);
+				}
 				//printf("lost block[%d] += input block[%d] * %2x\n", lost_id[y], block_index, factor);
-				gf8_region_multiply(gf_table, work_buf, factor, region_size, block_data + region_size * y, 1);
+			}
+
+			// Print progress percent
+			progress++;
+			if ( (par3_ctx->noise_level >= 0) && (par3_ctx->noise_level <= 1) ){
+				time_now = time(NULL);
+				if (time_now != time_old){
+					time_old = time_now;
+					// Complexity is "block_count * lost_count * block_size".
+					// Because block_count is 16-bit value, "int" (32-bit signed integer) is enough.
+					progress_now = (progress * 1000) / block_count;
+					if (progress_now != progress_old){
+						progress_old = progress_now;
+						printf("%d.%d%%\r", progress_now / 10, progress_now % 10);	// 0.0% ~ 100.0%
+					}
+				}
 			}
 		}
 	}
@@ -306,7 +341,7 @@ int recover_lost_block(PAR3_CTX *par3_ctx, char *temp_path, int lost_count)
 		slice_size = block_size;
 		file_name = packet_list[packet_index].name;
 		file_offset = packet_list[packet_index].offset + 48 + 40;	// offset of the recovery block data
-		if (par3_ctx->noise_level >= 1){
+		if (par3_ctx->noise_level >= 2){
 			printf("Reading Recovery Data[%I64u] for recovery block[%d]\n", packet_index, block_index);
 		}
 		if ( (fp_read == NULL) || (file_name != file_read) ){
@@ -343,9 +378,28 @@ int recover_lost_block(PAR3_CTX *par3_ctx, char *temp_path, int lost_count)
 
 		// Recover (multiple & add to) lost input blocks
 		for (y = 0; y < lost_count; y++){
-			factor = matrix[matrix_width * y + block_count + x];
+			if (gf_size == 2){
+				factor = ((uint16_t *)matrix)[matrix_width * y + block_count + x];
+				gf16_region_multiply(gf_table, work_buf, factor, region_size, block_data + region_size * y, 1);
+			} else {
+				factor = ((uint8_t *)matrix)[matrix_width * y + block_count + x];
+				gf8_region_multiply(gf_table, work_buf, factor, region_size, block_data + region_size * y, 1);
+			}
 			//printf("lost block[%d] += recovery block[%d] * %2x\n", lost_id[y], block_index, factor);
-			gf8_region_multiply(gf_table, work_buf, factor, region_size, block_data + region_size * y, 1);
+		}
+
+		// Print progress percent
+		progress++;
+		if ( (par3_ctx->noise_level >= 0) && (par3_ctx->noise_level <= 1) ){
+			time_now = time(NULL);
+			if (time_now != time_old){
+				time_old = time_now;
+				progress_now = (progress * 1000) / block_count;
+				if (progress_now != progress_old){
+					progress_old = progress_now;
+					printf("%d.%d%%\r", progress_now / 10, progress_now % 10);	// 0.0% ~ 100.0%
+				}
+			}
 		}
 	}
 
@@ -493,6 +547,11 @@ int recover_lost_block(PAR3_CTX *par3_ctx, char *temp_path, int lost_count)
 			perror("Failed to close temporary File");
 			return RET_FILE_IO_ERROR;
 		}
+	}
+
+	if (par3_ctx->noise_level >= 0){
+		clock_now = clock() - clock_now;
+		printf("done in %.1f seconds.\n", (double)clock_now / CLOCKS_PER_SEC);
 	}
 
 	return 0;

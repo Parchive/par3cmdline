@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #include "libpar3.h"
 #include "galois.h"
@@ -68,6 +69,7 @@ int create_recovery_block(PAR3_CTX *par3_ctx)
 	uint8_t *work_buf;
 	int block_count, x_index;
 	int file_index, file_read;
+	int progress_old, progress_now;
 	size_t block_size, region_size;
 	size_t data_size, read_size, tail_offset;
 	int64_t slice_index, file_offset;
@@ -75,6 +77,8 @@ int create_recovery_block(PAR3_CTX *par3_ctx)
 	PAR3_SLICE_CTX *slice_list;
 	PAR3_BLOCK_CTX *block_list;
 	FILE *fp;
+	time_t time_old, time_now;
+	clock_t clock_now;
 
 	if (par3_ctx->recovery_block_count == 0)
 		return -1;
@@ -102,8 +106,11 @@ int create_recovery_block(PAR3_CTX *par3_ctx)
 	}
 	par3_ctx->work_buf = work_buf;
 
-	if (par3_ctx->noise_level >= 1){
-		printf("\nCalculating recovery blocks:\n\n");
+	if (par3_ctx->noise_level >= 0){
+		printf("\nComputing recovery blocks:\n");
+		progress_old = 0;
+		time_old = time(NULL);
+		clock_now = clock();
 	}
 
 	// Reed-Solomon Erasure Codes
@@ -130,7 +137,7 @@ int create_recovery_block(PAR3_CTX *par3_ctx)
 			file_index = slice_list[slice_index].file;
 			file_offset = slice_list[slice_index].offset;
 			read_size = slice_list[slice_index].size;
-			if (par3_ctx->noise_level >= 1){
+			if (par3_ctx->noise_level >= 2){
 				printf("Reading %zu bytes of slice[%I64d] for input block[%d]\n", read_size, slice_index, x_index);
 			}
 			if ( (fp == NULL) || (file_index != file_read) ){
@@ -157,7 +164,7 @@ int create_recovery_block(PAR3_CTX *par3_ctx)
 			}
 
 		} else {	// tail data only (one tail or packed tails)
-			if (par3_ctx->noise_level >= 1){
+			if (par3_ctx->noise_level >= 2){
 				printf("Reading %I64u bytes for input block[%d]\n", data_size, x_index);
 			}
 			tail_offset = 0;
@@ -225,6 +232,20 @@ int create_recovery_block(PAR3_CTX *par3_ctx)
 
 		// Multipy one input block for all recovery blocks.
 		rs_create_one_all(par3_ctx, x_index);
+
+		// Print progress percent
+		if ( (par3_ctx->noise_level >= 0) && (par3_ctx->noise_level <= 1) ){
+			time_now = time(NULL);
+			if (time_now != time_old){
+				time_old = time_now;
+				// Because block_count is 16-bit value, "int" (32-bit signed integer) is enough.
+				progress_now = (x_index * 1000) / block_count;
+				if (progress_now != progress_old){
+					progress_old = progress_now;
+					printf("%d.%d%%\r", progress_now / 10, progress_now % 10);	// 0.0% ~ 100.0%
+				}
+			}
+		}
 	}
 	if (fp != NULL){
 		if (fclose(fp) != 0){
@@ -236,7 +257,9 @@ int create_recovery_block(PAR3_CTX *par3_ctx)
 	free(work_buf);
 	par3_ctx->work_buf = NULL;
 
-	if (par3_ctx->noise_level >= 1){
+	if (par3_ctx->noise_level >= 0){
+		clock_now = clock() - clock_now;
+		printf("done in %.1f seconds.\n", (double)clock_now / CLOCKS_PER_SEC);
 		printf("\n");
 	}
 
