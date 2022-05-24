@@ -38,15 +38,15 @@ Archive Files include Data Packets, which is a piece of input files.
 Currently I prefer finding as many slices as possible.
 
  Repair feature is under construction.
-I implemented 8-bit Reed-Solomon Erasure Codes for small data for testing purpose.
-At this time, this supports only Reed-Solomon Erasure Codes with Cauchy Matrix.
+I implemented Cauchy Reed-Solomon Codes for small data.
+At this time, this supports only Reed-Solomon Codes with Cauchy Matrix.
 
  It can restore missing or damaged files by using Data Packets.
 It can correct filename of misnamed files, when they were specified as extra files.
-It cannot use Recovery Data Packets yet.
+It may not use some kinds of Recovery Data Packets.
 
-It cannot create Recovery Files yet.
-It cannot Repair yet.
+It may not create Recovery Files yet.
+It may not Repair yet.
 It doesn't use maultiple Recovery Codes at once.
 It doesn't support "PAR inside" feature yet.
 
