@@ -1,0 +1,37 @@
+
+[ Main author ]
+
+Copyright (C) 2022 Yutaka Sawada.
+
+par3cmdline comes with ABSOLUTELY NO WARRANTY.
+
+This is free software; you can redistribute it and/or modify it
+under the terms of the GNU Lesser General Public License as published
+by the Free Software Foundation; either version 2.1 of the License,
+or (at your option) any later version.
+
+
+
+[ 8-bit and 16-bit Galois Field arithmetic ]
+
+Jerasure - A C/C++ Library for a Variety of Reed-Solomon and RAID-6 Erasure Coding Techniques
+Revision 1.2
+August 20, 2008
+or
+Revision 1.2A
+May 24, 2011
+
+Galois.tar - Fast Galois Field Arithmetic Library in C/C++
+Copright (C) 2007 James S. Plank
+
+
+
+[ 16-bit Galois Field arithmetic ]
+
+GF-Complete: A Comprehensive Open Source Library for Galois Field Arithmetic
+Revision 1.03.   January 1, 2015.
+
+Copyright (c) 2013, James S. Plank, Ethan L. Miller, Kevin M. Greenan,
+Benjamin A. Arnold, John A. Burnum, Adam W. Disney, Allen C. McBride
+All rights reserved.
+
