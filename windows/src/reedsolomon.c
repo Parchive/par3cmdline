@@ -17,8 +17,8 @@
 // Create all recovery blocks from one input block.
 void rs_create_one_all(PAR3_CTX *par3_ctx, int x_index)
 {
+	void *gf_table;
 	uint8_t *work_buf, *buf_p;
-	int *gf_table;
 	int first_num, element;
 	int y_index, y_R;
 	int recovery_block_count;
@@ -31,7 +31,7 @@ void rs_create_one_all(PAR3_CTX *par3_ctx, int x_index)
 	buf_p = par3_ctx->block_data;
 
 	// For every recovery block
-	region_size = (par3_ctx->block_size + 1 + 7) & ~7;
+	region_size = (par3_ctx->block_size + 1 + 3) & ~3;
 	for (y_index = 0; y_index < recovery_block_count; y_index++){
 		// Calculate Matrix elements
 		if (par3_ctx->galois_poly == 0x1100B){	// 16-bit Galois Field
@@ -40,7 +40,11 @@ void rs_create_one_all(PAR3_CTX *par3_ctx, int x_index)
 
 			// If x_index == 0, just put values.
 			// If x_index > 0, add values on previous values.
-			gf16_region_multiply(gf_table, work_buf, element, region_size, buf_p, x_index);
+			if (region_size >= 2000){	// Switch functions
+				gf16_region_multiply_split(gf_table, work_buf, element, region_size, buf_p, x_index);
+			} else {
+				gf16_region_multiply(gf_table, work_buf, element, region_size, buf_p, x_index);
+			}
 
 		} else {	// 8-bit Galois Field
 			y_R = 255 - (y_index + first_num);
@@ -154,9 +158,9 @@ int rs_compute_matrix(PAR3_CTX *par3_ctx, uint64_t lost_count)
 			return ret;
 	}
 
-	// Set memory alignment of block data to be 8 for 64-bit OS.
+	// Set memory alignment of block data to be 4.
 	// Increase at least 1 byte as checksum.
-	region_size = (par3_ctx->block_size + 1 + 7) & ~7;
+	region_size = (par3_ctx->block_size + 1 + 3) & ~3;
 	if (par3_ctx->noise_level >= 2){
 		printf("\nAligned size of block data = %zu\n", region_size);
 	}

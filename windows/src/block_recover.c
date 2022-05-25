@@ -32,12 +32,12 @@ write chunk tails
 */
 int recover_lost_block(PAR3_CTX *par3_ctx, char *temp_path, int lost_count)
 {
-	void *matrix;
+	void *gf_table, *matrix;
 	char *file_read, *file_name;
 	uint8_t *work_buf, buf_tail[40];
 	uint8_t *block_data, gf_size;
-	int *gf_table, *lost_id, *recv_id;
-	int block_count, block_index, matrix_width;
+	int *lost_id, *recv_id;
+	int block_count, block_index, total_count;
 	int x, y, factor;
 	int progress_old, progress_now, progress;
 	uint32_t file_count, file_index, file_write;
@@ -74,14 +74,8 @@ int recover_lost_block(PAR3_CTX *par3_ctx, char *temp_path, int lost_count)
 	packet_list = par3_ctx->rec_data_packet_list;
 	packet_count = par3_ctx->rec_data_packet_count;
 
-	region_size = (block_size + 1 + 7) & ~7;
-
-	// Matrix rows are aligned to 8 bytes.
-	if (gf_size == 2){
-		matrix_width = (block_count + lost_count + 3) & ~3;
-	} else {
-		matrix_width = (block_count + lost_count + 7) & ~7;
-	}
+	total_count = block_count + lost_count;	// Matrix row size
+	region_size = (block_size + 1 + 3) & ~3;
 
 	// Zero fill lost blocks
 	memset(block_data, 0, region_size * lost_count);
@@ -292,10 +286,14 @@ int recover_lost_block(PAR3_CTX *par3_ctx, char *temp_path, int lost_count)
 			// Recover (multiple & add to) lost input blocks
 			for (y = 0; y < lost_count; y++){
 				if (gf_size == 2){
-					factor = ((uint16_t *)matrix)[matrix_width * y + block_index];
-					gf16_region_multiply(gf_table, work_buf, factor, region_size, block_data + region_size * y, 1);
+					factor = ((uint16_t *)matrix)[total_count * y + block_index];
+					if (region_size >= 2000){	// Switch functions
+						gf16_region_multiply_split(gf_table, work_buf, factor, region_size, block_data + region_size * y, 1);
+					} else {
+						gf16_region_multiply(gf_table, work_buf, factor, region_size, block_data + region_size * y, 1);
+					}
 				} else {
-					factor = ((uint8_t *)matrix)[matrix_width * y + block_index];
+					factor = ((uint8_t *)matrix)[total_count * y + block_index];
 					gf8_region_multiply(gf_table, work_buf, factor, region_size, block_data + region_size * y, 1);
 				}
 				//printf("lost block[%d] += input block[%d] * %2x\n", lost_id[y], block_index, factor);
@@ -379,10 +377,14 @@ int recover_lost_block(PAR3_CTX *par3_ctx, char *temp_path, int lost_count)
 		// Recover (multiple & add to) lost input blocks
 		for (y = 0; y < lost_count; y++){
 			if (gf_size == 2){
-				factor = ((uint16_t *)matrix)[matrix_width * y + block_count + x];
-				gf16_region_multiply(gf_table, work_buf, factor, region_size, block_data + region_size * y, 1);
+				factor = ((uint16_t *)matrix)[total_count * y + block_count + x];
+				if (region_size >= 2000){	// Switch functions
+					gf16_region_multiply_split(gf_table, work_buf, factor, region_size, block_data + region_size * y, 1);
+				} else {
+					gf16_region_multiply(gf_table, work_buf, factor, region_size, block_data + region_size * y, 1);
+				}
 			} else {
-				factor = ((uint8_t *)matrix)[matrix_width * y + block_count + x];
+				factor = ((uint8_t *)matrix)[total_count * y + block_count + x];
 				gf8_region_multiply(gf_table, work_buf, factor, region_size, block_data + region_size * y, 1);
 			}
 			//printf("lost block[%d] += recovery block[%d] * %2x\n", lost_id[y], block_index, factor);

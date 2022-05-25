@@ -15,10 +15,10 @@
 // Gaussian elimination for Cauchy Reed-Solomon
 int rs8_gaussian_elimination(PAR3_CTX *par3_ctx, int lost_count)
 {
-	uint8_t *matrix;
+	uint8_t *gf_table, *matrix;
 	int x, y, y_R, y2;
-	int *gf_table, *lost_id, *recv_id;
-	int block_count, total_count, matrix_width;
+	int *lost_id, *recv_id;
+	int block_count, total_count;
 	int pivot, factor, factor2;
 
 	block_count = (int)(par3_ctx->block_count);
@@ -26,13 +26,10 @@ int rs8_gaussian_elimination(PAR3_CTX *par3_ctx, int lost_count)
 	lost_id = par3_ctx->id_list;
 	recv_id = lost_id + lost_count;
 
-	total_count = block_count + lost_count;
-
-	// Matrix rows are aligned to 8 bytes.
-	matrix_width = (total_count + 7) & ~7;
+	total_count = block_count + lost_count;	// Matrix row size
 
 	// Allocate matrix on memory
-	matrix = malloc(matrix_width * lost_count);
+	matrix = malloc(total_count * lost_count);
 	if (matrix == NULL){
 		printf("Failed to allocate memory for matrix\n");
 		return RET_MEMORY_ERROR;
@@ -45,7 +42,7 @@ int rs8_gaussian_elimination(PAR3_CTX *par3_ctx, int lost_count)
 		y_R = 255 - recv_id[y];	// y_R = MAX - y_index
 		for (x = 0; x < block_count; x++){
 			// inv( x_index ^ y_R )
-			matrix[matrix_width * y + x] = gf8_reciprocal(gf_table, x ^ y_R);
+			matrix[total_count * y + x] = gf8_reciprocal(gf_table, x ^ y_R);
 		}
 
 		// Right side
@@ -55,7 +52,7 @@ int rs8_gaussian_elimination(PAR3_CTX *par3_ctx, int lost_count)
 			} else {
 				factor = 0;
 			}
-			matrix[matrix_width * y + block_count + x] = factor;
+			matrix[total_count * y + block_count + x] = factor;
 		}
 	}
 
@@ -64,11 +61,11 @@ int rs8_gaussian_elimination(PAR3_CTX *par3_ctx, int lost_count)
 		for (y = 0; y < lost_count; y++){
 			printf("lost%3d <- recv%3d =", lost_id[y], recv_id[y]);
 			for (x = 0; x < block_count; x++){
-				printf(" %2x", matrix[matrix_width * y + x]);
+				printf(" %2x", matrix[total_count * y + x]);
 			}
 			printf(" |");
 			for (x = block_count; x < total_count; x++){
-				printf(" %2x", matrix[matrix_width * y + x]);
+				printf(" %2x", matrix[total_count * y + x]);
 			}
 			printf("\n");
 		}
@@ -78,21 +75,21 @@ int rs8_gaussian_elimination(PAR3_CTX *par3_ctx, int lost_count)
 	for (y = 0; y < lost_count; y++){
 		// Let pivot value to be 1.
 		pivot = lost_id[y];
-		factor = matrix[matrix_width * y + pivot];
+		factor = matrix[total_count * y + pivot];
 		if (factor == 0){
 			printf("Failed to invert matrix\n");
 			return RET_LOGIC_ERROR;
 		}
 		factor = gf8_reciprocal(gf_table, factor);
-		gf8_region_multiply(gf_table, matrix + matrix_width * y, factor, total_count, NULL, 0);
+		gf8_region_multiply(gf_table, matrix + total_count * y, factor, total_count, NULL, 0);
 
 		// Erase values of same pivot on other rows.
 		for (y2 = 0; y2 < lost_count; y2++){
 			if (y2 == y)
 				continue;
 
-			factor2 = matrix[matrix_width * y2 + pivot];
-			gf8_region_multiply(gf_table, matrix + matrix_width * y, factor2, total_count, matrix + matrix_width * y2, 1);
+			factor2 = matrix[total_count * y2 + pivot];
+			gf8_region_multiply(gf_table, matrix + total_count * y, factor2, total_count, matrix + total_count * y2, 1);
 		}
 	}
 
@@ -101,11 +98,11 @@ int rs8_gaussian_elimination(PAR3_CTX *par3_ctx, int lost_count)
 		for (y = 0; y < lost_count; y++){
 			printf("recv%3d -> lost%3d =", recv_id[y], lost_id[y]);
 			for (x = 0; x < block_count; x++){
-				printf(" %2x", matrix[matrix_width * y + x]);
+				printf(" %2x", matrix[total_count * y + x]);
 			}
 			printf(" |");
 			for (x = block_count; x < total_count; x++){
-				printf(" %2x", matrix[matrix_width * y + x]);
+				printf(" %2x", matrix[total_count * y + x]);
 			}
 			printf("\n");
 		}

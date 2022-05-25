@@ -39,9 +39,9 @@ int allocate_recovery_block(PAR3_CTX *par3_ctx)
 	if ((par3_ctx->ecc_method & 1) == 0)
 		return 0;
 
-	// Set memory alignment of block data to be 8 for 64-bit OS.
+	// Set memory alignment of block data to be 4.
 	// Increase at least 1 byte as checksum.
-	region_size = (par3_ctx->block_size + 1 + 7) & ~7;
+	region_size = (par3_ctx->block_size + 1 + 3) & ~3;
 	if (par3_ctx->noise_level >= 2){
 		printf("Aligned size of block data = %zu\n", region_size);
 	}
@@ -98,7 +98,7 @@ int create_recovery_block(PAR3_CTX *par3_ctx)
 	block_list = par3_ctx->block_list;
 
 	// Allocate memory to read one input block and parity.
-	region_size = (block_size + 1 + 7) & ~7;
+	region_size = (block_size + 1 + 3) & ~3;
 	work_buf = malloc(region_size);
 	if (work_buf == NULL){
 		perror("Failed to allocate memory for input data");

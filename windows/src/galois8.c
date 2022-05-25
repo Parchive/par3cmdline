@@ -40,21 +40,22 @@ plank@cs.utk.edu
 
 // Create tables for 8-bit Galois Field
 // Return main pointer of tables.
-int * gf8_create_table(int prim_poly)
+uint8_t * gf8_create_table(int prim_poly)
 {
 	int j, b;
 	int x, y, logx, sum_j;
-	int *galois_log_table, *galois_ilog_table, *galois_mult_table;
+	uint8_t *galois_log_table, *galois_ilog_table, *galois_mult_table;
 
 	// Allocate tables on memory
-	galois_log_table = (int *) malloc(sizeof(int) * 256 * (1 + 1 + 256));
+	// To fit CPU cache memory, table uses 8-bit integer.
+	galois_log_table = malloc(sizeof(uint8_t) * 256 * (1 + 1 + 256));
 	if (galois_log_table == NULL)
 		return NULL;
 	galois_ilog_table = galois_log_table + 256;
 	galois_mult_table = galois_log_table + 256 * 2;
 
 	// galois_log_table[0] is invalid, because power of 2 never becomes 0.
-	galois_log_table[0] = 255;	// Instead of invalid value, set MAX value.
+	galois_log_table[0] = prim_poly;	// Instead of invalid value, set generator polynomial.
 	galois_ilog_table[255] = 1;	// 2 power 0 is 1. 2 power 255 is 1.
 
 	b = 1;
@@ -95,7 +96,7 @@ int * gf8_create_table(int prim_poly)
 // Return (x * y)
 /*
 // Normal slow version
-int gf8_multiply(int *galois_log_table, int x, int y)
+int gf8_multiply(uint8_t *galois_log_table, int x, int y)
 {
 	int sum_j;
 	int *galois_ilog_table;
@@ -113,9 +114,9 @@ int gf8_multiply(int *galois_log_table, int x, int y)
 */
 
 // Using galois_mult_table
-int gf8_multiply(int *galois_log_table, int x, int y)
+int gf8_multiply(uint8_t *galois_log_table, int x, int y)
 {
-	int *galois_mult_table;
+	uint8_t *galois_mult_table;
 
 	galois_mult_table = galois_log_table + 256 * 2;
 
@@ -123,10 +124,10 @@ int gf8_multiply(int *galois_log_table, int x, int y)
 }
 
 // Return (x / y)
-int gf8_divide(int *galois_log_table, int x, int y)
+int gf8_divide(uint8_t *galois_log_table, int x, int y)
 {
 	int sum_j;
-	int *galois_ilog_table;
+	uint8_t *galois_ilog_table;
 
 	if (y == 0)
 		return -1;	// Error: division by zero
@@ -142,9 +143,9 @@ int gf8_divide(int *galois_log_table, int x, int y)
 }
 
 // Return (1 / y)
-int gf8_reciprocal(int *galois_log_table, int y)
+int gf8_reciprocal(uint8_t *galois_log_table, int y)
 {
-	int *galois_ilog_table;
+	uint8_t *galois_ilog_table;
 
 	if (y == 0)
 		return -1;	// Error: division by zero
@@ -155,7 +156,7 @@ int gf8_reciprocal(int *galois_log_table, int y)
 
 
 // Simplify and support size_t for 64-bit build
-void gf8_region_multiply(int *galois_log_table,
+void gf8_region_multiply(uint8_t *galois_log_table,
 						uint8_t *region,	/* Region to multiply */
 						int multby,			/* Number to multiply by */
 						size_t nbytes,		/* Number of bytes in region */
@@ -164,14 +165,46 @@ void gf8_region_multiply(int *galois_log_table,
 {
 	uint8_t prod;
 	size_t i;
-	int *galois_mult_table;
+	uint8_t *galois_mult_table;
+
+	if (multby == 0) {
+		if (add == 0){
+			if (r2 == NULL)
+				r2 = region;
+
+			for (i = 0; i < nbytes; i++) {
+				r2[i] = 0;
+			}
+		}
+		return;
+	}
+	if (multby == 1) {
+		if (add == 0){
+			if (r2 != NULL){
+				for (i = 0; i < nbytes; i++) {
+					r2[i] = region[i];
+				}
+			}
+		} else {
+			if (r2 != NULL){
+				for (i = 0; i < nbytes; i++) {
+					r2[i] ^= region[i];
+				}
+			} else {
+				for (i = 0; i < nbytes; i++) {
+					region[i] = 0;
+				}
+			}
+		}
+		return;
+	}
 
 	galois_mult_table = galois_log_table + 256 * 2;
 	galois_mult_table += multby * 256;	// Shift mult_table offset by multby
 
 	if ( (r2 == NULL) || (add == 0) ) {
 		if (r2 == NULL)
-			r2 = region;	// If r2 == NULL, products go original region.
+			r2 = region;
 
 		for (i = 0; i < nbytes; i++) {
 			prod = galois_mult_table[ region[i] ];

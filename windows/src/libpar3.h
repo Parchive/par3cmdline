@@ -127,7 +127,7 @@ typedef struct {
 	uint8_t gf_size;	// The size of the Galois field in bytes
 
 	int galois_poly;	// The generator polynomial of the Galois field
-	int *galois_table;	// Pointer of tables for (finite) galois field arithmetic
+	void *galois_table;	// Pointer of tables for (finite) galois field arithmetic
 	int ecc_method;		// Bit flag: 1 = Reed-Solomon Erasure Codes with Cauchy Matrix
 						//           2 = Erasure Codes with Sparse Random Matrix (no support yet)
 						//           4 = LDPC (no support yet)

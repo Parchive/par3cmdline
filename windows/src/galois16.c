@@ -40,19 +40,20 @@ plank@cs.utk.edu
 
 // Create tables for 16-bit Galois Field
 // Return main pointer of tables.
-int * gf16_create_table(int prim_poly)
+uint16_t * gf16_create_table(int prim_poly)
 {
 	int j, b;
-	int *galois_log_table, *galois_ilog_table;
+	uint16_t *galois_log_table, *galois_ilog_table;
 
 	// Allocate tables on memory
-	galois_log_table = (int *) malloc(sizeof(int) * 65536 * 2);
+	// To fit CPU cache memory, table uses 16-bit integer.
+	galois_log_table = malloc(sizeof(uint16_t) * 65536 * 2);
 	if (galois_log_table == NULL)
 		return NULL;
 	galois_ilog_table = galois_log_table + 65536;
 
 	// galois_log_table[0] is invalid, because power of 2 never becomes 0.
-	galois_log_table[0] = 65535;	// Instead of invalid value, set MAX value.
+	galois_log_table[0] = prim_poly;	// Instead of invalid value, set generator polynomial.
 	galois_ilog_table[65535] = 1;	// 2 power 0 is 1. 2 power 65535 is 1.
 
 	b = 1;
@@ -69,10 +70,10 @@ int * gf16_create_table(int prim_poly)
 
 
 // Return (x * y)
-int gf16_multiply(int *galois_log_table, int x, int y)
+int gf16_multiply(uint16_t *galois_log_table, int x, int y)
 {
 	int sum_j;
-	int *galois_ilog_table;
+	uint16_t *galois_ilog_table;
 
 	if (x == 0 || y == 0)
 		return 0;
@@ -86,10 +87,10 @@ int gf16_multiply(int *galois_log_table, int x, int y)
 }
 
 // Return (x / y)
-int gf16_divide(int *galois_log_table, int x, int y)
+int gf16_divide(uint16_t *galois_log_table, int x, int y)
 {
 	int sum_j;
-	int *galois_ilog_table;
+	uint16_t *galois_ilog_table;
 
 	if (y == 0)
 		return -1;	// Error: division by zero
@@ -105,9 +106,9 @@ int gf16_divide(int *galois_log_table, int x, int y)
 }
 
 // Return (1 / y)
-int gf16_reciprocal(int *galois_log_table, int y)
+int gf16_reciprocal(uint16_t *galois_log_table, int y)
 {
-	int *galois_ilog_table;
+	uint16_t *galois_ilog_table;
 
 	if (y == 0)
 		return -1;	// Error: division by zero
@@ -118,7 +119,7 @@ int gf16_reciprocal(int *galois_log_table, int y)
 
 
 // Simplify and support size_t for 64-bit build
-void gf16_region_multiply(int *galois_log_table,
+void gf16_region_multiply(uint16_t *galois_log_table,
 						uint8_t *region,	/* Region to multiply */
 						int multby,			/* Number to multiply by */
 						size_t nbytes,		/* Number of bytes in region */
@@ -128,7 +129,7 @@ void gf16_region_multiply(int *galois_log_table,
 	uint16_t *ur1, *ur2;
 	int prod, log1;
 	size_t i;
-	int *galois_ilog_table;
+	uint16_t *galois_ilog_table;
 
 	ur1 = (uint16_t *) region;
 	ur2 = (r2 == NULL) ? ur1 : (uint16_t *) r2;
@@ -136,10 +137,28 @@ void gf16_region_multiply(int *galois_log_table,
 
 	if (multby == 0) {
 		if (add == 0){
-			while (nbytes != 0){
-				*ur2 = 0;
-				ur2++;
-				nbytes--;
+			for (i = 0; i < nbytes; i++) {
+				ur2[i] = 0;
+			}
+		}
+		return;
+	}
+	if (multby == 1) {
+		if (add == 0){
+			if (r2 != NULL){
+				for (i = 0; i < nbytes; i++) {
+					ur2[i] = ur1[i];
+				}
+			}
+		} else {
+			if (r2 != NULL){
+				for (i = 0; i < nbytes; i++) {
+					ur2[i] ^= ur1[i];
+				}
+			} else {
+				for (i = 0; i < nbytes; i++) {
+					ur2[i] = 0;
+				}
 			}
 		}
 		return;
@@ -160,32 +179,6 @@ void gf16_region_multiply(int *galois_log_table,
 			}
 		}
 
-/*
-	// XOR in 4 pack isn't so fast. No worth to do.
-	} else if ( (((uintptr_t)ur2 & 7) == 0) && ((nbytes & 3) == 0) ) {
-		// Data aligmnent is 8 bytes.
-		int j;
-		uint64_t *lp4, qw;	// quad word, 2 bytes * 4
-		uint16_t *lp;
-
-		lp4 = &qw;
-		lp = (uint16_t *)lp4;
-		for (i = 0; i < nbytes; i += 4) {
-			lp4 = (uint64_t *)(ur2 + i);
-			for (j = 0; j < 4; j++) {
-				if (ur1[i + j] == 0) {
-					lp[j] = 0;
-				} else {
-					prod = galois_log_table[ur1[i + j]] + log1;
-					if (prod >= 65535)
-						prod -= 65535;
-					lp[j] = galois_ilog_table[prod];
-				}
-			}
-			*lp4 = (*lp4) ^ qw;
-		}
-*/
-
 	} else {
 		for (i = 0; i < nbytes; i++) {
 			if (ur1[i] != 0) {
@@ -193,6 +186,137 @@ void gf16_region_multiply(int *galois_log_table,
 				if (prod >= 65535)
 					prod -= 65535;
 				ur2[i] ^= galois_ilog_table[prod];
+			}
+		}
+	}
+}
+
+
+// This is based on GF-Complete, Revision 1.03.
+// gf_w16_split_8_16_lazy_multiply_region
+
+/*
+
+Copyright (c) 2013, James S. Plank, Ethan L. Miller, Kevin M. Greenan,
+Benjamin A. Arnold, John A. Burnum, Adam W. Disney, Allen C. McBride
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions
+are met:
+
+ - Redistributions of source code must retain the above copyright
+   notice, this list of conditions and the following disclaimer.
+
+ - Redistributions in binary form must reproduce the above copyright
+   notice, this list of conditions and the following disclaimer in
+   the documentation and/or other materials provided with the
+   distribution.
+
+ - Neither the name of the University of Tennessee nor the names of its
+   contributors may be used to endorse or promote products derived
+   from this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
+OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
+AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY
+WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+POSSIBILITY OF SUCH DAMAGE.
+
+*/
+void gf16_region_multiply_split(uint16_t *galois_log_table,
+						uint8_t *region,	/* Region to multiply */
+						int multby,			/* Number to multiply by */
+						size_t nbytes,		/* Number of bytes in region */
+						uint8_t *r2,		/* If r2 != NULL, products go here */
+						int add)
+{
+	uint16_t *ur1, *ur2;
+	int prod, prim_poly;
+	size_t i;
+	int j, k, v;
+	uint16_t htable[256], ltable[256];
+
+	ur1 = (uint16_t *) region;
+	ur2 = (r2 == NULL) ? ur1 : (uint16_t *) r2;
+	nbytes /= 2;	// Convert unit from byte to count.
+
+	if (multby == 0) {
+		if (add == 0){
+			for (i = 0; i < nbytes; i++) {
+				ur2[i] = 0;
+			}
+		}
+		return;
+	}
+	if (multby == 1) {
+		if (add == 0){
+			if (r2 != NULL){
+				for (i = 0; i < nbytes; i++) {
+					ur2[i] = ur1[i];
+				}
+			}
+		} else {
+			if (r2 != NULL){
+				for (i = 0; i < nbytes; i++) {
+					ur2[i] ^= ur1[i];
+				}
+			} else {
+				for (i = 0; i < nbytes; i++) {
+					ur2[i] = 0;
+				}
+			}
+		}
+		return;
+	}
+
+	// This table setup requires a bit time.
+	// Use this function, only when nbytes is larger than 2 KB.
+	prim_poly = galois_log_table[0] | 0x10000;
+	v = multby;
+	ltable[0] = 0;
+	for (j = 1; j < 256; j <<= 1) {
+		for (k = 0; k < j; k++)
+			ltable[k^j] = (v ^ ltable[k]);
+
+		// v = v * 2
+		v = (v & (1 << 15)) ? ((v << 1) ^ prim_poly) : (v << 1);
+	}
+	htable[0] = 0;
+	for (j = 1; j < 256; j <<= 1) {
+		for (k = 0; k < j; k++)
+			htable[k^j] = (v ^ htable[k]);
+
+		// v = v * 2
+		v = (v & (1 << 15)) ? ((v << 1) ^ prim_poly) : (v << 1);
+	}
+
+	if ( (r2 == NULL) || (add == 0) ) {
+		for (i = 0; i < nbytes; i++) {
+			v = ur1[i];
+			if (v == 0) {
+				ur2[i] = 0;
+			} else {
+			    prod = htable[v >> 8];
+			    prod ^= ltable[v & 0xFF];
+				ur2[i] = prod;
+			}
+		}
+
+	} else {
+		for (i = 0; i < nbytes; i++) {
+			v = ur1[i];
+			if (v != 0) {
+			    prod = htable[v >> 8];
+			    prod ^= ltable[v & 0xFF];
+				ur2[i] ^= prod;
 			}
 		}
 	}
