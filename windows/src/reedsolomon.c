@@ -40,11 +40,7 @@ void rs_create_one_all(PAR3_CTX *par3_ctx, int x_index)
 
 			// If x_index == 0, just put values.
 			// If x_index > 0, add values on previous values.
-			if (region_size >= 2000){	// Switch functions
-				gf16_region_multiply_split(gf_table, work_buf, element, region_size, buf_p, x_index);
-			} else {
-				gf16_region_multiply(gf_table, work_buf, element, region_size, buf_p, x_index);
-			}
+			gf16_region_multiply(gf_table, work_buf, element, region_size, buf_p, x_index);
 
 		} else {	// 8-bit Galois Field
 			y_R = 255 - (y_index + first_num);

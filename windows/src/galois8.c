@@ -163,9 +163,7 @@ void gf8_region_multiply(uint8_t *galois_log_table,
 						uint8_t *r2,		/* If r2 != NULL, products go here */
 						int add)
 {
-	uint8_t prod;
 	size_t i;
-	uint8_t *galois_mult_table;
 
 	if (multby == 0) {
 		if (add == 0){
@@ -176,9 +174,8 @@ void gf8_region_multiply(uint8_t *galois_log_table,
 				r2[i] = 0;
 			}
 		}
-		return;
-	}
-	if (multby == 1) {
+
+	} else if (multby == 1) {
 		if (add == 0){
 			if (r2 != NULL){
 				for (i = 0; i < nbytes; i++) {
@@ -196,24 +193,27 @@ void gf8_region_multiply(uint8_t *galois_log_table,
 				}
 			}
 		}
-		return;
-	}
 
-	galois_mult_table = galois_log_table + 256 * 2;
-	galois_mult_table += multby * 256;	// Shift mult_table offset by multby
-
-	if ( (r2 == NULL) || (add == 0) ) {
-		if (r2 == NULL)
-			r2 = region;
-
-		for (i = 0; i < nbytes; i++) {
-			prod = galois_mult_table[ region[i] ];
-			r2[i] = prod;
-		}
 	} else {
-		for (i = 0; i < nbytes; i++) {
-			prod = galois_mult_table[ region[i] ];
-			r2[i] ^= prod;
+		uint8_t prod;
+		uint8_t *galois_mult_table;
+
+		galois_mult_table = galois_log_table + 256 * 2;
+		galois_mult_table += multby * 256;	// Shift mult_table offset by multby
+
+		if ( (r2 == NULL) || (add == 0) ) {
+			if (r2 == NULL)
+				r2 = region;
+
+			for (i = 0; i < nbytes; i++) {
+				prod = galois_mult_table[ region[i] ];
+				r2[i] = prod;
+			}
+		} else {
+			for (i = 0; i < nbytes; i++) {
+				prod = galois_mult_table[ region[i] ];
+				r2[i] ^= prod;
+			}
 		}
 	}
 }

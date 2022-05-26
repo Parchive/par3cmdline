@@ -118,80 +118,6 @@ int gf16_reciprocal(uint16_t *galois_log_table, int y)
 }
 
 
-// Simplify and support size_t for 64-bit build
-void gf16_region_multiply(uint16_t *galois_log_table,
-						uint8_t *region,	/* Region to multiply */
-						int multby,			/* Number to multiply by */
-						size_t nbytes,		/* Number of bytes in region */
-						uint8_t *r2,		/* If r2 != NULL, products go here */
-						int add)
-{
-	uint16_t *ur1, *ur2;
-	int prod, log1;
-	size_t i;
-	uint16_t *galois_ilog_table;
-
-	ur1 = (uint16_t *) region;
-	ur2 = (r2 == NULL) ? ur1 : (uint16_t *) r2;
-	nbytes /= 2;	// Convert unit from byte to count.
-
-	if (multby == 0) {
-		if (add == 0){
-			for (i = 0; i < nbytes; i++) {
-				ur2[i] = 0;
-			}
-		}
-		return;
-	}
-	if (multby == 1) {
-		if (add == 0){
-			if (r2 != NULL){
-				for (i = 0; i < nbytes; i++) {
-					ur2[i] = ur1[i];
-				}
-			}
-		} else {
-			if (r2 != NULL){
-				for (i = 0; i < nbytes; i++) {
-					ur2[i] ^= ur1[i];
-				}
-			} else {
-				for (i = 0; i < nbytes; i++) {
-					ur2[i] = 0;
-				}
-			}
-		}
-		return;
-	}
-
-	galois_ilog_table = galois_log_table + 65536;
-	log1 = galois_log_table[multby];
-
-	if ( (r2 == NULL) || (add == 0) ) {
-		for (i = 0; i < nbytes; i++) {
-			if (ur1[i] == 0) {
-				ur2[i] = 0;
-			} else {
-				prod = galois_log_table[ur1[i]] + log1;
-				if (prod >= 65535)
-					prod -= 65535;
-				ur2[i] = galois_ilog_table[prod];
-			}
-		}
-
-	} else {
-		for (i = 0; i < nbytes; i++) {
-			if (ur1[i] != 0) {
-				prod = galois_log_table[ur1[i]] + log1;
-				if (prod >= 65535)
-					prod -= 65535;
-				ur2[i] ^= galois_ilog_table[prod];
-			}
-		}
-	}
-}
-
-
 // This is based on GF-Complete, Revision 1.03.
 // gf_w16_split_8_16_lazy_multiply_region
 
@@ -231,7 +157,7 @@ WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 POSSIBILITY OF SUCH DAMAGE.
 
 */
-void gf16_region_multiply_split(uint16_t *galois_log_table,
+void gf16_region_multiply(uint16_t *galois_log_table,
 						uint8_t *region,	/* Region to multiply */
 						int multby,			/* Number to multiply by */
 						size_t nbytes,		/* Number of bytes in region */
@@ -239,10 +165,8 @@ void gf16_region_multiply_split(uint16_t *galois_log_table,
 						int add)
 {
 	uint16_t *ur1, *ur2;
-	int prod, prim_poly;
+	int prod, v;
 	size_t i;
-	int j, k, v;
-	uint16_t htable[256], ltable[256];
 
 	ur1 = (uint16_t *) region;
 	ur2 = (r2 == NULL) ? ur1 : (uint16_t *) r2;
@@ -254,9 +178,8 @@ void gf16_region_multiply_split(uint16_t *galois_log_table,
 				ur2[i] = 0;
 			}
 		}
-		return;
-	}
-	if (multby == 1) {
+
+	} else if (multby == 1) {
 		if (add == 0){
 			if (r2 != NULL){
 				for (i = 0; i < nbytes; i++) {
@@ -274,49 +197,80 @@ void gf16_region_multiply_split(uint16_t *galois_log_table,
 				}
 			}
 		}
-		return;
-	}
 
-	// This table setup requires a bit time.
-	// Use this function, only when nbytes is larger than 2 KB.
-	prim_poly = galois_log_table[0] | 0x10000;
-	v = multby;
-	ltable[0] = 0;
-	for (j = 1; j < 256; j <<= 1) {
-		for (k = 0; k < j; k++)
-			ltable[k^j] = (v ^ ltable[k]);
+	// Use 8-bit split tables, only when nbytes is enough long.
+	} else if (nbytes >= 1000){
+		int j, k, prim_poly;
+		uint16_t htable[256], ltable[256];
 
-		// v = v * 2
-		v = (v & (1 << 15)) ? ((v << 1) ^ prim_poly) : (v << 1);
-	}
-	htable[0] = 0;
-	for (j = 1; j < 256; j <<= 1) {
-		for (k = 0; k < j; k++)
-			htable[k^j] = (v ^ htable[k]);
+		// This table setup requires a bit time.
+		prim_poly = galois_log_table[0] | 0x10000;
+		v = multby;
+		ltable[0] = 0;
+		for (j = 1; j < 256; j <<= 1) {
+			for (k = 0; k < j; k++)
+				ltable[k^j] = (v ^ ltable[k]);
 
-		// v = v * 2
-		v = (v & (1 << 15)) ? ((v << 1) ^ prim_poly) : (v << 1);
-	}
+			// v = v * 2
+			v = (v & (1 << 15)) ? ((v << 1) ^ prim_poly) : (v << 1);
+		}
+		htable[0] = 0;
+		for (j = 1; j < 256; j <<= 1) {
+			for (k = 0; k < j; k++)
+				htable[k^j] = (v ^ htable[k]);
 
-	if ( (r2 == NULL) || (add == 0) ) {
-		for (i = 0; i < nbytes; i++) {
-			v = ur1[i];
-			if (v == 0) {
-				ur2[i] = 0;
-			} else {
-			    prod = htable[v >> 8];
-			    prod ^= ltable[v & 0xFF];
-				ur2[i] = prod;
+			// v = v * 2
+			v = (v & (1 << 15)) ? ((v << 1) ^ prim_poly) : (v << 1);
+		}
+
+		if ( (r2 == NULL) || (add == 0) ) {
+			for (i = 0; i < nbytes; i++) {
+				v = ur1[i];
+				if (v == 0) {
+					ur2[i] = 0;
+				} else {
+				    prod = htable[v >> 8];
+				    prod ^= ltable[v & 0xFF];
+					ur2[i] = prod;
+				}
+			}
+		} else {
+			for (i = 0; i < nbytes; i++) {
+				v = ur1[i];
+				if (v != 0) {
+				    prod = htable[v >> 8];
+				    prod ^= ltable[v & 0xFF];
+					ur2[i] ^= prod;
+				}
 			}
 		}
 
+	// Use Log & iLog tables
 	} else {
-		for (i = 0; i < nbytes; i++) {
-			v = ur1[i];
-			if (v != 0) {
-			    prod = htable[v >> 8];
-			    prod ^= ltable[v & 0xFF];
-				ur2[i] ^= prod;
+		uint16_t *galois_ilog_table;
+
+		galois_ilog_table = galois_log_table + 65536;
+		v = galois_log_table[multby];
+
+		if ( (r2 == NULL) || (add == 0) ) {
+			for (i = 0; i < nbytes; i++) {
+				if (ur1[i] == 0) {
+					ur2[i] = 0;
+				} else {
+					prod = galois_log_table[ur1[i]] + v;
+					if (prod >= 65535)
+						prod -= 65535;
+					ur2[i] = galois_ilog_table[prod];
+				}
+			}
+		} else {
+			for (i = 0; i < nbytes; i++) {
+				if (ur1[i] != 0) {
+					prod = galois_log_table[ur1[i]] + v;
+					if (prod >= 65535)
+						prod -= 65535;
+					ur2[i] ^= galois_ilog_table[prod];
+				}
 			}
 		}
 	}

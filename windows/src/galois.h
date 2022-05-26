@@ -28,9 +28,3 @@ void gf16_region_multiply(uint16_t *galois_log_table,
 						uint8_t *r2,		/* If r2 != NULL, products go here */
 						int add);
 
-void gf16_region_multiply_split(uint16_t *galois_log_table,
-						uint8_t *region,	/* Region to multiply */
-						int multby,			/* Number to multiply by */
-						size_t nbytes,		/* Number of bytes in region */
-						uint8_t *r2,		/* If r2 != NULL, products go here */
-						int add);
