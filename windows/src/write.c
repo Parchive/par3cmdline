@@ -11,6 +11,7 @@
 #include "blake3/blake3.h"
 #include "libpar3.h"
 #include "common.h"
+#include "galois.h"
 #include "hash.h"
 #include "packet.h"
 #include "write.h"
@@ -434,7 +435,7 @@ int write_archive_file(PAR3_CTX *par3_ctx)
 	file_count = par3_ctx->recovery_file_count;
 
 	// Allocate memory to read one input block and parity.
-	region_size = (par3_ctx->block_size + 1 + 3) & ~3;
+	region_size = (par3_ctx->block_size + 4 + 3) & ~3;
 	par3_ctx->work_buf = malloc(region_size);
 	if (par3_ctx->work_buf == NULL){
 		perror("Failed to allocate memory for input data");
@@ -518,6 +519,8 @@ int write_archive_file(PAR3_CTX *par3_ctx)
 static int write_recovery_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t each_start, uint64_t each_count)
 {
 	uint8_t *buf_p, *common_packet, packet_header[89];
+	uint8_t gf_size;
+	int galois_poly, ret;
 	uint64_t num;
 	size_t block_size, region_size;
 	size_t write_size, write_size2;
@@ -527,10 +530,12 @@ static int write_recovery_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t ea
 	blake3_hasher hasher;
 
 	block_size = par3_ctx->block_size;
+	gf_size = par3_ctx->gf_size;
+	galois_poly = par3_ctx->galois_poly;
 	common_packet = par3_ctx->common_packet;
 	common_packet_size = par3_ctx->common_packet_size;
 
-	region_size = (block_size + 1 + 3) & ~3;
+	region_size = (block_size + 4 + 3) & ~3;
 	buf_p = par3_ctx->block_data;
 	if (par3_ctx->ecc_method & 0x1000){
 		// Move to the position of starting recovery block
@@ -589,7 +594,14 @@ static int write_recovery_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t ea
 		// recovery blocks were created already.
 		if (par3_ctx->ecc_method & 0x1000){
 			// Check parity of recovery block to confirm that calculation was correct.
-			if (region_check_parity(buf_p, region_size, block_size) != 0){
+			if (gf_size == 2){
+				ret = gf16_region_check_parity(galois_poly, buf_p, region_size, block_size);
+			} else if (gf_size == 1){
+				ret = gf8_region_check_parity(galois_poly, buf_p, region_size, block_size);
+			} else {
+				ret = region_check_parity(buf_p, region_size, block_size);
+			}
+			if (ret != 0){
 				printf("Parity of recovery block[%I64u] is different.\n", num);
 				fclose(fp);
 				return RET_LOGIC_ERROR;

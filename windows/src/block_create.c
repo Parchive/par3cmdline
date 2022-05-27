@@ -41,7 +41,7 @@ int allocate_recovery_block(PAR3_CTX *par3_ctx)
 
 	// Set memory alignment of block data to be 4.
 	// Increase at least 1 byte as checksum.
-	region_size = (par3_ctx->block_size + 1 + 3) & ~3;
+	region_size = (par3_ctx->block_size + 4 + 3) & ~3;
 	if (par3_ctx->noise_level >= 2){
 		printf("Aligned size of block data = %zu\n", region_size);
 	}
@@ -67,6 +67,8 @@ int allocate_recovery_block(PAR3_CTX *par3_ctx)
 int create_recovery_block(PAR3_CTX *par3_ctx)
 {
 	uint8_t *work_buf;
+	uint8_t gf_size;
+	int galois_poly;
 	int block_count, x_index;
 	int file_index, file_read;
 	int progress_old, progress_now;
@@ -93,12 +95,14 @@ int create_recovery_block(PAR3_CTX *par3_ctx)
 
 	block_size = par3_ctx->block_size;
 	block_count = (int)(par3_ctx->block_count);
+	gf_size = par3_ctx->gf_size;
+	galois_poly = par3_ctx->galois_poly;
 	file_list = par3_ctx->input_file_list;
 	slice_list = par3_ctx->slice_list;
 	block_list = par3_ctx->block_list;
 
 	// Allocate memory to read one input block and parity.
-	region_size = (block_size + 1 + 3) & ~3;
+	region_size = (block_size + 4 + 3) & ~3;
 	work_buf = malloc(region_size);
 	if (work_buf == NULL){
 		perror("Failed to allocate memory for input data");
@@ -228,7 +232,13 @@ int create_recovery_block(PAR3_CTX *par3_ctx)
 		}
 
 		// Calculate parity bytes in the region
-		region_create_parity(work_buf, region_size, block_size);
+		if (gf_size == 2){
+			gf16_region_create_parity(galois_poly, work_buf, region_size, block_size);
+		} else if (gf_size == 1){
+			gf8_region_create_parity(galois_poly, work_buf, region_size, block_size);
+		} else {
+			region_create_parity(work_buf, region_size, block_size);
+		}
 
 		// Multipy one input block for all recovery blocks.
 		rs_create_one_all(par3_ctx, x_index);

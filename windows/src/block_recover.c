@@ -36,7 +36,7 @@ int recover_lost_block(PAR3_CTX *par3_ctx, char *temp_path, int lost_count)
 	char *file_read, *file_name;
 	uint8_t *work_buf, buf_tail[40];
 	uint8_t *block_data, gf_size;
-	int *lost_id, *recv_id;
+	int galois_poly, *lost_id, *recv_id;
 	int block_count, block_index;
 	int x, y, factor;
 	int progress_old, progress_now, progress;
@@ -62,6 +62,7 @@ int recover_lost_block(PAR3_CTX *par3_ctx, char *temp_path, int lost_count)
 	block_size = par3_ctx->block_size;
 	block_count = (int)(par3_ctx->block_count);
 	gf_size = par3_ctx->gf_size;
+	galois_poly = par3_ctx->galois_poly;
 	gf_table = par3_ctx->galois_table;
 	matrix = par3_ctx->matrix;
 	lost_id = par3_ctx->id_list;
@@ -74,7 +75,7 @@ int recover_lost_block(PAR3_CTX *par3_ctx, char *temp_path, int lost_count)
 	packet_list = par3_ctx->rec_data_packet_list;
 	packet_count = par3_ctx->rec_data_packet_count;
 
-	region_size = (block_size + 1 + 3) & ~3;
+	region_size = (block_size + 4 + 3) & ~3;
 
 	// Zero fill lost blocks
 	memset(block_data, 0, region_size * lost_count);
@@ -280,7 +281,13 @@ int recover_lost_block(PAR3_CTX *par3_ctx, char *temp_path, int lost_count)
 			}
 
 			// Calculate parity bytes in the region
-			region_create_parity(work_buf, region_size, block_size);
+			if (gf_size == 2){
+				gf16_region_create_parity(galois_poly, work_buf, region_size, block_size);
+			} else if (gf_size == 1){
+				gf8_region_create_parity(galois_poly, work_buf, region_size, block_size);
+			} else {
+				region_create_parity(work_buf, region_size, block_size);
+			}
 
 			// Recover (multiple & add to) lost input blocks
 			for (y = 0; y < lost_count; y++){
@@ -367,7 +374,13 @@ int recover_lost_block(PAR3_CTX *par3_ctx, char *temp_path, int lost_count)
 		}
 
 		// Calculate parity bytes in the region
-		region_create_parity(work_buf, region_size, block_size);
+		if (gf_size == 2){
+			gf16_region_create_parity(galois_poly, work_buf, region_size, block_size);
+		} else if (gf_size == 1){
+			gf8_region_create_parity(galois_poly, work_buf, region_size, block_size);
+		} else {
+			region_create_parity(work_buf, region_size, block_size);
+		}
 
 		// Recover (multiple & add to) lost input blocks
 		for (y = 0; y < lost_count; y++){
@@ -415,7 +428,14 @@ int recover_lost_block(PAR3_CTX *par3_ctx, char *temp_path, int lost_count)
 		work_buf = block_data + region_size * y;
 
 		// Check parity of recovered block to confirm that calculation was correct.
-		if (region_check_parity(work_buf, region_size, block_size) != 0){
+		if (gf_size == 2){
+			x = gf16_region_check_parity(galois_poly, work_buf, region_size, block_size);
+		} else if (gf_size == 1){
+			x = gf8_region_check_parity(galois_poly, work_buf, region_size, block_size);
+		} else {
+			x = region_check_parity(work_buf, region_size, block_size);
+		}
+		if (x != 0){
 			printf("Parity of recovered block[%d] is different.\n", block_index);
 			if (fp_write != NULL)
 				fclose(fp_write);

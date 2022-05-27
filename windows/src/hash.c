@@ -485,11 +485,18 @@ void blake3(const uint8_t *buf, size_t size, uint8_t *hash)
 // Create parity bytes in the region
 void region_create_parity(uint8_t *buf, size_t region_size, size_t block_size)
 {
-	size_t parity_size, len;
-	uint32_t sum, v;
+	size_t len;
+	uint32_t sum;
+
+	// When block size isn't multiple of 4, zero fill the last 1~3 bytes.
+	if (block_size & 3){
+		for (len = block_size; len < region_size - 4; len++){
+			buf[len] = 0;
+		}
+	}
 
 	// XOR all block data to 4 bytes
-	len = block_size;
+	len = block_size + 3;
 	sum = 0;
 	while (len >= 4){
 		sum ^= *((uint32_t *)buf);
@@ -497,42 +504,19 @@ void region_create_parity(uint8_t *buf, size_t region_size, size_t block_size)
 		len -= 4;
 		buf += 4;
 	}
-	while (len > 0){
-		v = buf[len - 1];
-		sum ^= v << (4 * (len - 1));
-		len--;
-	}
 
-	// Parity is 1 ~ 4 bytes.
-	parity_size = region_size - block_size;
-	if (parity_size == 4){
-		((uint32_t *)buf)[0] = sum;
-	} else if (parity_size == 3){
-		sum ^= (sum & 0xFF) << 8;	// XOR lowest 1 byte
-		for (len = 1; len < 4; len++){
-			buf[len] = (uint8_t)(sum >> (8 * len));
-		}
-	} else if (parity_size == 2){
-		sum ^= (sum & 0xFFFF) << 16;	// XOR lowest 2 bytes
-		for (len = 2; len < 4; len++){
-			buf[len] = (uint8_t)(sum >> (8 * len));
-		}
-	} else if (parity_size == 1){
-		sum ^= (sum & 0xFFFFFF) << 24;	// XOR lowest 3 bytes
-		for (len = 3; len < 4; len++){
-			buf[len] = (uint8_t)(sum >> (8 * len));
-		}
-	}
+	// Parity is 4 bytes.
+	((uint32_t *)buf)[0] = sum;
 }
 
 // Check parity bytes in the region
 int region_check_parity(uint8_t *buf, size_t region_size, size_t block_size)
 {
-	size_t parity_size, len;
-	uint32_t sum, v;
+	size_t len;
+	uint32_t sum;
 
 	// XOR all block data to 4 bytes
-	len = block_size;
+	len = block_size + 3;
 	sum = 0;
 	while (len >= 4){
 		sum ^= *((uint32_t *)buf);
@@ -540,35 +524,10 @@ int region_check_parity(uint8_t *buf, size_t region_size, size_t block_size)
 		len -= 4;
 		buf += 4;
 	}
-	while (len > 0){
-		v = buf[len - 1];
-		sum ^= v << (4 * (len - 1));
-		len--;
-	}
 
-	// Parity is 1 ~ 4 bytes.
-	parity_size = region_size - block_size;
-	if (parity_size == 4){
-		if (((uint32_t *)buf)[0] != sum)
-			return 1;
-	} else if (parity_size == 3){
-		sum ^= (sum & 0xFF) << 8;	// XOR lowest 1 byte
-		for (len = 1; len < 4; len++){
-			buf[len] = (uint8_t)(sum >> (8 * len));
-		}
-	} else if (parity_size == 2){
-		sum ^= (sum & 0xFFFF) << 16;	// XOR lowest 2 bytes
-		for (len = 2; len < 4; len++){
-			if (buf[len] != (uint8_t)(sum >> (8 * len)))
-				return 1;
-		}
-	} else if (parity_size == 1){
-		sum ^= (sum & 0xFFFFFF) << 24;	// XOR lowest 3 bytes
-		for (len = 3; len < 4; len++){
-			if (buf[len] != (uint8_t)(sum >> (8 * len)))
-				return 1;
-		}
-	}
+	// Parity is 4 bytes.
+	if (((uint32_t *)buf)[0] != sum)
+		return 1;
 
 	return 0;
 }

@@ -182,12 +182,14 @@ int make_start_packet(PAR3_CTX *par3_ctx, int flag_trial)
 	if ( (par3_ctx->block_count > 128) || (par3_ctx->recovery_block_count > 128) ){
 		// When there are 129 or more input blocks, use 16-bit Galois Field (0x1100B).
 		par3_ctx->galois_poly = 0x1100B;
+		par3_ctx->gf_size = 2;
 		tmp_p[0] = 2;
 		tmp_p[1] = 0x0B;
 		tmp_p[2] = 0x10;
 	} else if (par3_ctx->block_count > 0){
 		// When there are 128 or less input blocks, use 8-bit Galois Field (0x11D).
 		par3_ctx->galois_poly = 0x11D;
+		par3_ctx->gf_size = 1;
 		tmp_p[0] = 1;
 		tmp_p[1] = 0x1D;
 	} else {
