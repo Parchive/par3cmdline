@@ -243,12 +243,13 @@ void gf8_region_create_parity(int prim_poly, uint8_t *buf, size_t region_size, s
 		// store highest bits of each 8-bit integer
 		mask = (sum & 0x80808080) >> 7;	// 0x01010101 or 0x00000000
 
+		// When SIMD is used, multiple of 2 is faster.
 		// previous value multiply by 2
-		sum = (sum & 0x7F7F7F7F) << 1;
+		//sum = (sum & 0x7F7F7F7F) << 1;
 
 		// If multiple of 3 is good, it's possible by XOR to the original value.
 		// previous value multiply by 3
-		//sum ^= (sum & 0x7F7F7F7F) << 1;
+		sum ^= (sum & 0x7F7F7F7F) << 1;
 
 		// prim_poly may be 0x1D
 		sum ^= mask * prim_poly;	// 0x1D1D1D1D or 0x00000000
@@ -281,7 +282,10 @@ int gf8_region_check_parity(int galois_poly, uint8_t *buf, size_t region_size, s
 		mask = (sum & 0x80808080) >> 7;	// 0x01010101 or 0x00000000
 
 		// previous value multiply by 2
-		sum = (sum & 0x7F7F7F7F) << 1;
+		//sum = (sum & 0x7F7F7F7F) << 1;
+
+		// previous value multiply by 3
+		sum ^= (sum & 0x7F7F7F7F) << 1;
 
 		// galois_poly may be 0x1D
 		sum ^= mask * galois_poly;	// 0x1D1D1D1D or 0x00000000
