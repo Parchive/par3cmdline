@@ -75,7 +75,7 @@ Options: (verify or repair)
   -S<n>    : Searching time limit (milli second)
 Options: (create)
   -s<n>    : Set the Block-Size (don't use both -b and -s)
-  -r<n>    : Level of redundancy (%%)
+  -r<n>    : Level of redundancy (%)
   -c<n>    : Recovery Block-Count (don't use both -r and -c)
   -f<n>    : First Recovery-Block-Number
   -u       : Uniform recovery file sizes
@@ -215,6 +215,23 @@ Because it may search 2 times per each block size, it may be double time.
 If you set -S1000 for a damaged file of 2000 blocks,
 it will consume max 4000 seconds. (2000 * 1000 * 2 = 4000,000 ms)
 4000 seconds are 66 minutes. You may need to wait so long.
+
+
+
+[ About "-r" option ]
+
+ This redundancy percent is against the number of input blocks.
+It's possible to set a value in range from 1% to 250%.
+Be careful that the redundancy isn't against input file size.
+When deduplication is enabled, there may be fewer input blocks.
+
+ For example, there may be a file of same bytes.
+Even when the file is large, the uniform bytes gives only two blocks.
+They are duplicated full size slice and the last tail slice.
+In this case, 100% redundancy will create only 2 recovery blocks.
+
+ To solve this problem, par2cmdline has "-rk", "-rm", or "-rg"  options.
+I will implement them in future.
 
 
 
