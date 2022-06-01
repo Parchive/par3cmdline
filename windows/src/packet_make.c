@@ -268,12 +268,10 @@ int make_matrix_packet(PAR3_CTX *par3_ctx)
 	// At this time, this supports only Cauchy Matrix Packet.
 	par3_ctx->ecc_method = 1;
 	tmp_p = par3_ctx->matrix_packet + 48;
-	memset(tmp_p, 0, 8);	// Index of first input block = 0 normally
-	tmp_p += 8;
-	memcpy(tmp_p, &(par3_ctx->block_count), 8);	// Index of last input block plus 1
-	tmp_p += 8;
-	memcpy(tmp_p, &(par3_ctx->recovery_block_count), 8);	// hint for number of recovery blocks
-	tmp_p += 8;
+	// If the encoding client wants to compute recovery data for every input block, they use the values 0 and 0.
+	// If the number of rows is unknown, the hint is set to zero.
+	memset(tmp_p, 0, 24);	// Thus, three items are zero.
+	tmp_p += 24;
 	packet_size = 72;
 	make_packet_header(par3_ctx->matrix_packet, packet_size, par3_ctx->set_id, "PAR CAU\0", 1);
 
