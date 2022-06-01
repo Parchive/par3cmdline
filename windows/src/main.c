@@ -259,12 +259,16 @@ int main(int argc, char *argv[])
 					printf("Cannot specify block size twice.\n");
 				} else {
 					par3_ctx->block_size = strtoull(tmp_p + 1, NULL, 10);
+/*
+					// This is for debug.
+					// No need to save this value, because block size is stored in Start Packet.
 					if (par3_ctx->block_size > 0){
 						if (add_creator_text(par3_ctx, tmp_p - 1) != 0){
 							ret = RET_MEMORY_ERROR;
 							goto prepare_return;
 						}
 					}
+*/
 				}
 
 			} else if ( (tmp_p[0] == 'r') && (tmp_p[1] >= '0') && (tmp_p[1] <= '9') ){	// Set the amount of redundancy required
@@ -276,14 +280,9 @@ int main(int argc, char *argv[])
 					printf("Cannot specify both redundancy and recovery block count.\n");
 				} else {
 					par3_ctx->redundancy_size = strtoul(tmp_p + 1, NULL, 10);
-					if (par3_ctx->redundancy_size > 100){
+					if (par3_ctx->redundancy_size > 250){
 						printf("Invalid redundancy option: %u\n", par3_ctx->redundancy_size);
 						par3_ctx->redundancy_size = 0;	// reset
-					} else if (par3_ctx->redundancy_size > 0){
-						if (add_creator_text(par3_ctx, tmp_p - 1) != 0){
-							ret = RET_MEMORY_ERROR;
-							goto prepare_return;
-						}
 					}
 				}
 
@@ -296,12 +295,6 @@ int main(int argc, char *argv[])
 					printf("Cannot specify both recovery block count and redundancy.\n");
 				} else {
 					par3_ctx->recovery_block_count = strtoull(tmp_p + 1, NULL, 10);
-					if (par3_ctx->recovery_block_count > 0){
-						if (add_creator_text(par3_ctx, tmp_p - 1) != 0){
-							ret = RET_MEMORY_ERROR;
-							goto prepare_return;
-						}
-					}
 				}
 
 			/*

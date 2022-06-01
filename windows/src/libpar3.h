@@ -144,7 +144,7 @@ typedef struct {
 	uint64_t first_recovery_block;
 	uint64_t recovery_block_count;
 	uint32_t recovery_file_count;
-	uint32_t redundancy_size;	// Lower 7-bit (0~100) is percent, or 101=KB, 102=MB, 103=GB.
+	uint32_t redundancy_size;	// Lower 8-bit (0~250) is percent, or 251=KB, 252=MB, 253=GB.
 
 	char base_path[_MAX_PATH];
 	char par_filename[_MAX_PATH];

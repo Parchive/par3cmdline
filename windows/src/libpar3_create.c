@@ -101,7 +101,7 @@ static void calculate_recovery_count(PAR3_CTX *par3_ctx)
 	if (par3_ctx->recovery_block_count > 0)
 		return;	// Set already
 
-	// If redundancy_size is in range (0 ~ 100), it's a percent rate value.
+	// If redundancy_size is in range (0 ~ 250), it's a percent rate value.
 	// When there is remainder at division, round up the quotient.
 	par3_ctx->recovery_block_count = (par3_ctx->block_count * par3_ctx->redundancy_size + 99) / 100;
 	//printf("recovery_block_count = %I64u\n", par3_ctx->recovery_block_count);
@@ -265,9 +265,12 @@ int par3_create(PAR3_CTX *par3_ctx)
 				return ret;
 		}
 
-		// When recovery blocks were not created yet, calculate at here.
-
-
+		// When recovery blocks were not created yet, calculate and write at here.
+		if ((par3_ctx->ecc_method & 0x1000) == 0){
+			ret = write_recovery_block(par3_ctx);
+			if (ret != 0)
+				return ret;
+		}
 	}
 
 	return 0;

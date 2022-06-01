@@ -276,3 +276,47 @@ int create_recovery_block(PAR3_CTX *par3_ctx)
 	return 0;
 }
 
+// This keeps all input blocks and recovery blocks partially by spliting every block.
+// GF tables and recovery blocks were allocated already.
+int write_recovery_block(PAR3_CTX *par3_ctx)
+{
+	uint32_t split_index, split_count;
+	int64_t io_size, io_offset;
+	uint64_t block_size, block_count, recovery_block_count;
+	uint64_t alloc_size, region_size, split_size;
+
+	block_size = par3_ctx->block_size;
+	block_count = par3_ctx->block_count;
+	recovery_block_count = par3_ctx->recovery_block_count;
+
+	// Set required memory size at first
+	region_size = (block_size + 4 + 3) & ~3;
+	alloc_size = region_size * (block_count + recovery_block_count);
+
+	// Limited memory usage
+	if ( (par3_ctx->memory_limit > 0) && (alloc_size > par3_ctx->memory_limit) ){
+		split_count = (uint32_t)((alloc_size + par3_ctx->memory_limit - 1) / par3_ctx->memory_limit);
+		split_size = block_size / split_count;	// splitted block size to fit in limited memory
+		split_size = (split_size + 3) & ~3;	// aligned to 4 bytes
+	} else {
+		split_count = 1;
+		split_size = block_size;
+	}
+	printf("split_count = %u, split_size = %I64u\n", split_count, split_size);
+
+	// Allocate memory to keep all splitted blocks.
+	region_size = (split_size + 4 + 3) & ~3;
+	alloc_size = region_size * (block_count + recovery_block_count);
+	printf("region_size = %I64u, alloc_size = %I64u\n", region_size, alloc_size);
+
+
+	for (split_index = 0; split_index < split_count; split_index++){
+
+	}
+
+printf("\n This function isn't made yet.\n");
+return -1;
+
+	return 0;
+}
+
