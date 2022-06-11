@@ -142,7 +142,7 @@ number of blocks = 32768 ~ 65535 : number of copies = 16
 static int write_data_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t each_start, uint64_t each_count)
 {
 	uint8_t *work_buf, *common_packet, packet_header[56];
-	uint32_t file_index, file_read;
+	uint32_t file_index, file_prev;
 	int64_t slice_index;
 	uint64_t num, file_offset;
 	size_t block_size, read_size, tail_offset;
@@ -196,7 +196,7 @@ static int write_data_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t each_s
 	}
 
 	// Data Packet and repeated common packets
-	file_read = 0xFFFFFFFF;
+	file_prev = 0xFFFFFFFF;
 	fp_read = NULL;
 	packet_from = 0;
 	packet_offset = 0;
@@ -231,7 +231,7 @@ static int write_data_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t each_s
 			file_offset = slice_list[slice_index].offset;
 			read_size = slice_list[slice_index].size;
 			//printf("Reading %zu bytes of slice[%I64d] on file[%u] for block[%I64u].\n", read_size, slice_index, file_index, num);
-			if ( (fp_read == NULL) || (file_index != file_read) ){
+			if ( (fp_read == NULL) || (file_index != file_prev) ){
 				if (fp_read != NULL){	// Close previous input file.
 					fclose(fp_read);
 					fp_read = NULL;
@@ -242,7 +242,7 @@ static int write_data_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t each_s
 					fclose(fp_write);
 					return RET_FILE_IO_ERROR;
 				}
-				file_read = file_index;
+				file_prev = file_index;
 			}
 			if (_fseeki64(fp_read, file_offset, SEEK_SET) != 0){
 				perror("Failed to seek input file");
@@ -283,7 +283,7 @@ static int write_data_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t each_s
 				file_index = slice_list[slice_index].file;
 				file_offset = slice_list[slice_index].offset;
 				read_size = slice_list[slice_index].size;
-				if ( (fp_read == NULL) || (file_index != file_read) ){
+				if ( (fp_read == NULL) || (file_index != file_prev) ){
 					if (fp_read != NULL){	// Close previous input file.
 						fclose(fp_read);
 						fp_read = NULL;
@@ -294,7 +294,7 @@ static int write_data_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t each_s
 						fclose(fp_write);
 						return RET_FILE_IO_ERROR;
 					}
-					file_read = file_index;
+					file_prev = file_index;
 				}
 				if (_fseeki64(fp_read, file_offset, SEEK_SET) != 0){
 					perror("Failed to seek input file");

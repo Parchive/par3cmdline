@@ -1116,10 +1116,10 @@ void par3_release(PAR3_CTX *par3_ctx)
 		par3_ctx->data_packet_list = NULL;
 		par3_ctx->data_packet_count = 0;
 	}
-	if (par3_ctx->rec_data_packet_list){
-		free(par3_ctx->rec_data_packet_list);
-		par3_ctx->rec_data_packet_list = NULL;
-		par3_ctx->rec_data_packet_count = 0;
+	if (par3_ctx->recv_packet_list){
+		free(par3_ctx->recv_packet_list);
+		par3_ctx->recv_packet_list = NULL;
+		par3_ctx->recv_packet_count = 0;
 	}
 
 	if (par3_ctx->id_list){

@@ -220,7 +220,7 @@ void gf8_region_multiply(uint8_t *galois_log_table,
 
 
 // Create parity bytes in the region
-void gf8_region_create_parity(int prim_poly, uint8_t *buf, size_t region_size, size_t block_size)
+void gf8_region_create_parity(int prim_poly, uint8_t *buf, size_t region_size, size_t data_size)
 {
 	size_t len;
 	uint32_t sum, temp, mask;
@@ -228,14 +228,14 @@ void gf8_region_create_parity(int prim_poly, uint8_t *buf, size_t region_size, s
 	prim_poly &= 0xFF;	// reduce to 8-bit value
 
 	// When block size isn't multiple of 4, zero fill the last 1~3 bytes.
-	if (block_size & 3){
-		for (len = block_size; len < region_size - 4; len++){
+	if (data_size & 3){
+		for (len = data_size; len < region_size - 4; len++){
 			buf[len] = 0;
 		}
 	}
 
 	// XOR all block data to 4 bytes
-	len = block_size + 3;
+	len = data_size + 3;
 	sum = 0;
 	while (len >= 4){
 		temp = *((uint32_t *)buf);
@@ -265,7 +265,7 @@ void gf8_region_create_parity(int prim_poly, uint8_t *buf, size_t region_size, s
 }
 
 // Check parity bytes in the region
-int gf8_region_check_parity(int galois_poly, uint8_t *buf, size_t region_size, size_t block_size)
+int gf8_region_check_parity(int galois_poly, uint8_t *buf, size_t region_size, size_t data_size)
 {
 	size_t len;
 	uint32_t sum, temp, mask;
@@ -273,7 +273,7 @@ int gf8_region_check_parity(int galois_poly, uint8_t *buf, size_t region_size, s
 	galois_poly &= 0xFF;	// reduce to 8-bit value
 
 	// XOR all block data to 4 bytes
-	len = block_size + 3;
+	len = data_size + 3;
 	sum = 0;
 	while (len >= 4){
 		temp = *((uint32_t *)buf);

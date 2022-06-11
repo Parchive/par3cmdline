@@ -148,7 +148,7 @@ int create_temp_file(PAR3_CTX *par3_ctx, char *temp_path)
 // Restore content of input files
 int restore_input_file(PAR3_CTX *par3_ctx, char *temp_path)
 {
-	char *file_read, *find_name;
+	char *name_prev, *find_name;
 	uint8_t *work_buf, buf_tail[40];
 	uint32_t file_count, file_index;
 	uint32_t chunk_index, chunk_num;
@@ -186,7 +186,7 @@ int restore_input_file(PAR3_CTX *par3_ctx, char *temp_path)
 		printf("\nRestoring input files:\n\n");
 	}
 
-	file_read = NULL;
+	name_prev = NULL;
 	fp_read = NULL;
 	for (file_index = 0; file_index < file_count; file_index++){
 		// The input file is missing or damaged.
@@ -219,7 +219,7 @@ int restore_input_file(PAR3_CTX *par3_ctx, char *temp_path)
 					}
 
 					// Read input file slice from another file.
-					if ( (fp_read == NULL) || (find_name != file_read) ){
+					if ( (fp_read == NULL) || (find_name != name_prev) ){
 						if (fp_read != NULL){	// Close previous another file.
 							fclose(fp_read);
 							fp_read = NULL;
@@ -230,7 +230,7 @@ int restore_input_file(PAR3_CTX *par3_ctx, char *temp_path)
 							fclose(fp_write);
 							return RET_FILE_IO_ERROR;
 						}
-						file_read = find_name;
+						name_prev = find_name;
 					}
 					if (_fseeki64(fp_read, file_offset, SEEK_SET) != 0){
 						perror("Failed to seek another file");

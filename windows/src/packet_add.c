@@ -341,39 +341,39 @@ int list_found_packet(PAR3_CTX *par3_ctx, uint8_t *packet, char *filename, int64
 		memcpy(cmp_buf, packet + 48, 16);		// checksum from Root packet
 		memcpy(cmp_buf + 16, packet + 64, 16);	// checksum from Matrix packet
 		memcpy(&index, packet + 80, 8);			// Index of recovery block
-		if (par3_ctx->rec_data_packet_list == NULL){
+		if (par3_ctx->recv_packet_list == NULL){
 			list = malloc(sizeof(PAR3_PKT_CTX));
 			if (list == NULL){
 				perror("Failed to allocate memory for Recovery Data Packet");
 				return RET_MEMORY_ERROR;
 			}
-			par3_ctx->rec_data_packet_list = list;
+			par3_ctx->recv_packet_list = list;
 			list[0].id = set_id;
 			memcpy(list[0].root, cmp_buf, 16);
 			memcpy(list[0].matrix, cmp_buf + 16, 16);
 			list[0].index = index;
 			list[0].name = filename;
 			list[0].offset = offset;
-			par3_ctx->rec_data_packet_count = 1;
-		} else if (check_item_exist(par3_ctx->rec_data_packet_list, par3_ctx->rec_data_packet_count, set_id, index, cmp_buf) == 1){
+			par3_ctx->recv_packet_count = 1;
+		} else if (check_item_exist(par3_ctx->recv_packet_list, par3_ctx->recv_packet_count, set_id, index, cmp_buf) == 1){
 			// If there is the packet already, just exit.
 			return -1;
 		} else {
 			// Add this packet after other packets.
-			count = par3_ctx->rec_data_packet_count;
-			list = realloc(par3_ctx->rec_data_packet_list, sizeof(PAR3_PKT_CTX) * (count + 1));
+			count = par3_ctx->recv_packet_count;
+			list = realloc(par3_ctx->recv_packet_list, sizeof(PAR3_PKT_CTX) * (count + 1));
 			if (list == NULL){
 				perror("Failed to re-allocate memory for Recovery Data Packet");
 				return RET_MEMORY_ERROR;
 			}
-			par3_ctx->rec_data_packet_list = list;
+			par3_ctx->recv_packet_list = list;
 			list[count].id = set_id;
 			memcpy(list[count].root, cmp_buf, 16);
 			memcpy(list[count].matrix, cmp_buf + 16, 16);
 			list[count].index = index;
 			list[count].name = filename;
 			list[count].offset = offset;
-			par3_ctx->rec_data_packet_count += 1;
+			par3_ctx->recv_packet_count += 1;
 		}
 
 	} else {
@@ -622,25 +622,25 @@ static int remove_other_packet(PAR3_CTX *par3_ctx, uint64_t *id_list, int id_cou
 			par3_ctx->data_packet_count = item_count;
 		}
 	}
-	if (par3_ctx->rec_data_packet_count > 0){
+	if (par3_ctx->recv_packet_count > 0){
 		if (par3_ctx->root_packet != NULL){
 			tmp_p = par3_ctx->root_packet + 8;	// checksum from Root Packet
 		} else {
 			tmp_p = NULL;
 		}
-		item_count = adjust_packet_list(par3_ctx->rec_data_packet_list, par3_ctx->rec_data_packet_count, id_list, id_count, tmp_p);
+		item_count = adjust_packet_list(par3_ctx->recv_packet_list, par3_ctx->recv_packet_count, id_list, id_count, tmp_p);
 		if (item_count == 0){
-			free(par3_ctx->rec_data_packet_list);
-			par3_ctx->rec_data_packet_list = NULL;
-			par3_ctx->rec_data_packet_count = 0;
-		} else if (item_count < par3_ctx->rec_data_packet_count){
-			list = realloc(par3_ctx->rec_data_packet_list, sizeof(PAR3_PKT_CTX) * item_count);
+			free(par3_ctx->recv_packet_list);
+			par3_ctx->recv_packet_list = NULL;
+			par3_ctx->recv_packet_count = 0;
+		} else if (item_count < par3_ctx->recv_packet_count){
+			list = realloc(par3_ctx->recv_packet_list, sizeof(PAR3_PKT_CTX) * item_count);
 			if (list == NULL){
 				perror("Failed to re-allocate memory for Recovery Data Packet");
 				return RET_MEMORY_ERROR;
 			}
-			par3_ctx->rec_data_packet_list = list;
-			par3_ctx->rec_data_packet_count = item_count;
+			par3_ctx->recv_packet_list = list;
+			par3_ctx->recv_packet_count = item_count;
 		}
 	}
 
@@ -782,8 +782,8 @@ int check_packet_set(PAR3_CTX *par3_ctx)
 			printf("Number of External Data Packets =%3u (%4I64d bytes)\n", par3_ctx->ext_data_packet_count, par3_ctx->ext_data_packet_size);
 		if (par3_ctx->data_packet_count > 0)
 			printf("Number of Data Packets          =%3I64u\n", par3_ctx->data_packet_count);
-		if (par3_ctx->rec_data_packet_count > 0)
-			printf("Number of Recovery Data Packets =%3I64u\n", par3_ctx->rec_data_packet_count);
+		if (par3_ctx->recv_packet_count > 0)
+			printf("Number of Recovery Data Packets =%3I64u\n", par3_ctx->recv_packet_count);
 	}
 
 	return 0;

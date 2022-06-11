@@ -218,8 +218,8 @@ int read_vital_packet(PAR3_CTX *par3_ctx)
 			printf("Number of External Data Packets =%3u (%4I64d bytes)\n", par3_ctx->ext_data_packet_count, par3_ctx->ext_data_packet_size);
 		if (par3_ctx->data_packet_count > 0)
 			printf("Number of Data Packets          =%3I64u\n", par3_ctx->data_packet_count);
-		if (par3_ctx->rec_data_packet_count > 0)
-			printf("Number of Recovery Data Packets =%3I64u\n", par3_ctx->rec_data_packet_count);
+		if (par3_ctx->recv_packet_count > 0)
+			printf("Number of Recovery Data Packets =%3I64u\n", par3_ctx->recv_packet_count);
 	}
 	ret = check_packet_set(par3_ctx);
 	if (ret != 0)

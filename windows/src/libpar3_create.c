@@ -251,6 +251,9 @@ int par3_create(PAR3_CTX *par3_ctx)
 		// it calculates recovery blocks before writing Recovery Data Packets.
 		if (par3_ctx->ecc_method & 0x1000){
 			ret = create_recovery_block(par3_ctx);
+
+//ret = -1;	// for test another reading method
+
 			if (ret < 0){
 				par3_ctx->ecc_method &= ~0x1000;
 			} else if (ret > 0){

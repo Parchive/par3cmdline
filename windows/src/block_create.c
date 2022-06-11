@@ -70,10 +70,11 @@ int create_recovery_block(PAR3_CTX *par3_ctx)
 	uint8_t gf_size;
 	int galois_poly;
 	int block_count, x_index;
-	int file_index, file_read;
+	int file_index, file_prev;
 	int progress_old, progress_now;
 	size_t block_size, region_size;
-	size_t data_size, read_size, tail_offset;
+	size_t data_size, read_size;
+	size_t tail_offset, tail_gap;
 	int64_t slice_index, file_offset;
 	PAR3_FILE_CTX *file_list;
 	PAR3_SLICE_CTX *slice_list;
@@ -118,7 +119,7 @@ int create_recovery_block(PAR3_CTX *par3_ctx)
 	}
 
 	// Reed-Solomon Erasure Codes
-	file_read = -1;
+	file_prev = -1;
 	fp = NULL;
 	for (x_index = 0; x_index < block_count; x_index++){
 		// Read each input block from input files.
@@ -140,11 +141,11 @@ int create_recovery_block(PAR3_CTX *par3_ctx)
 			// Read one slice from a file.
 			file_index = slice_list[slice_index].file;
 			file_offset = slice_list[slice_index].offset;
-			read_size = slice_list[slice_index].size;
+			read_size = data_size;
 			if (par3_ctx->noise_level >= 2){
 				printf("Reading %zu bytes of slice[%I64d] for input block[%d]\n", read_size, slice_index, x_index);
 			}
-			if ( (fp == NULL) || (file_index != file_read) ){
+			if ( (fp == NULL) || (file_index != file_prev) ){
 				if (fp != NULL){	// Close previous input file.
 					fclose(fp);
 					fp = NULL;
@@ -154,7 +155,7 @@ int create_recovery_block(PAR3_CTX *par3_ctx)
 					perror("Failed to open input file");
 					return RET_FILE_IO_ERROR;
 				}
-				file_read = file_index;
+				file_prev = file_index;
 			}
 			if (_fseeki64(fp, file_offset, SEEK_SET) != 0){
 				perror("Failed to seek input file");
@@ -162,7 +163,7 @@ int create_recovery_block(PAR3_CTX *par3_ctx)
 				return RET_FILE_IO_ERROR;
 			}
 			if (fread(work_buf, 1, read_size, fp) != read_size){
-				perror("Failed to read full slice on input file");
+				perror("Failed to read slice on input file");
 				fclose(fp);
 				return RET_FILE_IO_ERROR;
 			}
@@ -191,10 +192,12 @@ int create_recovery_block(PAR3_CTX *par3_ctx)
 				}
 
 				// Read one slice from a file.
+				tail_gap = tail_offset - slice_list[slice_index].tail_offset;	// This tail slice may start before tail_offset.
+				//printf("tail_gap for slice[%I64d] = %zu.\n", slice_index, tail_gap);
 				file_index = slice_list[slice_index].file;
-				file_offset = slice_list[slice_index].offset;
-				read_size = slice_list[slice_index].size;
-				if ( (fp == NULL) || (file_index != file_read) ){
+				file_offset = slice_list[slice_index].offset + tail_gap;
+				read_size = slice_list[slice_index].size - tail_gap;
+				if ( (fp == NULL) || (file_index != file_prev) ){
 					if (fp != NULL){	// Close previous input file.
 						fclose(fp);
 						fp = NULL;
@@ -204,7 +207,7 @@ int create_recovery_block(PAR3_CTX *par3_ctx)
 						perror("Failed to open input file");
 						return RET_FILE_IO_ERROR;
 					}
-					file_read = file_index;
+					file_prev = file_index;
 				}
 				if (_fseeki64(fp, file_offset, SEEK_SET) != 0){
 					perror("Failed to seek input file");
@@ -280,24 +283,50 @@ int create_recovery_block(PAR3_CTX *par3_ctx)
 // GF tables and recovery blocks were allocated already.
 int write_recovery_block(PAR3_CTX *par3_ctx)
 {
-	uint32_t split_index, split_count;
-	int64_t io_size, io_offset;
+	uint8_t *work_buf, *buf_p;
+	uint8_t gf_size;
+	int ret, galois_poly;
+	int file_index, file_prev;
+	uint32_t split_count;
+	size_t read_size;
+	int64_t slice_index, file_offset;
 	uint64_t block_size, block_count, recovery_block_count;
 	uint64_t alloc_size, region_size, split_size;
+	uint64_t data_size, part_size, split_offset;
+	uint64_t tail_offset, tail_gap;
+	uint64_t block_crc, index;
+	PAR3_FILE_CTX *file_list;
+	PAR3_SLICE_CTX *slice_list;
+	PAR3_BLOCK_CTX *block_list;
+	FILE *fp;
 
 	block_size = par3_ctx->block_size;
 	block_count = par3_ctx->block_count;
 	recovery_block_count = par3_ctx->recovery_block_count;
+	gf_size = par3_ctx->gf_size;
+	galois_poly = par3_ctx->galois_poly;
+	file_list = par3_ctx->input_file_list;
+	slice_list = par3_ctx->slice_list;
+	block_list = par3_ctx->block_list;
+
+	if (recovery_block_count == 0)
+		return -1;
+
+printf("\n This function isn't made yet.\n");
+return -1;
 
 	// Set required memory size at first
 	region_size = (block_size + 4 + 3) & ~3;
 	alloc_size = region_size * (block_count + recovery_block_count);
 
+// for test split
+par3_ctx->memory_limit = (alloc_size + 1) / 2;
+
 	// Limited memory usage
 	if ( (par3_ctx->memory_limit > 0) && (alloc_size > par3_ctx->memory_limit) ){
 		split_count = (uint32_t)((alloc_size + par3_ctx->memory_limit - 1) / par3_ctx->memory_limit);
-		split_size = block_size / split_count;	// splitted block size to fit in limited memory
-		split_size = (split_size + 3) & ~3;	// aligned to 4 bytes
+		split_size = (block_size + split_count - 1) / split_count;	// This is splitted block size to fit in limited memory.
+		split_size = (split_size + 1) & ~1;	// aligned to 2 bytes for 8 or 16-bit Galois Field
 	} else {
 		split_count = 1;
 		split_size = block_size;
@@ -308,11 +337,208 @@ int write_recovery_block(PAR3_CTX *par3_ctx)
 	region_size = (split_size + 4 + 3) & ~3;
 	alloc_size = region_size * (block_count + recovery_block_count);
 	printf("region_size = %I64u, alloc_size = %I64u\n", region_size, alloc_size);
-
-
-	for (split_index = 0; split_index < split_count; split_index++){
-
+	work_buf = malloc(alloc_size);
+	if (work_buf == NULL){
+		perror("Failed to allocate memory for block data");
+		return RET_MEMORY_ERROR;
 	}
+	par3_ctx->work_buf = work_buf;
+
+	if (par3_ctx->noise_level >= 0){
+		printf("\nComputing recovery blocks:\n");
+	}
+
+	// This file access style would support all Error Correction Codes.
+	for (split_offset = 0; split_offset < block_size; split_offset += split_size){
+		buf_p = work_buf;	// Starting position of input blocks
+		file_prev = -1;
+		fp = NULL;
+
+		// Read all input blocks on memory
+		for (index = 0; index < block_count; index++){
+			// Read each input block from input files.
+			data_size = block_list[index].size;
+			if (block_list[index].state & 1){	// including full size data
+				slice_index = block_list[index].slice;
+				while (slice_index != -1){
+					if (slice_list[slice_index].size == block_size)
+						break;
+					slice_index = slice_list[slice_index].next;
+				}
+				if (slice_index == -1){	// When there is no valid slice.
+					printf("Mapping information for block[%I64u] is wrong.\n", index);
+					if (fp != NULL)
+						fclose(fp);
+					return RET_LOGIC_ERROR;
+				}
+
+				// Read a part of slice from a file.
+				part_size = data_size - split_offset;
+				if (part_size > split_size)
+					part_size = split_size;
+				file_index = slice_list[slice_index].file;
+				file_offset = slice_list[slice_index].offset + split_offset;
+				read_size = part_size;
+				if (par3_ctx->noise_level >= 2){
+					printf("Reading %zu bytes of slice[%I64d] for input block[%I64u]\n", read_size, slice_index, index);
+				}
+				if ( (fp == NULL) || (file_index != file_prev) ){
+					if (fp != NULL){	// Close previous input file.
+						fclose(fp);
+						fp = NULL;
+					}
+					fp = fopen(file_list[file_index].name, "rb");
+					if (fp == NULL){
+						perror("Failed to open input file");
+						return RET_FILE_IO_ERROR;
+					}
+					file_prev = file_index;
+				}
+				if (_fseeki64(fp, file_offset, SEEK_SET) != 0){
+					perror("Failed to seek input file");
+					fclose(fp);
+					return RET_FILE_IO_ERROR;
+				}
+				if (fread(buf_p, 1, read_size, fp) != read_size){
+					perror("Failed to read slice on input file");
+					fclose(fp);
+					return RET_FILE_IO_ERROR;
+				}
+
+			} else if (data_size > split_offset){	// tail data only (one tail or packed tails)
+				part_size = data_size - split_offset;
+				if (part_size > split_size)
+					part_size = split_size;
+				if (par3_ctx->noise_level >= 2){
+					printf("Reading %I64u bytes for input block[%I64u]\n", part_size, index);
+				}
+				tail_offset = split_offset;
+
+				while (tail_offset < split_offset + part_size){	// Read tails until data end.
+					slice_index = block_list[index].slice;
+					while (slice_index != -1){
+						//printf("block = %I64u, size = %zu, offset = %zu, slice = %I64d\n", index, data_size, tail_offset, slice_index);
+						// Even when chunk tails are overlaped, it will find tail slice of next position.
+						if ( (slice_list[slice_index].tail_offset + slice_list[slice_index].size > tail_offset) &&
+								(slice_list[slice_index].tail_offset <= tail_offset) ){
+							break;
+						}
+						slice_index = slice_list[slice_index].next;
+					}
+					if (slice_index == -1){	// When there is no valid slice.
+						printf("Mapping information for block[%I64u] is wrong.\n", index);
+						if (fp != NULL)
+							fclose(fp);
+						return RET_LOGIC_ERROR;
+					}
+
+					// Read one slice from a file.
+					tail_gap = tail_offset - slice_list[slice_index].tail_offset;	// This tail slice may start before tail_offset.
+					//printf("tail_gap for slice[%I64d] = %zu.\n", slice_index, tail_gap);
+					file_index = slice_list[slice_index].file;
+					file_offset = slice_list[slice_index].offset + tail_gap;
+					read_size = slice_list[slice_index].size - tail_gap;
+					if ( (fp == NULL) || (file_index != file_prev) ){
+						if (fp != NULL){	// Close previous input file.
+							fclose(fp);
+							fp = NULL;
+						}
+						fp = fopen(file_list[file_index].name, "rb");
+						if (fp == NULL){
+							perror("Failed to open input file");
+							return RET_FILE_IO_ERROR;
+						}
+						file_prev = file_index;
+					}
+					if (_fseeki64(fp, file_offset, SEEK_SET) != 0){
+						perror("Failed to seek input file");
+						fclose(fp);
+						return RET_FILE_IO_ERROR;
+					}
+					if (fread(buf_p + tail_offset - split_offset, 1, read_size, fp) != read_size){
+						perror("Failed to read tail slice on input file");
+						fclose(fp);
+						return RET_FILE_IO_ERROR;
+					}
+					tail_offset += read_size;
+				}
+			}
+
+			// Calculate checksum of block to confirm that input file was not changed.
+			if (split_offset == 0){
+				block_crc = 0;
+			} else {
+				memcpy(&block_crc, block_list[index].hash, 8);	// Use previous CRC value
+			}
+			if (data_size > split_offset){	// When there is slice data to process.
+				block_crc = crc64(buf_p, part_size, block_crc);
+
+				// Calculate parity bytes in the region
+				if (gf_size == 2){
+					gf16_region_create_parity(galois_poly, buf_p, region_size, part_size);
+				} else if (gf_size == 1){
+					gf8_region_create_parity(galois_poly, buf_p, region_size, part_size);
+				} else {
+					region_create_parity(buf_p, region_size, part_size);
+				}
+			}
+			if (split_offset + split_size >= block_size){	// At the last
+				if (block_crc != block_list[index].crc){
+					printf("Checksum of block[%I64u] is different.\n", index);
+					fclose(fp);
+					return RET_LOGIC_ERROR;
+				}
+			} else {
+				memcpy(block_list[index].hash, &block_crc, 8);	// Save this CRC value
+			}
+
+			buf_p += region_size;	// Goto next partial block
+		}
+		if (fp != NULL){
+			if (fclose(fp) != 0){
+				perror("Failed to close input file");
+				return RET_FILE_IO_ERROR;
+			}
+			fp = NULL;
+		}
+
+		// Create all recovery blocks on memory
+		if (par3_ctx->ecc_method & 1){	// Reed-Solomon Erasure Codes
+			rs_create_all(par3_ctx, region_size);
+		}
+
+		// Write all recovery blocks on recovery files
+		part_size = data_size - split_offset;
+		if (part_size > split_size)
+			part_size = split_size;
+		buf_p = work_buf + region_size * block_count;	// Starting position of recovery blocks
+		file_prev = -1;
+		fp = NULL;
+		for (index = 0; index < recovery_block_count; index++){
+
+			// Check parity of recovery block to confirm that calculation was correct.
+			if (gf_size == 2){
+				ret = gf16_region_check_parity(galois_poly, buf_p, region_size, part_size);
+			} else if (gf_size == 1){
+				ret = gf8_region_check_parity(galois_poly, buf_p, region_size, part_size);
+			} else {
+				ret = region_check_parity(buf_p, region_size, part_size);
+			}
+			if (ret != 0){
+				printf("Parity of recovery block[%I64u] is different.\n", index);
+				if (fp != NULL)
+					fclose(fp);
+				return RET_LOGIC_ERROR;
+			}
+
+
+
+
+			buf_p += region_size;
+		}
+	}
+
+
 
 printf("\n This function isn't made yet.\n");
 return -1;

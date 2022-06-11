@@ -33,14 +33,14 @@ write chunk tails
 int recover_lost_block(PAR3_CTX *par3_ctx, char *temp_path, int lost_count)
 {
 	void *gf_table, *matrix;
-	char *file_read, *file_name;
+	char *name_prev, *file_name;
 	uint8_t *work_buf, buf_tail[40];
 	uint8_t *block_data, gf_size;
 	int galois_poly, *lost_id, *recv_id;
 	int block_count, block_index;
 	int x, y, factor;
 	int progress_old, progress_now, progress;
-	uint32_t file_count, file_index, file_write;
+	uint32_t file_count, file_index, file_prev;
 	uint32_t chunk_index, chunk_num;
 	size_t slice_size;
 	int64_t slice_index, file_offset;
@@ -72,8 +72,8 @@ int recover_lost_block(PAR3_CTX *par3_ctx, char *temp_path, int lost_count)
 	slice_list = par3_ctx->slice_list;
 	chunk_list = par3_ctx->chunk_list;
 	file_list = par3_ctx->input_file_list;
-	packet_list = par3_ctx->rec_data_packet_list;
-	packet_count = par3_ctx->rec_data_packet_count;
+	packet_list = par3_ctx->recv_packet_list;
+	packet_count = par3_ctx->recv_packet_count;
 
 	region_size = (block_size + 4 + 3) & ~3;
 
@@ -102,8 +102,8 @@ int recover_lost_block(PAR3_CTX *par3_ctx, char *temp_path, int lost_count)
 	}
 
 	// Read available input blocks
-	file_read = NULL;
-	file_write = 0xFFFFFFFF;
+	name_prev = NULL;
+	file_prev = 0xFFFFFFFF;
 	fp_read = NULL;
 	fp_write = NULL;
 	for (block_index = 0; block_index < block_count; block_index++){
@@ -133,7 +133,7 @@ int recover_lost_block(PAR3_CTX *par3_ctx, char *temp_path, int lost_count)
 			if (par3_ctx->noise_level >= 2){
 				printf("Reading %zu bytes of slice[%I64d] for input block[%d]\n", slice_size, slice_index, block_index);
 			}
-			if ( (fp_read == NULL) || (file_name != file_read) ){
+			if ( (fp_read == NULL) || (file_name != name_prev) ){
 				if (fp_read != NULL){	// Close previous input file.
 					fclose(fp_read);
 					fp_read = NULL;
@@ -145,7 +145,7 @@ int recover_lost_block(PAR3_CTX *par3_ctx, char *temp_path, int lost_count)
 						fclose(fp_write);
 					return RET_FILE_IO_ERROR;
 				}
-				file_read = file_name;
+				name_prev = file_name;
 			}
 			if (_fseeki64(fp_read, file_offset, SEEK_SET) != 0){
 				perror("Failed to seek input file");
@@ -191,7 +191,7 @@ int recover_lost_block(PAR3_CTX *par3_ctx, char *temp_path, int lost_count)
 				slice_size = slice_list[slice_index].size;
 				file_offset = slice_list[slice_index].find_offset;
 				file_name = slice_list[slice_index].find_name;
-				if ( (fp_read == NULL) || (file_name != file_read) ){
+				if ( (fp_read == NULL) || (file_name != name_prev) ){
 					if (fp_read != NULL){	// Close previous input file.
 						fclose(fp_read);
 						fp_read = NULL;
@@ -203,7 +203,7 @@ int recover_lost_block(PAR3_CTX *par3_ctx, char *temp_path, int lost_count)
 							fclose(fp_write);
 						return RET_FILE_IO_ERROR;
 					}
-					file_read = file_name;
+					name_prev = file_name;
 				}
 				if (_fseeki64(fp_read, file_offset, SEEK_SET) != 0){
 					perror("Failed to seek input file");
@@ -245,7 +245,7 @@ int recover_lost_block(PAR3_CTX *par3_ctx, char *temp_path, int lost_count)
 					if (par3_ctx->noise_level >= 2){
 						printf("Writing %zu bytes of slice[%I64d] on file[%u]:%I64d in input block[%d]\n", slice_size, slice_index, file_index, file_offset, block_index);
 					}
-					if ( (fp_write == NULL) || (file_index != file_write) ){
+					if ( (fp_write == NULL) || (file_index != file_prev) ){
 						if (fp_write != NULL){	// Close previous temporary file.
 							fclose(fp_write);
 							fp_write = NULL;
@@ -258,7 +258,7 @@ int recover_lost_block(PAR3_CTX *par3_ctx, char *temp_path, int lost_count)
 								fclose(fp_read);
 							return RET_FILE_IO_ERROR;
 						}
-						file_write = file_index;
+						file_prev = file_index;
 					}
 					if (_fseeki64(fp_write, file_offset, SEEK_SET) != 0){
 						perror("Failed to seek temporary file");
@@ -344,7 +344,7 @@ int recover_lost_block(PAR3_CTX *par3_ctx, char *temp_path, int lost_count)
 		if (par3_ctx->noise_level >= 2){
 			printf("Reading Recovery Data[%I64u] for recovery block[%d]\n", packet_index, block_index);
 		}
-		if ( (fp_read == NULL) || (file_name != file_read) ){
+		if ( (fp_read == NULL) || (file_name != name_prev) ){
 			if (fp_read != NULL){	// Close previous recovery file.
 				fclose(fp_read);
 				fp_read = NULL;
@@ -356,7 +356,7 @@ int recover_lost_block(PAR3_CTX *par3_ctx, char *temp_path, int lost_count)
 					fclose(fp_write);
 				return RET_FILE_IO_ERROR;
 			}
-			file_read = file_name;
+			name_prev = file_name;
 		}
 		if (_fseeki64(fp_read, file_offset, SEEK_SET) != 0){
 			perror("Failed to seek recovery file");
@@ -454,7 +454,7 @@ int recover_lost_block(PAR3_CTX *par3_ctx, char *temp_path, int lost_count)
 				if (par3_ctx->noise_level >= 2){
 					printf("Writing %zu bytes of slice[%I64d] on file[%u]:%I64d in lost block[%d]\n", slice_size, slice_index, file_index, file_offset, block_index);
 				}
-				if ( (fp_write == NULL) || (file_index != file_write) ){
+				if ( (fp_write == NULL) || (file_index != file_prev) ){
 					if (fp_write != NULL){	// Close previous temporary file.
 						fclose(fp_write);
 						fp_write = NULL;
@@ -465,7 +465,7 @@ int recover_lost_block(PAR3_CTX *par3_ctx, char *temp_path, int lost_count)
 						perror("Failed to open temporary file");
 						return RET_FILE_IO_ERROR;
 					}
-					file_write = file_index;
+					file_prev = file_index;
 				}
 				if (_fseeki64(fp_write, file_offset, SEEK_SET) != 0){
 					perror("Failed to seek temporary file");
@@ -516,7 +516,7 @@ int recover_lost_block(PAR3_CTX *par3_ctx, char *temp_path, int lost_count)
 					if (par3_ctx->noise_level >= 2){
 						printf("Writing %zu bytes of chunk[%u] tail on file[%u]:%I64d\n", slice_size, chunk_index, file_index, file_offset);
 					}
-					if ( (fp_write == NULL) || (file_index != file_write) ){
+					if ( (fp_write == NULL) || (file_index != file_prev) ){
 						if (fp_write != NULL){	// Close previous temporary file.
 							fclose(fp_write);
 							fp_write = NULL;
@@ -527,7 +527,7 @@ int recover_lost_block(PAR3_CTX *par3_ctx, char *temp_path, int lost_count)
 							perror("Failed to open temporary file");
 							return RET_FILE_IO_ERROR;
 						}
-						file_write = file_index;
+						file_prev = file_index;
 					}
 					if (_fseeki64(fp_write, file_offset, SEEK_SET) != 0){
 						perror("Failed to seek temporary file");

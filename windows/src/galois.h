@@ -13,8 +13,8 @@ void gf8_region_multiply(uint8_t *galois_log_table,
 						uint8_t *r2,		/* If r2 != NULL, products go here */
 						int add);
 
-void gf8_region_create_parity(int prim_poly, uint8_t *buf, size_t region_size, size_t block_size);
-int gf8_region_check_parity(int galois_poly, uint8_t *buf, size_t region_size, size_t block_size);
+void gf8_region_create_parity(int prim_poly, uint8_t *buf, size_t region_size, size_t data_size);
+int gf8_region_check_parity(int galois_poly, uint8_t *buf, size_t region_size, size_t data_size);
 
 
 // For 16-bit Galois Field
@@ -31,6 +31,6 @@ void gf16_region_multiply(uint16_t *galois_log_table,
 						uint8_t *r2,		/* If r2 != NULL, products go here */
 						int add);
 
-void gf16_region_create_parity(int prim_poly, uint8_t *buf, size_t region_size, size_t block_size);
-int gf16_region_check_parity(int galois_poly, uint8_t *buf, size_t region_size, size_t block_size);
+void gf16_region_create_parity(int prim_poly, uint8_t *buf, size_t region_size, size_t data_size);
+int gf16_region_check_parity(int galois_poly, uint8_t *buf, size_t region_size, size_t data_size);
 

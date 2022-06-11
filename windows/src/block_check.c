@@ -324,13 +324,13 @@ uint64_t aggregate_recovery_block(PAR3_CTX *par3_ctx)
 
 	if (par3_ctx->matrix_packet_count == 0)
 		return 0;
-	if (par3_ctx->rec_data_packet_count == 0)
+	if (par3_ctx->recv_packet_count == 0)
 		return 0;
 
 	buf = par3_ctx->matrix_packet;
 	total_size = par3_ctx->matrix_packet_size;
-	packet_list = par3_ctx->rec_data_packet_list;
-	packet_count = par3_ctx->rec_data_packet_count;
+	packet_list = par3_ctx->recv_packet_list;
+	packet_count = par3_ctx->recv_packet_count;
 
 	find_count_max = 0;
 	offset = 0;

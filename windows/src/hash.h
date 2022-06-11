@@ -21,6 +21,6 @@ void blake3(const uint8_t *buf, size_t size, uint8_t *hash);
 
 
 // parity bytes in the region
-void region_create_parity(uint8_t *buf, size_t region_size, size_t block_size);
-int region_check_parity(uint8_t *buf, size_t region_size, size_t block_size);
+void region_create_parity(uint8_t *buf, size_t region_size, size_t data_size);
+int region_check_parity(uint8_t *buf, size_t region_size, size_t data_size);
 
