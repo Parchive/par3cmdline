@@ -518,22 +518,25 @@ int write_archive_file(PAR3_CTX *par3_ctx)
 // Recovery Data packet with dummy recovery block
 static int write_recovery_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t each_start, uint64_t each_count)
 {
-	uint8_t *buf_p, *common_packet, packet_header[89];
+	uint8_t *buf_p, *common_packet, packet_header[88];
 	uint8_t gf_size;
 	int galois_poly, ret;
-	uint64_t num;
+	uint64_t num, first_num;
 	size_t block_size, region_size;
 	size_t write_size, write_size2;
 	size_t packet_count, packet_to, packet_from;
 	size_t common_packet_size, packet_size, packet_offset;
+	PAR3_POS_CTX *position_list;
 	FILE *fp;
 	blake3_hasher hasher;
 
 	block_size = par3_ctx->block_size;
+	first_num = par3_ctx->first_recovery_block;
 	gf_size = par3_ctx->gf_size;
 	galois_poly = par3_ctx->galois_poly;
 	common_packet = par3_ctx->common_packet;
 	common_packet_size = par3_ctx->common_packet_size;
+	position_list = par3_ctx->position_list;
 
 	region_size = (block_size + 4 + 3) & ~3;
 	buf_p = par3_ctx->block_data;
@@ -578,7 +581,6 @@ static int write_recovery_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t ea
 	memset(packet_header + 8, 0, 16);	// Zero fill checksum of packet as a sign of not calculated yet
 	memcpy(packet_header + 48, par3_ctx->root_packet + 8, 16);	// The checksum from the Root packet
 	memcpy(packet_header + 64, par3_ctx->matrix_packet + 8, 16);
-	packet_header[88] = 0;	// Zero for dummy data
 
 	// Recovery Data Packet and repeated common packets
 	packet_from = 0;
@@ -590,7 +592,7 @@ static int write_recovery_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t ea
 		// The index of the recovery block
 		memcpy(packet_header + 80, &num, 8);
 
-		// When there are enough memory to keep all recovery blocks,
+		// When there is enough memory to keep all recovery blocks,
 		// recovery blocks were created already.
 		if (par3_ctx->ecc_method & 0x1000){
 			// Check parity of recovery block to confirm that calculation was correct.
@@ -626,9 +628,20 @@ static int write_recovery_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t ea
 			}
 			buf_p += region_size;
 
+		// When there isn't enough memory to keep all blocks, zero fill the block area.
 		} else {
 			// Save position of each recovery block for later wariting.
-			
+			position_list[num - first_num].name = par3_ctx->par_file_name + par3_ctx->par_file_name_len - strlen(filename) - 1;
+			position_list[num - first_num].offset = _ftelli64(fp);
+			if (position_list[num - first_num].offset < 0){
+				perror("Failed to get current position of Recovery File");
+				fclose(fp);
+				return RET_FILE_IO_ERROR;
+			}
+			//printf("block[%I64u] offset = %I64d, %s\n", num, position_list[num - first_num].offset, position_list[num - first_num].name);
+
+			// Calculate CRC of packet data to check error, because state of BLAKE3 hash is too large.
+			position_list[num - first_num].crc = crc64(packet_header + 24, 64, 0);
 
 			// Write packet header and dummy data on file.
 			if (fwrite(packet_header, 1, 88, fp) != 88){
@@ -644,7 +657,7 @@ static int write_recovery_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t ea
 					return RET_FILE_IO_ERROR;
 				}
 			}
-			if (fwrite(packet_header + 88, 1, 1, fp) != 1){
+			if (fwrite(packet_header + 8, 1, 1, fp) != 1){	// Write the last 1 byte of zero.
 				perror("Failed to write Recovery Data Packet on Recovery File");
 				fclose(fp);
 				return RET_FILE_IO_ERROR;
@@ -740,6 +753,15 @@ int write_recovery_file(PAR3_CTX *par3_ctx)
 		//printf("len = %zu, base name = %s\n", len, filename);
 	}
 
+	// When recovery blocks were not created yet, allocate memory to store packet position.
+	if ((par3_ctx->ecc_method & 0x1000) == 0){
+		par3_ctx->position_list = malloc(sizeof(PAR3_POS_CTX) * block_count);
+		if (par3_ctx->position_list == NULL){
+			perror("Failed to allocate memory for position list");
+			return RET_MEMORY_ERROR;
+		}
+	}
+
 	// Calculate block count and digits max.
 	calculate_digit_max(par3_ctx, block_count, first_num, &base_num, &max_count, &digit_num1, &digit_num2);
 	if (len + 10 + digit_num1 + digit_num2 >= _MAX_PATH){	// .vol#+#.par3
@@ -787,6 +809,13 @@ int write_recovery_file(PAR3_CTX *par3_ctx)
 		}
 
 		sprintf(filename + len, ".vol%0*I64u+%0*I64u.par3", digit_num1, each_start, digit_num2, each_count);
+		if ((par3_ctx->ecc_method & 0x1000) == 0){
+			// When recovery blocks were not created yet, keep list of PAR filename.
+			if ( namez_add(&(par3_ctx->par_file_name), &(par3_ctx->par_file_name_len), &(par3_ctx->par_file_name_max), filename) != 0){
+				perror("Failed to allocate memory for PAR filename");
+				return RET_MEMORY_ERROR;
+			}
+		}
 		if (write_recovery_packet(par3_ctx, filename, each_start, each_count) != 0){
 			return RET_FILE_IO_ERROR;
 		}

@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #include "libpar3.h"
 #include "galois.h"
@@ -59,29 +60,36 @@ void rs_create_one_all(PAR3_CTX *par3_ctx, int x_index)
 }
 
 // Create all recovery blocks from all input blocks.
-void rs_create_all(PAR3_CTX *par3_ctx, size_t region_size)
+void rs_create_all(PAR3_CTX *par3_ctx, size_t region_size, uint64_t progress_total, uint64_t progress_step)
 {
 	void *gf_table;
-	uint8_t *work_buf, *input_p, *recv_p;
+	uint8_t *block_data, *input_p, *recv_p;
 	uint8_t gf_size;
 	int first_num, element;
 	int x_index, y_index, y_R;
 	int block_count, recovery_block_count;
+	int progress_old, progress_now;
+	time_t time_old, time_now;
 
 	block_count = (int)(par3_ctx->block_count);
 	recovery_block_count = (int)(par3_ctx->recovery_block_count);
 	first_num = (int)(par3_ctx->first_recovery_block);
 	gf_size = par3_ctx->gf_size;
 	gf_table = par3_ctx->galois_table;
-	work_buf = par3_ctx->work_buf;
-	recv_p = work_buf + region_size * block_count;
+	block_data = par3_ctx->block_data;
+	recv_p = block_data + region_size * block_count;
+
+	if (par3_ctx->noise_level >= 0){
+		progress_old = 0;
+		time_old = time(NULL);
+	}
 
 	// For every recovery block
 	for (y_index = 0; y_index < recovery_block_count; y_index++){
+		input_p = block_data;
 
 		// For every input block
 		for (x_index = 0; x_index < block_count; x_index++){
-			input_p = work_buf;
 
 			// Calculate Matrix elements
 			if (par3_ctx->gf_size == 2){	// 16-bit Galois Field
@@ -103,6 +111,20 @@ void rs_create_all(PAR3_CTX *par3_ctx, size_t region_size)
 			//printf("x = %d, R = %d, y_R = %d, element = %d\n", x_index, y_index + first_num, y_R, element);
 
 			input_p += region_size;
+		}
+
+		// Print progress percent
+		progress_step += block_count;
+		if ( (par3_ctx->noise_level >= 0) && (par3_ctx->noise_level <= 1) ){
+			time_now = time(NULL);
+			if (time_now != time_old){
+				time_old = time_now;
+				progress_now = (int)((progress_step * 1000) / progress_total);
+				if (progress_now != progress_old){
+					progress_old = progress_now;
+					printf("%d.%d%%\r", progress_now / 10, progress_now % 10);	// 0.0% ~ 100.0%
+				}
+			}
 		}
 
 		recv_p += region_size;

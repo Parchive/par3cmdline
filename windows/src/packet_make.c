@@ -38,9 +38,6 @@ static int generate_set_id(PAR3_CTX *par3_ctx, uint8_t *buf, size_t body_size)
 
 	blake3_hasher_init(&hasher);
 
-	// parent's InputSetID, block size, Galois field parameters
-	blake3_hasher_update(&hasher, buf, body_size);
-
 	// all the files' contents
 	if (par3_ctx->input_file_count > 0){
 		uint32_t index;
@@ -137,6 +134,7 @@ static int generate_set_id(PAR3_CTX *par3_ctx, uint8_t *buf, size_t body_size)
 
 	// calculate hash of packet body for InputSetID
 	blake3_hasher_init(&hasher);
+	// random number, parent's InputSetID, parent's Root, block size, Galois field parameters
 	blake3_hasher_update(&hasher, buf, body_size);
 	blake3_hasher_finalize(&hasher, buf - 16, 8);
 
@@ -207,7 +205,7 @@ int make_start_packet(PAR3_CTX *par3_ctx, int flag_trial)
 			return RET_LOGIC_ERROR;
 		}
 		memcpy(par3_ctx->set_id, par3_ctx->start_packet + 32, 8);
-		if (par3_ctx->noise_level >= 2){
+		if (par3_ctx->noise_level >= 0){
 			printf("InputSetID = %02X %02X %02X %02X %02X %02X %02X %02X\n",
 					par3_ctx->set_id[0], par3_ctx->set_id[1], par3_ctx->set_id[2], par3_ctx->set_id[3],
 					par3_ctx->set_id[4], par3_ctx->set_id[5], par3_ctx->set_id[6], par3_ctx->set_id[7]);

@@ -100,12 +100,11 @@ typedef struct {
 	int64_t offset;		// offset bytes of packet
 } PAR3_PKT_CTX;
 
-/*
 typedef struct {
+	uint64_t crc;		// CRC-64 of packet
 	char *name;			// name of belong file
 	int64_t offset;		// offset bytes of packet
 } PAR3_POS_CTX;
-*/
 
 typedef struct {
 	// Command-line options
@@ -218,6 +217,7 @@ typedef struct {
 	size_t common_packet_size;		// total size of duplicated common packets
 	size_t common_packet_count;
 
+	PAR3_POS_CTX *position_list;	// List of packet position
 	PAR3_PKT_CTX *data_packet_list;	// List of Data Packets
 	uint64_t data_packet_count;
 	PAR3_PKT_CTX *recv_packet_list;	// List of Recovery Data Packets

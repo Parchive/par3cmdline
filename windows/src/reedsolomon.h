@@ -3,7 +3,7 @@
 void rs_create_one_all(PAR3_CTX *par3_ctx, int x_index);
 
 // Create all recovery blocks from all input blocks.
-void rs_create_all(PAR3_CTX *par3_ctx, size_t region_size);
+void rs_create_all(PAR3_CTX *par3_ctx, size_t region_size, uint64_t progress_total, uint64_t progress_step);
 
 
 // Construct matrix for Reed-Solomon, and solve linear equation.

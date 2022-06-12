@@ -152,18 +152,18 @@ int create_recovery_block(PAR3_CTX *par3_ctx)
 				}
 				fp = fopen(file_list[file_index].name, "rb");
 				if (fp == NULL){
-					perror("Failed to open input file");
+					perror("Failed to open Input File");
 					return RET_FILE_IO_ERROR;
 				}
 				file_prev = file_index;
 			}
 			if (_fseeki64(fp, file_offset, SEEK_SET) != 0){
-				perror("Failed to seek input file");
+				perror("Failed to seek Input File");
 				fclose(fp);
 				return RET_FILE_IO_ERROR;
 			}
 			if (fread(work_buf, 1, read_size, fp) != read_size){
-				perror("Failed to read slice on input file");
+				perror("Failed to read slice on Input File");
 				fclose(fp);
 				return RET_FILE_IO_ERROR;
 			}
@@ -204,18 +204,18 @@ int create_recovery_block(PAR3_CTX *par3_ctx)
 					}
 					fp = fopen(file_list[file_index].name, "rb");
 					if (fp == NULL){
-						perror("Failed to open input file");
+						perror("Failed to open Input File");
 						return RET_FILE_IO_ERROR;
 					}
 					file_prev = file_index;
 				}
 				if (_fseeki64(fp, file_offset, SEEK_SET) != 0){
-					perror("Failed to seek input file");
+					perror("Failed to seek Input File");
 					fclose(fp);
 					return RET_FILE_IO_ERROR;
 				}
 				if (fread(work_buf + tail_offset, 1, read_size, fp) != read_size){
-					perror("Failed to read tail slice on input file");
+					perror("Failed to read tail slice on Input File");
 					fclose(fp);
 					return RET_FILE_IO_ERROR;
 				}
@@ -262,7 +262,7 @@ int create_recovery_block(PAR3_CTX *par3_ctx)
 	}
 	if (fp != NULL){
 		if (fclose(fp) != 0){
-			perror("Failed to close input file");
+			perror("Failed to close Input File");
 			return RET_FILE_IO_ERROR;
 		}
 	}
@@ -283,10 +283,12 @@ int create_recovery_block(PAR3_CTX *par3_ctx)
 // GF tables and recovery blocks were allocated already.
 int write_recovery_block(PAR3_CTX *par3_ctx)
 {
-	uint8_t *work_buf, *buf_p;
+	char *name_prev, *file_name;
+	uint8_t *block_data, *buf_p;
 	uint8_t gf_size;
 	int ret, galois_poly;
 	int file_index, file_prev;
+	int progress_old, progress_now;
 	uint32_t split_count;
 	size_t read_size;
 	int64_t slice_index, file_offset;
@@ -294,11 +296,15 @@ int write_recovery_block(PAR3_CTX *par3_ctx)
 	uint64_t alloc_size, region_size, split_size;
 	uint64_t data_size, part_size, split_offset;
 	uint64_t tail_offset, tail_gap;
-	uint64_t block_crc, index;
+	uint64_t crc, index;
+	uint64_t progress_total, progress_step;
 	PAR3_FILE_CTX *file_list;
 	PAR3_SLICE_CTX *slice_list;
 	PAR3_BLOCK_CTX *block_list;
+	PAR3_POS_CTX *position_list;
 	FILE *fp;
+	time_t time_old, time_now;
+	clock_t clock_now;
 
 	block_size = par3_ctx->block_size;
 	block_count = par3_ctx->block_count;
@@ -308,51 +314,57 @@ int write_recovery_block(PAR3_CTX *par3_ctx)
 	file_list = par3_ctx->input_file_list;
 	slice_list = par3_ctx->slice_list;
 	block_list = par3_ctx->block_list;
+	position_list = par3_ctx->position_list;
 
 	if (recovery_block_count == 0)
 		return -1;
-
-printf("\n This function isn't made yet.\n");
-return -1;
 
 	// Set required memory size at first
 	region_size = (block_size + 4 + 3) & ~3;
 	alloc_size = region_size * (block_count + recovery_block_count);
 
-// for test split
-par3_ctx->memory_limit = (alloc_size + 1) / 2;
+	// for test split
+	//par3_ctx->memory_limit = (alloc_size + 2) / 3;
 
 	// Limited memory usage
 	if ( (par3_ctx->memory_limit > 0) && (alloc_size > par3_ctx->memory_limit) ){
 		split_count = (uint32_t)((alloc_size + par3_ctx->memory_limit - 1) / par3_ctx->memory_limit);
 		split_size = (block_size + split_count - 1) / split_count;	// This is splitted block size to fit in limited memory.
 		split_size = (split_size + 1) & ~1;	// aligned to 2 bytes for 8 or 16-bit Galois Field
+		if (par3_ctx->noise_level >= 1){
+			printf("\nSplit block to %u pieces of %I64u bytes.\n", split_count, split_size);
+		}
 	} else {
 		split_count = 1;
 		split_size = block_size;
 	}
-	printf("split_count = %u, split_size = %I64u\n", split_count, split_size);
 
 	// Allocate memory to keep all splitted blocks.
 	region_size = (split_size + 4 + 3) & ~3;
 	alloc_size = region_size * (block_count + recovery_block_count);
-	printf("region_size = %I64u, alloc_size = %I64u\n", region_size, alloc_size);
-	work_buf = malloc(alloc_size);
-	if (work_buf == NULL){
+	//printf("region_size = %I64u, alloc_size = %I64u\n", region_size, alloc_size);
+	block_data = malloc(alloc_size);
+	if (block_data == NULL){
 		perror("Failed to allocate memory for block data");
 		return RET_MEMORY_ERROR;
 	}
-	par3_ctx->work_buf = work_buf;
+	par3_ctx->block_data = block_data;
 
 	if (par3_ctx->noise_level >= 0){
 		printf("\nComputing recovery blocks:\n");
+		progress_total = (block_count * recovery_block_count + block_count + recovery_block_count) * split_count;
+		progress_step = 0;
+		progress_old = 0;
+		time_old = time(NULL);
+		clock_now = clock();
 	}
 
 	// This file access style would support all Error Correction Codes.
+	name_prev = NULL;
+	fp = NULL;
 	for (split_offset = 0; split_offset < block_size; split_offset += split_size){
-		buf_p = work_buf;	// Starting position of input blocks
+		buf_p = block_data;	// Starting position of input blocks
 		file_prev = -1;
-		fp = NULL;
 
 		// Read all input blocks on memory
 		for (index = 0; index < block_count; index++){
@@ -389,18 +401,18 @@ par3_ctx->memory_limit = (alloc_size + 1) / 2;
 					}
 					fp = fopen(file_list[file_index].name, "rb");
 					if (fp == NULL){
-						perror("Failed to open input file");
+						perror("Failed to open Input File");
 						return RET_FILE_IO_ERROR;
 					}
 					file_prev = file_index;
 				}
 				if (_fseeki64(fp, file_offset, SEEK_SET) != 0){
-					perror("Failed to seek input file");
+					perror("Failed to seek Input File");
 					fclose(fp);
 					return RET_FILE_IO_ERROR;
 				}
 				if (fread(buf_p, 1, read_size, fp) != read_size){
-					perror("Failed to read slice on input file");
+					perror("Failed to read slice on Input File");
 					fclose(fp);
 					return RET_FILE_IO_ERROR;
 				}
@@ -445,58 +457,77 @@ par3_ctx->memory_limit = (alloc_size + 1) / 2;
 						}
 						fp = fopen(file_list[file_index].name, "rb");
 						if (fp == NULL){
-							perror("Failed to open input file");
+							perror("Failed to open Input File");
 							return RET_FILE_IO_ERROR;
 						}
 						file_prev = file_index;
 					}
 					if (_fseeki64(fp, file_offset, SEEK_SET) != 0){
-						perror("Failed to seek input file");
+						perror("Failed to seek Input File");
 						fclose(fp);
 						return RET_FILE_IO_ERROR;
 					}
 					if (fread(buf_p + tail_offset - split_offset, 1, read_size, fp) != read_size){
-						perror("Failed to read tail slice on input file");
+						perror("Failed to read tail slice on Input File");
 						fclose(fp);
 						return RET_FILE_IO_ERROR;
 					}
 					tail_offset += read_size;
 				}
+
+			} else {	// Zero fill partial input block
+				memset(buf_p, 0, region_size);
 			}
 
 			// Calculate checksum of block to confirm that input file was not changed.
 			if (split_offset == 0){
-				block_crc = 0;
+				crc = 0;
 			} else {
-				memcpy(&block_crc, block_list[index].hash, 8);	// Use previous CRC value
+				memcpy(&crc, block_list[index].hash, 8);	// Use previous CRC value
 			}
 			if (data_size > split_offset){	// When there is slice data to process.
-				block_crc = crc64(buf_p, part_size, block_crc);
+				if (part_size < split_size)
+					memset(buf_p + part_size, 0, split_size - part_size);	// Zero fill rest bytes
+				crc = crc64(buf_p, part_size, crc);
 
 				// Calculate parity bytes in the region
 				if (gf_size == 2){
-					gf16_region_create_parity(galois_poly, buf_p, region_size, part_size);
+					gf16_region_create_parity(galois_poly, buf_p, region_size, split_size);
 				} else if (gf_size == 1){
-					gf8_region_create_parity(galois_poly, buf_p, region_size, part_size);
+					gf8_region_create_parity(galois_poly, buf_p, region_size, split_size);
 				} else {
-					region_create_parity(buf_p, region_size, part_size);
+					region_create_parity(buf_p, region_size, split_size);
 				}
 			}
 			if (split_offset + split_size >= block_size){	// At the last
-				if (block_crc != block_list[index].crc){
+				if (crc != block_list[index].crc){
 					printf("Checksum of block[%I64u] is different.\n", index);
 					fclose(fp);
 					return RET_LOGIC_ERROR;
 				}
 			} else {
-				memcpy(block_list[index].hash, &block_crc, 8);	// Save this CRC value
+				memcpy(block_list[index].hash, &crc, 8);	// Save this CRC value
+			}
+
+			// Print progress percent
+			progress_step++;
+			if ( (par3_ctx->noise_level >= 0) && (par3_ctx->noise_level <= 1) ){
+				time_now = time(NULL);
+				if (time_now != time_old){
+					time_old = time_now;
+					progress_now = (int)((progress_step * 1000) / progress_total);
+					if (progress_now != progress_old){
+						progress_old = progress_now;
+						printf("%d.%d%%\r", progress_now / 10, progress_now % 10);	// 0.0% ~ 100.0%
+					}
+				}
 			}
 
 			buf_p += region_size;	// Goto next partial block
 		}
 		if (fp != NULL){
 			if (fclose(fp) != 0){
-				perror("Failed to close input file");
+				perror("Failed to close Input File");
 				return RET_FILE_IO_ERROR;
 			}
 			fp = NULL;
@@ -504,25 +535,25 @@ par3_ctx->memory_limit = (alloc_size + 1) / 2;
 
 		// Create all recovery blocks on memory
 		if (par3_ctx->ecc_method & 1){	// Reed-Solomon Erasure Codes
-			rs_create_all(par3_ctx, region_size);
+			rs_create_all(par3_ctx, region_size, progress_total, progress_step);
 		}
+		progress_step += block_count * recovery_block_count;
+		time_old = time(NULL);
 
 		// Write all recovery blocks on recovery files
 		part_size = data_size - split_offset;
 		if (part_size > split_size)
 			part_size = split_size;
-		buf_p = work_buf + region_size * block_count;	// Starting position of recovery blocks
-		file_prev = -1;
-		fp = NULL;
+		buf_p = block_data + region_size * block_count;	// Starting position of recovery blocks
 		for (index = 0; index < recovery_block_count; index++){
 
 			// Check parity of recovery block to confirm that calculation was correct.
 			if (gf_size == 2){
-				ret = gf16_region_check_parity(galois_poly, buf_p, region_size, part_size);
+				ret = gf16_region_check_parity(galois_poly, buf_p, region_size, split_size);
 			} else if (gf_size == 1){
-				ret = gf8_region_check_parity(galois_poly, buf_p, region_size, part_size);
+				ret = gf8_region_check_parity(galois_poly, buf_p, region_size, split_size);
 			} else {
-				ret = region_check_parity(buf_p, region_size, part_size);
+				ret = region_check_parity(buf_p, region_size, split_size);
 			}
 			if (ret != 0){
 				printf("Parity of recovery block[%I64u] is different.\n", index);
@@ -531,17 +562,137 @@ par3_ctx->memory_limit = (alloc_size + 1) / 2;
 				return RET_LOGIC_ERROR;
 			}
 
+			// Position of Recovery Data Packet in recovery file
+			file_name = position_list[index].name;
+			file_offset = position_list[index].offset + 88 + split_offset;
 
+			// Calculate CRC of packet data to check error later.
+			position_list[index].crc = crc64(buf_p, part_size, position_list[index].crc);
 
+			// Write partial recovery block
+			if ( (fp == NULL) || (file_name != name_prev) ){
+				if (fp != NULL){	// Close previous input file.
+					fclose(fp);
+					fp = NULL;
+				}
+				fp = fopen(file_name, "r+b");	// Over-write on existing file
+				if (fp == NULL){
+					perror("Failed to open Recovery File");
+					return RET_FILE_IO_ERROR;
+				}
+				name_prev = file_name;
+			}
+			if (_fseeki64(fp, file_offset, SEEK_SET) != 0){
+				perror("Failed to seek Recovery File");
+				fclose(fp);
+				return RET_FILE_IO_ERROR;
+			}
+			if (fwrite(buf_p, 1, part_size, fp) != part_size){
+				perror("Failed to write Recovery Block on Recovery File");
+				fclose(fp);
+				return RET_FILE_IO_ERROR;
+			}
+
+			// Print progress percent
+			progress_step++;
+			if ( (par3_ctx->noise_level >= 0) && (par3_ctx->noise_level <= 1) ){
+				time_now = time(NULL);
+				if (time_now != time_old){
+					time_old = time_now;
+					progress_now = (int)((progress_step * 1000) / progress_total);
+					if (progress_now != progress_old){
+						progress_old = progress_now;
+						printf("%d.%d%%\r", progress_now / 10, progress_now % 10);	// 0.0% ~ 100.0%
+					}
+				}
+			}
 
 			buf_p += region_size;
 		}
 	}
 
+	free(block_data);
+	par3_ctx->block_data = NULL;
 
+	// Allocate memory to read one Recovery Data Packet.
+	alloc_size = 80 + block_size;
+	buf_p = malloc(alloc_size);
+	if (buf_p == NULL){
+		perror("Failed to allocate memory for Recovery Data Packet");
+		return RET_MEMORY_ERROR;
+	}
+	par3_ctx->work_buf = buf_p;
 
-printf("\n This function isn't made yet.\n");
-return -1;
+	// Calculate checksum of every Recovery Data Packet
+	read_size = 64 + block_size;	// packet header after checksum and packet body
+	for (index = 0; index < recovery_block_count; index++){
+		// Position of Recovery Data Packet in recovery file
+		file_name = position_list[index].name;
+		file_offset = position_list[index].offset + 8;	// Offset of checksum
+
+		// Read packet data and write checksum
+		if ( (fp == NULL) || (file_name != name_prev) ){
+			if (fp != NULL){	// Close previous input file.
+				fclose(fp);
+				fp = NULL;
+			}
+			fp = fopen(file_name, "r+b");	// Over-write on existing file
+			if (fp == NULL){
+				perror("Failed to open Recovery File");
+				return RET_FILE_IO_ERROR;
+			}
+			name_prev = file_name;
+		}
+		if (_fseeki64(fp, file_offset + 16, SEEK_SET) != 0){
+			perror("Failed to seek Recovery File");
+			fclose(fp);
+			return RET_FILE_IO_ERROR;
+		}
+		if (fread(buf_p + 16, 1, read_size, fp) != read_size){
+			perror("Failed to read Recovery Data Packet");
+			fclose(fp);
+			return RET_FILE_IO_ERROR;
+		}
+
+		// Compare CRC of written packet data to confirm integrity.
+		crc = crc64(buf_p + 16, read_size, 0);
+		if (crc != position_list[index].crc){
+			printf("Packet data of recovery block[%I64u] is different.\n", index);
+			fclose(fp);
+			return RET_LOGIC_ERROR;
+		}
+
+		// Calculate checksum of this packet
+		blake3(buf_p + 16, read_size, buf_p);
+
+		// Write checksum
+		if (_fseeki64(fp, file_offset, SEEK_SET) != 0){
+			perror("Failed to seek Recovery File");
+			fclose(fp);
+			return RET_FILE_IO_ERROR;
+		}
+		if (fwrite(buf_p, 1, 16, fp) != 16){
+			perror("Failed to write checksum of Recovery Data Packet");
+			fclose(fp);
+			return RET_FILE_IO_ERROR;
+		}
+	}
+	if (fclose(fp) != 0){
+		perror("Failed to close Recovery File");
+		return RET_FILE_IO_ERROR;
+	}
+
+	if (par3_ctx->noise_level >= 0){
+		clock_now = clock() - clock_now;
+		printf("done in %.1f seconds.\n", (double)clock_now / CLOCKS_PER_SEC);
+		printf("\n");
+	}
+
+	// Release some allocated memory
+	free(buf_p);
+	par3_ctx->work_buf = NULL;
+	free(position_list);
+	par3_ctx->position_list = NULL;
 
 	return 0;
 }
