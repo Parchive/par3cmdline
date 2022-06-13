@@ -140,6 +140,15 @@ If you add other type files, they will be verified as input files.
 
 
 
+[ About "repair" command ]
+
+ Even when there are not enough blocks to repair all files,
+it may try to repair as possible as it can.
+When it could not reapir any files at all, this command returns RET_REPAIR_NOT_POSSIBLE(2).
+When it reapired some files, this command returns RET_REPAIR_FAILED(2).
+
+
+
 [ About specifying "PAR3 file" and "files" ]
 
  If you wish to create PAR3 files for a single source file,
