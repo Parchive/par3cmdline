@@ -673,7 +673,7 @@ int main(int argc, char *argv[])
 
 		} else {
 			ret = par3_repair(par3_ctx, file_name);
-			if ( (ret != 0) && (ret != RET_REPAIR_FAILED) ){
+			if ( (ret != 0) && (ret != RET_REPAIR_FAILED) && (ret != RET_REPAIR_NOT_POSSIBLE) ){
 				printf("Failed to repair with PAR3 file\n");
 				goto prepare_return;
 			}

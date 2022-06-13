@@ -281,7 +281,7 @@ int create_recovery_block(PAR3_CTX *par3_ctx)
 
 // This keeps all input blocks and recovery blocks partially by spliting every block.
 // GF tables and recovery blocks were allocated already.
-int write_recovery_block(PAR3_CTX *par3_ctx)
+int create_recovery_block_split(PAR3_CTX *par3_ctx)
 {
 	char *name_prev, *file_name;
 	uint8_t *block_data, *buf_p;

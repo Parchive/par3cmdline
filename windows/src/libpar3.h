@@ -48,7 +48,7 @@ typedef struct {
 	uint32_t state;		// Result of verification (bit flag)
 						// 1 = missing, 2 = damaged
 						// 4 = misnamed, higher bit is (extra_id << 3).
-						// 0x0100 = repaired
+						// 0x0100 = repaired, 0x0200 = repairable
 						// 0x8000 = not file
 } PAR3_FILE_CTX;
 

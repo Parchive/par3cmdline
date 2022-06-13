@@ -160,7 +160,7 @@ int rs_compute_matrix(PAR3_CTX *par3_ctx, uint64_t lost_count)
 
 	// Only when it uses Reed-Solomon Erasure Codes.
 	if ((par3_ctx->ecc_method & 1) == 0)
-		return 0;
+		return RET_LOGIC_ERROR;
 
 	// Make list of index (lost input blocks and using recovery blocks)
 	lost_id = (int *) malloc(sizeof(int) * lost_count * 2);
@@ -242,6 +242,7 @@ int rs_compute_matrix(PAR3_CTX *par3_ctx, uint64_t lost_count)
 
 	// Allocate memory to keep lost blocks
 	par3_ctx->block_data = malloc(alloc_size);
+//par3_ctx->block_data = NULL;	// For testing another method
 	if (par3_ctx->block_data == NULL){
 		// When it cannot allocate memory, it will retry later.
 		par3_ctx->ecc_method &= ~0x1000;

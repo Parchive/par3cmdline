@@ -47,6 +47,7 @@ int par3_verify(PAR3_CTX *par3_ctx)
 	int ret;
 	uint32_t missing_dir_count, missing_file_count;
 	uint32_t misnamed_file_count, damaged_file_count;
+	uint32_t possible_count;
 	uint64_t block_count, block_available, recovery_block_available;
 
 	ret = read_vital_packet(par3_ctx);
@@ -173,8 +174,13 @@ int par3_verify(PAR3_CTX *par3_ctx)
 		return RET_REPAIR_POSSIBLE;
 
 	} else {	// Need more blocks to repair.
+		possible_count = check_possible_restore(par3_ctx);
 		if (par3_ctx->noise_level >= -1){
-			printf("Repair is not possible.\n");
+			if (missing_dir_count + possible_count > 0){
+				printf("Repair is possible partially.\n");
+			} else {
+				printf("Repair is not possible.\n");
+			}
 			printf("You need %I64u more recovery blocks to be able to repair.\n", block_count - block_available - recovery_block_available);
 		}
 		return RET_REPAIR_NOT_POSSIBLE;
@@ -186,6 +192,7 @@ int par3_repair(PAR3_CTX *par3_ctx, char *temp_path)
 	int ret;
 	uint32_t missing_dir_count, missing_file_count;
 	uint32_t misnamed_file_count, damaged_file_count;
+	uint32_t possible_count;
 	uint64_t block_count, block_available, recovery_block_available;
 
 	ret = read_vital_packet(par3_ctx);
@@ -311,9 +318,18 @@ int par3_repair(PAR3_CTX *par3_ctx, char *temp_path)
 		}
 
 	} else {	// Need more blocks to repair.
+		possible_count = check_possible_restore(par3_ctx);
 		if (par3_ctx->noise_level >= -1){
-			printf("Repair is not possible.\n");
+			if (missing_dir_count + possible_count > 0){
+				printf("Repair is possible partially.\n");
+			} else {
+				printf("Repair is not possible.\n");
+			}
 			printf("You need %I64u more recovery blocks to be able to repair.\n", block_count - block_available - recovery_block_available);
+		}
+		if (missing_dir_count + possible_count == 0){
+			// When repair is impossible at all, end here.
+			return RET_REPAIR_NOT_POSSIBLE;
 		}
 		// Even when complete repair is impossible, try to repair as possible as it can.
 	}
@@ -361,14 +377,29 @@ int par3_repair(PAR3_CTX *par3_ctx, char *temp_path)
 					return ret;
 			}
 
+		//} else {	// Other Recovery Codes
+
+
+		}
+
+		// When lost input blocks were not recovered yet
+		if ((par3_ctx->ecc_method & 0x1000) == 0){
+			// Recover lost input blocks
+			ret = recover_lost_block_split(par3_ctx, temp_path, block_count - block_available);
+			if (ret != 0)
+				return ret;
 		}
 
 	// Even when blocks are not enough, this tries to repair as possible as it can.
-	//} else {
-
+	} else {
+		// Try to restore content of input files
+		ret = try_restore_input_file(par3_ctx, temp_path);
+		if (ret != 0)
+			return ret;
 	}
 
 	// Verify repaired file and rename to original name
+	possible_count = missing_dir_count + missing_file_count + damaged_file_count + misnamed_file_count;
 	ret = verify_repaired_file(par3_ctx, temp_path, &missing_file_count, &damaged_file_count, &misnamed_file_count);
 	if (ret != 0)
 		return ret;
@@ -377,6 +408,11 @@ int par3_repair(PAR3_CTX *par3_ctx, char *temp_path)
 		// When it repaired all input set
 		printf("\nRepair complete.\n");
 		return 0;
+
+	} else if (missing_dir_count + missing_file_count + damaged_file_count + misnamed_file_count < possible_count){
+		// Though it repaired some files, others are damaged or missing still.
+		printf("\nRepair partially.\n");
+		return RET_REPAIR_FAILED;
 
 	} else {
 		// There are damaged or missing files still.

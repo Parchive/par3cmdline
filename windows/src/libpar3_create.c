@@ -250,7 +250,6 @@ int par3_create(PAR3_CTX *par3_ctx)
 		// If there are enough memory to keep all recovery blocks,
 		// it calculates recovery blocks before writing Recovery Data Packets.
 		if (par3_ctx->ecc_method & 0x1000){
-			//ret = -1;	// for test another reading method
 			ret = create_recovery_block(par3_ctx);
 			if (ret < 0){
 				par3_ctx->ecc_method &= ~0x1000;
@@ -268,7 +267,7 @@ int par3_create(PAR3_CTX *par3_ctx)
 
 		// When recovery blocks were not created yet, calculate and write at here.
 		if ((par3_ctx->ecc_method & 0x1000) == 0){
-			ret = write_recovery_block(par3_ctx);
+			ret = create_recovery_block_split(par3_ctx);
 			if (ret != 0)
 				return ret;
 		}

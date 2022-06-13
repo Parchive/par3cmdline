@@ -365,3 +365,74 @@ uint64_t aggregate_recovery_block(PAR3_CTX *par3_ctx)
 	return find_count_max;
 }
 
+// How many files to restore, when there are not enough blocks.
+uint32_t check_possible_restore(PAR3_CTX *par3_ctx)
+{
+	char *find_name;
+	uint32_t possible_count;
+	uint32_t file_count, file_index;
+	uint32_t chunk_index, chunk_num;
+	int64_t slice_index;
+	uint64_t block_size, chunk_size, file_size, slice_size;
+	PAR3_SLICE_CTX *slice_list;
+	PAR3_CHUNK_CTX *chunk_list;
+	PAR3_FILE_CTX *file_list;
+
+	if (par3_ctx->input_file_count == 0)
+		return 0;
+
+	file_count = par3_ctx->input_file_count;
+	block_size = par3_ctx->block_size;
+	slice_list = par3_ctx->slice_list;
+	chunk_list = par3_ctx->chunk_list;
+	file_list = par3_ctx->input_file_list;
+
+	possible_count = 0;
+	for (file_index = 0; file_index < file_count; file_index++){
+		// This input file is misnamed.
+		if (file_list[file_index].state & 4){
+			// Misnamed file will be corrected later.
+			//printf("misnamed file[%u]\n", file_index);
+			possible_count++;
+
+		// The input file is missing or damaged.
+		} else if (file_list[file_index].state & 3){
+			file_size = 0;
+			chunk_index = file_list[file_index].chunk;		// index of the first chunk
+			chunk_num = file_list[file_index].chunk_num;	// number of chunk descriptions
+			slice_index = file_list[file_index].slice;		// index of the first slice
+			//printf("chunk = %u+%u, slice = %I64d ~, %s\n", chunk_index, chunk_num, slice_index, file_list[file_index].name);
+			while (chunk_num > 0){
+				chunk_size = chunk_list[chunk_index].size;
+				file_size += chunk_size;
+				while ( (chunk_size >= block_size) || (chunk_size >= 40) ){	// full size slice or chunk tail slice
+					slice_size = slice_list[slice_index].size;
+					find_name = slice_list[slice_index].find_name;
+					if (find_name == NULL){
+						//printf("slice[%I64d] isn't found.\n", slice_index);
+						file_size--;
+						chunk_num = 1;
+						break;
+					}
+
+					slice_index++;
+					chunk_size -= slice_size;
+				}
+
+				chunk_index++;
+				chunk_num--;
+			}
+
+			//printf("file_size = %I64u, %I64u\n", file_size, file_list[file_index].size);
+			if (file_size == file_list[file_index].size){
+				// Sign of repairable file
+				file_list[file_index].state |= 0x200;
+				possible_count++;
+			}
+		}
+	}
+	//printf("possible_count = %u\n", possible_count);
+
+	return possible_count;
+}
+

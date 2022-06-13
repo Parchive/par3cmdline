@@ -205,7 +205,7 @@ int make_start_packet(PAR3_CTX *par3_ctx, int flag_trial)
 			return RET_LOGIC_ERROR;
 		}
 		memcpy(par3_ctx->set_id, par3_ctx->start_packet + 32, 8);
-		if (par3_ctx->noise_level >= 0){
+		if (par3_ctx->noise_level >= 1){
 			printf("InputSetID = %02X %02X %02X %02X %02X %02X %02X %02X\n",
 					par3_ctx->set_id[0], par3_ctx->set_id[1], par3_ctx->set_id[2], par3_ctx->set_id[3],
 					par3_ctx->set_id[4], par3_ctx->set_id[5], par3_ctx->set_id[6], par3_ctx->set_id[7]);

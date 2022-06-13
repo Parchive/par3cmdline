@@ -15,7 +15,7 @@
 
 
 /*
-keep all lost input blocks on memory
+This keeps all lost input blocks on memory.
 
 read every input blocks except lost blocks
  per each input block
@@ -566,6 +566,17 @@ int recover_lost_block(PAR3_CTX *par3_ctx, char *temp_path, int lost_count)
 		clock_now = clock() - clock_now;
 		printf("done in %.1f seconds.\n", (double)clock_now / CLOCKS_PER_SEC);
 	}
+
+	return 0;
+}
+
+// This keeps all input blocks and recovery blocks partially by spliting every block.
+int recover_lost_block_split(PAR3_CTX *par3_ctx, char *temp_path, uint64_t lost_count)
+{
+
+
+printf("\n This function isn't made yet.\n");
+return -1;
 
 	return 0;
 }
