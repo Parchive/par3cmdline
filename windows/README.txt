@@ -26,27 +26,14 @@ There is basic feature only.
 Some commands and options are useless.
 There may be some mistake or failure.
 
- It keeps many input blocks and recovery blocks on memory at this time.
-So, it cannot treat large files now.
-I will solve this problem of file IO, after I test behavior of the mechanism.
-
  It can create Index File and Archive Files.
 Index File includes all types of packets without duplication.
 Archive Files include Data Packets, which is a piece of input files.
 
- While verification is possible, it may be slow at this time.
-Currently I prefer finding as many slices as possible.
-
- Repair feature is under construction.
-I implemented Cauchy Reed-Solomon Codes for small data.
-At this time, this supports only Reed-Solomon Codes with Cauchy Matrix.
-
  It can restore missing or damaged files by using Data Packets.
 It can correct filename of misnamed files, when they were specified as extra files.
-It may not use some kinds of Recovery Data Packets.
+At this time, this supports only Reed-Solomon Codes with Cauchy Matrix.
 
-It may not create Recovery Files yet.
-It may not Repair yet.
 It doesn't use maultiple Recovery Codes at once.
 It doesn't support "PAR inside" feature yet.
 
@@ -185,7 +172,15 @@ Note, this is not strict value. It may use more memory.
 When this isn't set, it assumes unlimited RAM size.
 
  This option will affect some buffer size.
+Mostly the buffer for file access, such like Input Files or PAR files.
 You should set larger value than block size.
+The limit adapts each buffer size independently, instead of total size.
+
+ This doesn't affect required memory of fixed size.
+Such like, memory for one Block or Matrix.
+For example, it may consume memory for a few blocks,
+even when you set less limit size.
+Furthermore, 16-bit Reed-Solomon Codes may consume max 2 GB memory for matrix at repair.
 
 
 
