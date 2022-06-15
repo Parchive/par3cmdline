@@ -69,9 +69,9 @@ int create_recovery_block(PAR3_CTX *par3_ctx)
 	uint8_t *work_buf;
 	uint8_t gf_size;
 	int galois_poly;
-	int block_count, x_index;
-	int file_index, file_prev;
+	int block_count, block_index;
 	int progress_old, progress_now;
+	uint32_t file_index, file_prev;
 	size_t block_size, region_size;
 	size_t data_size, read_size;
 	size_t tail_offset, tail_gap;
@@ -119,20 +119,20 @@ int create_recovery_block(PAR3_CTX *par3_ctx)
 	}
 
 	// Reed-Solomon Erasure Codes
-	file_prev = -1;
+	file_prev = 0xFFFFFFFF;
 	fp = NULL;
-	for (x_index = 0; x_index < block_count; x_index++){
+	for (block_index = 0; block_index < block_count; block_index++){
 		// Read each input block from input files.
-		data_size = block_list[x_index].size;
-		if (block_list[x_index].state & 1){	// including full size data
-			slice_index = block_list[x_index].slice;
+		data_size = block_list[block_index].size;
+		if (block_list[block_index].state & 1){	// including full size data
+			slice_index = block_list[block_index].slice;
 			while (slice_index != -1){
 				if (slice_list[slice_index].size == block_size)
 					break;
 				slice_index = slice_list[slice_index].next;
 			}
 			if (slice_index == -1){	// When there is no valid slice.
-				printf("Mapping information for block[%d] is wrong.\n", x_index);
+				printf("Mapping information for block[%d] is wrong.\n", block_index);
 				if (fp != NULL)
 					fclose(fp);
 				return RET_LOGIC_ERROR;
@@ -143,7 +143,7 @@ int create_recovery_block(PAR3_CTX *par3_ctx)
 			file_offset = slice_list[slice_index].offset;
 			read_size = data_size;
 			if (par3_ctx->noise_level >= 2){
-				printf("Reading %zu bytes of slice[%I64d] for input block[%d]\n", read_size, slice_index, x_index);
+				printf("Reading %zu bytes of slice[%I64d] for input block[%d]\n", read_size, slice_index, block_index);
 			}
 			if ( (fp == NULL) || (file_index != file_prev) ){
 				if (fp != NULL){	// Close previous input file.
@@ -170,13 +170,13 @@ int create_recovery_block(PAR3_CTX *par3_ctx)
 
 		} else {	// tail data only (one tail or packed tails)
 			if (par3_ctx->noise_level >= 2){
-				printf("Reading %I64u bytes for input block[%d]\n", data_size, x_index);
+				printf("Reading %I64u bytes for input block[%d]\n", data_size, block_index);
 			}
 			tail_offset = 0;
 			while (tail_offset < data_size){	// Read tails until data end.
-				slice_index = block_list[x_index].slice;
+				slice_index = block_list[block_index].slice;
 				while (slice_index != -1){
-					//printf("block = %I64u, size = %zu, offset = %zu, slice = %I64d\n", x_index, data_size, tail_offset, slice_index);
+					//printf("block = %I64u, size = %zu, offset = %zu, slice = %I64d\n", block_index, data_size, tail_offset, slice_index);
 					// Even when chunk tails are overlaped, it will find tail slice of next position.
 					if ( (slice_list[slice_index].tail_offset + slice_list[slice_index].size > tail_offset) &&
 							(slice_list[slice_index].tail_offset <= tail_offset) ){
@@ -185,7 +185,7 @@ int create_recovery_block(PAR3_CTX *par3_ctx)
 					slice_index = slice_list[slice_index].next;
 				}
 				if (slice_index == -1){	// When there is no valid slice.
-					printf("Mapping information for block[%d] is wrong.\n", x_index);
+					printf("Mapping information for block[%d] is wrong.\n", block_index);
 					if (fp != NULL)
 						fclose(fp);
 					return RET_LOGIC_ERROR;
@@ -228,8 +228,8 @@ int create_recovery_block(PAR3_CTX *par3_ctx)
 		}
 
 		// Calculate checksum of block to confirm that input file was not changed.
-		if (crc64(work_buf, data_size, 0) != block_list[x_index].crc){
-			printf("Checksum of block[%d] is different.\n", x_index);
+		if (crc64(work_buf, data_size, 0) != block_list[block_index].crc){
+			printf("Checksum of block[%d] is different.\n", block_index);
 			fclose(fp);
 			return RET_LOGIC_ERROR;
 		}
@@ -244,7 +244,7 @@ int create_recovery_block(PAR3_CTX *par3_ctx)
 		}
 
 		// Multipy one input block for all recovery blocks.
-		rs_create_one_all(par3_ctx, x_index);
+		rs_create_one_all(par3_ctx, block_index);
 
 		// Print progress percent
 		if ( (par3_ctx->noise_level >= 0) && (par3_ctx->noise_level <= 1) ){
@@ -252,7 +252,7 @@ int create_recovery_block(PAR3_CTX *par3_ctx)
 			if (time_now != time_old){
 				time_old = time_now;
 				// Because block_count is 16-bit value, "int" (32-bit signed integer) is enough.
-				progress_now = (x_index * 1000) / block_count;
+				progress_now = (block_index * 1000) / block_count;
 				if (progress_now != progress_old){
 					progress_old = progress_now;
 					printf("%d.%d%%\r", progress_now / 10, progress_now % 10);	// 0.0% ~ 100.0%
@@ -287,16 +287,16 @@ int create_recovery_block_split(PAR3_CTX *par3_ctx)
 	uint8_t *block_data, *buf_p;
 	uint8_t gf_size;
 	int ret, galois_poly;
-	int file_index, file_prev;
 	int progress_old, progress_now;
 	uint32_t split_count;
-	size_t read_size;
+	uint32_t file_index, file_prev;
+	size_t io_size;
 	int64_t slice_index, file_offset;
+	uint64_t crc, block_index;
 	uint64_t block_size, block_count, recovery_block_count;
 	uint64_t alloc_size, region_size, split_size;
 	uint64_t data_size, part_size, split_offset;
 	uint64_t tail_offset, tail_gap;
-	uint64_t crc, index;
 	uint64_t progress_total, progress_step;
 	PAR3_FILE_CTX *file_list;
 	PAR3_SLICE_CTX *slice_list;
@@ -364,35 +364,36 @@ int create_recovery_block_split(PAR3_CTX *par3_ctx)
 	fp = NULL;
 	for (split_offset = 0; split_offset < block_size; split_offset += split_size){
 		buf_p = block_data;	// Starting position of input blocks
-		file_prev = -1;
+		file_prev = 0xFFFFFFFF;
 
 		// Read all input blocks on memory
-		for (index = 0; index < block_count; index++){
+		for (block_index = 0; block_index < block_count; block_index++){
 			// Read each input block from input files.
-			data_size = block_list[index].size;
-			if (block_list[index].state & 1){	// including full size data
-				slice_index = block_list[index].slice;
+			data_size = block_list[block_index].size;
+			part_size = data_size - split_offset;
+			if (part_size > split_size)
+				part_size = split_size;
+
+			if (block_list[block_index].state & 1){	// including full size data
+				slice_index = block_list[block_index].slice;
 				while (slice_index != -1){
 					if (slice_list[slice_index].size == block_size)
 						break;
 					slice_index = slice_list[slice_index].next;
 				}
 				if (slice_index == -1){	// When there is no valid slice.
-					printf("Mapping information for block[%I64u] is wrong.\n", index);
+					printf("Mapping information for block[%I64u] is wrong.\n", block_index);
 					if (fp != NULL)
 						fclose(fp);
 					return RET_LOGIC_ERROR;
 				}
 
 				// Read a part of slice from a file.
-				part_size = data_size - split_offset;
-				if (part_size > split_size)
-					part_size = split_size;
 				file_index = slice_list[slice_index].file;
 				file_offset = slice_list[slice_index].offset + split_offset;
-				read_size = part_size;
+				io_size = part_size;
 				if (par3_ctx->noise_level >= 2){
-					printf("Reading %zu bytes of slice[%I64d] for input block[%I64u]\n", read_size, slice_index, index);
+					printf("Reading %zu bytes of slice[%I64d] for input block[%I64u]\n", io_size, slice_index, block_index);
 				}
 				if ( (fp == NULL) || (file_index != file_prev) ){
 					if (fp != NULL){	// Close previous input file.
@@ -411,25 +412,21 @@ int create_recovery_block_split(PAR3_CTX *par3_ctx)
 					fclose(fp);
 					return RET_FILE_IO_ERROR;
 				}
-				if (fread(buf_p, 1, read_size, fp) != read_size){
+				if (fread(buf_p, 1, io_size, fp) != io_size){
 					perror("Failed to read slice on Input File");
 					fclose(fp);
 					return RET_FILE_IO_ERROR;
 				}
 
 			} else if (data_size > split_offset){	// tail data only (one tail or packed tails)
-				part_size = data_size - split_offset;
-				if (part_size > split_size)
-					part_size = split_size;
 				if (par3_ctx->noise_level >= 2){
-					printf("Reading %I64u bytes for input block[%I64u]\n", part_size, index);
+					printf("Reading %I64u bytes for input block[%I64u]\n", part_size, block_index);
 				}
 				tail_offset = split_offset;
-
 				while (tail_offset < split_offset + part_size){	// Read tails until data end.
-					slice_index = block_list[index].slice;
+					slice_index = block_list[block_index].slice;
 					while (slice_index != -1){
-						//printf("block = %I64u, size = %zu, offset = %zu, slice = %I64d\n", index, data_size, tail_offset, slice_index);
+						//printf("block = %I64u, size = %zu, offset = %zu, slice = %I64d\n", block_index, data_size, tail_offset, slice_index);
 						// Even when chunk tails are overlaped, it will find tail slice of next position.
 						if ( (slice_list[slice_index].tail_offset + slice_list[slice_index].size > tail_offset) &&
 								(slice_list[slice_index].tail_offset <= tail_offset) ){
@@ -438,7 +435,7 @@ int create_recovery_block_split(PAR3_CTX *par3_ctx)
 						slice_index = slice_list[slice_index].next;
 					}
 					if (slice_index == -1){	// When there is no valid slice.
-						printf("Mapping information for block[%I64u] is wrong.\n", index);
+						printf("Mapping information for block[%I64u] is wrong.\n", block_index);
 						if (fp != NULL)
 							fclose(fp);
 						return RET_LOGIC_ERROR;
@@ -449,7 +446,7 @@ int create_recovery_block_split(PAR3_CTX *par3_ctx)
 					//printf("tail_gap for slice[%I64d] = %zu.\n", slice_index, tail_gap);
 					file_index = slice_list[slice_index].file;
 					file_offset = slice_list[slice_index].offset + tail_gap;
-					read_size = slice_list[slice_index].size - tail_gap;
+					io_size = slice_list[slice_index].size - tail_gap;
 					if ( (fp == NULL) || (file_index != file_prev) ){
 						if (fp != NULL){	// Close previous input file.
 							fclose(fp);
@@ -467,12 +464,12 @@ int create_recovery_block_split(PAR3_CTX *par3_ctx)
 						fclose(fp);
 						return RET_FILE_IO_ERROR;
 					}
-					if (fread(buf_p + tail_offset - split_offset, 1, read_size, fp) != read_size){
+					if (fread(buf_p + tail_offset - split_offset, 1, io_size, fp) != io_size){
 						perror("Failed to read tail slice on Input File");
 						fclose(fp);
 						return RET_FILE_IO_ERROR;
 					}
-					tail_offset += read_size;
+					tail_offset += io_size;
 				}
 
 			} else {	// Zero fill partial input block
@@ -483,7 +480,7 @@ int create_recovery_block_split(PAR3_CTX *par3_ctx)
 			if (split_offset == 0){
 				crc = 0;
 			} else {
-				memcpy(&crc, block_list[index].hash, 8);	// Use previous CRC value
+				memcpy(&crc, block_list[block_index].hash, 8);	// Use previous CRC value
 			}
 			if (data_size > split_offset){	// When there is slice data to process.
 				if (part_size < split_size)
@@ -500,18 +497,18 @@ int create_recovery_block_split(PAR3_CTX *par3_ctx)
 				}
 			}
 			if (split_offset + split_size >= block_size){	// At the last
-				if (crc != block_list[index].crc){
-					printf("Checksum of block[%I64u] is different.\n", index);
+				if (crc != block_list[block_index].crc){
+					printf("Checksum of block[%I64u] is different.\n", block_index);
 					fclose(fp);
 					return RET_LOGIC_ERROR;
 				}
 			} else {
-				memcpy(block_list[index].hash, &crc, 8);	// Save this CRC value
+				memcpy(block_list[block_index].hash, &crc, 8);	// Save this CRC value
 			}
 
 			// Print progress percent
-			progress_step++;
 			if ( (par3_ctx->noise_level >= 0) && (par3_ctx->noise_level <= 1) ){
+				progress_step++;
 				time_now = time(NULL);
 				if (time_now != time_old){
 					time_old = time_now;
@@ -537,15 +534,18 @@ int create_recovery_block_split(PAR3_CTX *par3_ctx)
 		if (par3_ctx->ecc_method & 1){	// Reed-Solomon Erasure Codes
 			rs_create_all(par3_ctx, region_size, progress_total, progress_step);
 		}
-		progress_step += block_count * recovery_block_count;
-		time_old = time(NULL);
+		if ( (par3_ctx->noise_level >= 0) && (par3_ctx->noise_level <= 1) ){
+			progress_step += block_count * recovery_block_count;
+			time_old = time(NULL);
+		}
 
 		// Write all recovery blocks on recovery files
-		part_size = data_size - split_offset;
+		part_size = block_size - split_offset;
 		if (part_size > split_size)
 			part_size = split_size;
+		io_size = part_size;
 		buf_p = block_data + region_size * block_count;	// Starting position of recovery blocks
-		for (index = 0; index < recovery_block_count; index++){
+		for (block_index = 0; block_index < recovery_block_count; block_index++){
 
 			// Check parity of recovery block to confirm that calculation was correct.
 			if (gf_size == 2){
@@ -556,18 +556,18 @@ int create_recovery_block_split(PAR3_CTX *par3_ctx)
 				ret = region_check_parity(buf_p, region_size, split_size);
 			}
 			if (ret != 0){
-				printf("Parity of recovery block[%I64u] is different.\n", index);
+				printf("Parity of recovery block[%I64u] is different.\n", block_index);
 				if (fp != NULL)
 					fclose(fp);
 				return RET_LOGIC_ERROR;
 			}
 
 			// Position of Recovery Data Packet in recovery file
-			file_name = position_list[index].name;
-			file_offset = position_list[index].offset + 88 + split_offset;
+			file_name = position_list[block_index].name;
+			file_offset = position_list[block_index].offset + 88 + split_offset;
 
 			// Calculate CRC of packet data to check error later.
-			position_list[index].crc = crc64(buf_p, part_size, position_list[index].crc);
+			position_list[block_index].crc = crc64(buf_p, part_size, position_list[block_index].crc);
 
 			// Write partial recovery block
 			if ( (fp == NULL) || (file_name != name_prev) ){
@@ -594,8 +594,8 @@ int create_recovery_block_split(PAR3_CTX *par3_ctx)
 			}
 
 			// Print progress percent
-			progress_step++;
 			if ( (par3_ctx->noise_level >= 0) && (par3_ctx->noise_level <= 1) ){
+				progress_step++;
 				time_now = time(NULL);
 				if (time_now != time_old){
 					time_old = time_now;
@@ -624,11 +624,11 @@ int create_recovery_block_split(PAR3_CTX *par3_ctx)
 	par3_ctx->work_buf = buf_p;
 
 	// Calculate checksum of every Recovery Data Packet
-	read_size = 64 + block_size;	// packet header after checksum and packet body
-	for (index = 0; index < recovery_block_count; index++){
+	io_size = 64 + block_size;	// packet header after checksum and packet body
+	for (block_index = 0; block_index < recovery_block_count; block_index++){
 		// Position of Recovery Data Packet in recovery file
-		file_name = position_list[index].name;
-		file_offset = position_list[index].offset + 8;	// Offset of checksum
+		file_name = position_list[block_index].name;
+		file_offset = position_list[block_index].offset + 8;	// Offset of checksum
 
 		// Read packet data and write checksum
 		if ( (fp == NULL) || (file_name != name_prev) ){
@@ -648,22 +648,22 @@ int create_recovery_block_split(PAR3_CTX *par3_ctx)
 			fclose(fp);
 			return RET_FILE_IO_ERROR;
 		}
-		if (fread(buf_p + 16, 1, read_size, fp) != read_size){
+		if (fread(buf_p + 16, 1, io_size, fp) != io_size){
 			perror("Failed to read Recovery Data Packet");
 			fclose(fp);
 			return RET_FILE_IO_ERROR;
 		}
 
 		// Compare CRC of written packet data to confirm integrity.
-		crc = crc64(buf_p + 16, read_size, 0);
-		if (crc != position_list[index].crc){
-			printf("Packet data of recovery block[%I64u] is different.\n", index);
+		crc = crc64(buf_p + 16, io_size, 0);
+		if (crc != position_list[block_index].crc){
+			printf("Packet data of recovery block[%I64u] is different.\n", block_index);
 			fclose(fp);
 			return RET_LOGIC_ERROR;
 		}
 
 		// Calculate checksum of this packet
-		blake3(buf_p + 16, read_size, buf_p);
+		blake3(buf_p + 16, io_size, buf_p);
 
 		// Write checksum
 		if (_fseeki64(fp, file_offset, SEEK_SET) != 0){

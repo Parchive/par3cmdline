@@ -18,11 +18,15 @@
 #include "hash.h"
 
 
-// offset_next = File data is complete until here.
-// return 0 = complete, -1 = not enough data, -2 = too many data
-// -3 = CRC of the first 16 KB is different, -4 = block data is different
-// -5 = chunk tail is different, -6 = tiny chunk tail is different
-// -7 = file hash is different
+/*
+offset_next = File data is complete until here.
+When checking after repair, offset_next should be NULL.
+
+return 0 = complete, -1 = not enough data, -2 = too many data
+ -3 = CRC of the first 16 KB is different, -4 = block data is different
+ -5 = chunk tail is different, -6 = tiny chunk tail is different
+ -7 = file hash is different
+*/
 int check_complete_file(PAR3_CTX *par3_ctx, char *filename, uint32_t file_id,
 	uint64_t current_size, uint64_t *offset_next)
 {
@@ -52,8 +56,10 @@ int check_complete_file(PAR3_CTX *par3_ctx, char *filename, uint32_t file_id,
 	file_p = par3_ctx->input_file_list + file_id;
 	file_size = file_p->size;
 	chunk_num = file_p->chunk_num;
-	if (par3_ctx->noise_level >= 1){
-		printf("chunk count = %u, current file size = %I64u, original size = %I64u\n", chunk_num, current_size, file_size);
+	if (offset_next != NULL){	// Don't show this after repair.
+		if (par3_ctx->noise_level >= 1){
+			printf("chunk count = %u, current file size = %I64u, original size = %I64u\n", chunk_num, current_size, file_size);
+		}
 	}
 	if ( (file_size == 0) && (current_size > 0) ){
 		// If original file size was 0, no need to check file data.

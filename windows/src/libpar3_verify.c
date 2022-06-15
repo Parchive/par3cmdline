@@ -333,6 +333,7 @@ int par3_repair(PAR3_CTX *par3_ctx, char *temp_path)
 		}
 		// Even when complete repair is impossible, try to repair as possible as it can.
 	}
+	par3_ctx->recovery_block_count = recovery_block_available;
 
 	// When some directories are missing or different.
 	if (missing_dir_count > 0){
@@ -359,7 +360,7 @@ int par3_repair(PAR3_CTX *par3_ctx, char *temp_path)
 
 		if (par3_ctx->ecc_method & 1){	// Cauchy Reed-Solomon Erasure Codes
 
-			// Construct matrix for Reed-Solomon, and solve linear equation.
+			// Construct matrix for Reed-Solomon Codes, and solve linear equation.
 			ret = rs_compute_matrix(par3_ctx, block_count - block_available);
 			if (ret != 0)
 				return ret;
