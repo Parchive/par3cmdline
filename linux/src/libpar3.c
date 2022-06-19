@@ -9,14 +9,28 @@
 #include <string.h>
 #include <math.h>
 
-// MSVC headers
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <direct.h>
-#include <io.h>
+
+#if __linux__
+#define _stat64 stat
+#elif _WIN32
+#endif
 
 #include "libpar3.h"
 #include "common.h"
+
+
+
+
+#if __linux__
+
+// MSVC headers
+#elif _WIN32
+
+// MSVC headers
+#include <direct.h>
+#include <io.h>
 
 
 // recursive search into sub-directories
@@ -38,7 +52,7 @@ static int path_search_recursive(PAR3_CTX *par3_ctx, char *sub_dir)
 	new_dir[dir_len] = 0;
 
 	handle = _findfirst64("*", &c_file);
-	if (handle != -1){
+	if (handle != (intptr_t) -1){
 		do {
 			// ignore "." or ".."
 			if ( (strcmp(c_file.name, ".") == 0) || (strcmp(c_file.name, "..") == 0) )
@@ -182,7 +196,7 @@ int path_search(PAR3_CTX *par3_ctx, char *match_path, int flag_recursive)
 			tmp_p[0] = 0;
 			//printf("path component = \"%s\"\n", new_dir);
 			handle = _findfirst64(new_dir, &c_file);
-			if (handle != -1){
+			if (handle != (intptr_t) -1){
 				// If case is different, use the original case.
 				//printf("found component = \"%s\"\n", c_file.name);
 				len = strlen(c_file.name);
@@ -205,7 +219,7 @@ int path_search(PAR3_CTX *par3_ctx, char *match_path, int flag_recursive)
 	}
 
 	handle = _findfirst64(match_name, &c_file);
-	if (handle != -1){
+	if (handle != (intptr_t) -1){
 		do {
 			// ignore "." or ".."
 			if ( (strcmp(c_file.name, ".") == 0) || (strcmp(c_file.name, "..") == 0) )
@@ -358,7 +372,7 @@ int extra_search(PAR3_CTX *par3_ctx, char *match_path)
 			tmp_p[0] = 0;
 			//printf("path component = \"%s\"\n", new_dir);
 			handle = _findfirst64(new_dir, &c_file);
-			if (handle != -1){
+			if (handle != (intptr_t) -1){
 				// If case is different, use the original case.
 				//printf("found component = \"%s\"\n", c_file.name);
 				len = strlen(c_file.name);
@@ -427,7 +441,7 @@ int extra_search(PAR3_CTX *par3_ctx, char *match_path)
 
 	//printf("extra file search \"%s\"\n", match_name);
 	handle = _findfirst64(match_name, &c_file);
-	if (handle != -1){
+	if (handle != (intptr_t) -1){
 		do {
 			// ignore "." or ".."
 			if ( (strcmp(c_file.name, ".") == 0) || (strcmp(c_file.name, "..") == 0) )
@@ -471,6 +485,9 @@ int extra_search(PAR3_CTX *par3_ctx, char *match_path)
 
 	return 0;
 }
+
+#endif
+
 
 // get information of input files
 int get_file_status(PAR3_CTX *par3_ctx)
@@ -567,8 +584,8 @@ int get_file_status(PAR3_CTX *par3_ctx)
 	}
 
 	if (par3_ctx->noise_level >= 0){
-		printf("Total file size = %I64u\n", par3_ctx->total_file_size);
-		printf("Max file size = %I64u\n", par3_ctx->max_file_size);
+		printf("Total file size = %"PRINT64"u\n", par3_ctx->total_file_size);
+		printf("Max file size = %"PRINT64"u\n", par3_ctx->max_file_size);
 	}
 
 	return 0;
@@ -605,12 +622,12 @@ uint64_t suggest_block_size(PAR3_CTX *par3_ctx)
 	block_count = 8;
 	while (block_count * 2 <= block_size)
 		block_count *= 2;
-	//printf("block_size = %I64u, power of 2 = %I64u\n", block_size, block_count);
+	//printf("block_size = %"PRINT64"u, power of 2 = %"PRINT64"u\n", block_size, block_count);
 	block_size = block_count;
 
 	// test possible number of blocks
 	block_count = calculate_block_count(par3_ctx, block_size);
-	//printf("1st block_count = %I64u\n", block_count);
+	//printf("1st block_count = %"PRINT64"u\n", block_count);
 	if (block_count > 128){	// If range is 16-bit Reed Solomon Codes, more block count is possible.
 		if (block_count <= 1000){	// When there are too few blocks
 			block_size /= 2;
@@ -622,7 +639,7 @@ uint64_t suggest_block_size(PAR3_CTX *par3_ctx)
 		block_size *= 2;
 		block_count = calculate_block_count(par3_ctx, block_size);
 	}
-	//printf("2nd block_count = %I64u\n", block_count);
+	//printf("2nd block_count = %"PRINT64"u\n", block_count);
 
 	// If total number of input blocks is equal or less than 128,
 	// PAR3 uses 8-bit Reed-Solomon Codes.
@@ -774,7 +791,7 @@ int sort_input_set(PAR3_CTX *par3_ctx)
 			} else {
 				file_p->chk[0] = 0;
 			}
-			//printf("file size = %I64u, tail size = %I64u\n", file_size, tail_size);
+			//printf("file size = %"PRINT64"u, tail size = %"PRINT64"u\n", file_size, tail_size);
 
 			file_p++;
 			num--;
@@ -790,7 +807,7 @@ int sort_input_set(PAR3_CTX *par3_ctx)
 
 		if (par3_ctx->noise_level >= 0){
 			while (num > 0){
-				printf("input file = \"%s\" %I64u / %I64u\n", file_p->name, file_p->chk[0], file_p->size);
+				printf("input file = \"%s\" %"PRINT64"u / %"PRINT64"u\n", file_p->name, file_p->chk[0], file_p->size);
 
 				file_p++;
 				num--;
@@ -825,6 +842,9 @@ int sort_input_set(PAR3_CTX *par3_ctx)
 }
 
 
+#ifdef __linux__
+#elif _WIN32
+
 // search other par files from par_filename
 int par_search(PAR3_CTX *par3_ctx, int flag_other)
 {
@@ -844,9 +864,9 @@ int par_search(PAR3_CTX *par3_ctx, int flag_other)
 	//printf("dir_len = %zu\n", dir_len);
 
 	handle = _findfirst64(find_path, &c_file);
-	if (handle != -1){
+	if (handle != (intptr_t) -1){
 		strcpy(find_path + dir_len, c_file.name);
-		//printf("found = \"%s\", size = %I64d\n", find_path, c_file.size);
+		//printf("found = \"%s\", size = %"PRINT64"d\n", find_path, c_file.size);
 		if (max_file_size < (uint64_t)c_file.size)
 			max_file_size = c_file.size;
 
@@ -885,7 +905,7 @@ int par_search(PAR3_CTX *par3_ctx, int flag_other)
 		//printf("find path = \"%s\"\n", find_path);
 
 		handle = _findfirst64(find_path, &c_file);
-		if (handle != -1){
+		if (handle != (intptr_t) -1){
 			do {
 				// ignore hidden or system files or directory
 				if ( ((c_file.attrib & _A_HIDDEN) != 0) || ((c_file.attrib & _A_SYSTEM) != 0) || ((c_file.attrib & _A_SUBDIR) != 0) )
@@ -903,7 +923,7 @@ int par_search(PAR3_CTX *par3_ctx, int flag_other)
 				if (namez_search(par3_ctx->par_file_name, par3_ctx->par_file_name_len, find_path) != NULL)
 					continue;
 
-				//printf("found = \"%s\", size = %I64d\n", find_path, c_file.size);
+				//printf("found = \"%s\", size = %"PRINT64"d\n", find_path, c_file.size);
 				if (max_file_size < (uint64_t)c_file.size)
 					max_file_size = c_file.size;
 
@@ -986,11 +1006,12 @@ int par_search(PAR3_CTX *par3_ctx, int flag_other)
 
 	par3_ctx->max_file_size = max_file_size;
 	if (par3_ctx->noise_level >= 0){
-		printf("Max par file size = %I64u\n", par3_ctx->max_file_size);
+		printf("Max par file size = %"PRINT64"u\n", par3_ctx->max_file_size);
 	}
 
 	return 0;
 }
+#endif
 
 
 // This function releases all allocated memory.
@@ -1024,7 +1045,6 @@ void par3_release(PAR3_CTX *par3_ctx)
 		par3_ctx->par_file_name_len = 0;
 		par3_ctx->par_file_name_max = 0;
 	}
-
 	if (par3_ctx->chunk_list){
 		free(par3_ctx->chunk_list);
 		par3_ctx->chunk_list = NULL;
@@ -1039,10 +1059,13 @@ void par3_release(PAR3_CTX *par3_ctx)
 		free(par3_ctx->block_list);
 		par3_ctx->block_list = NULL;
 	}
-
-	if (par3_ctx->block_data){
-		free(par3_ctx->block_data);
-		par3_ctx->block_data = NULL;
+	if (par3_ctx->input_data){
+		free(par3_ctx->input_data);
+		par3_ctx->input_data = NULL;
+	}
+	if (par3_ctx->recovery_data){
+		free(par3_ctx->recovery_data);
+		par3_ctx->recovery_data = NULL;
 	}
 	if (par3_ctx->galois_table){
 		free(par3_ctx->galois_table);
@@ -1056,7 +1079,6 @@ void par3_release(PAR3_CTX *par3_ctx)
 		free(par3_ctx->crc_list);
 		par3_ctx->crc_list = NULL;
 	}
-
 	if (par3_ctx->creator_packet){
 		free(par3_ctx->creator_packet);
 		par3_ctx->creator_packet = NULL;
@@ -1111,29 +1133,15 @@ void par3_release(PAR3_CTX *par3_ctx)
 		par3_ctx->common_packet_size = 0;
 		par3_ctx->common_packet_count = 0;
 	}
-
-	if (par3_ctx->position_list){
-		free(par3_ctx->position_list);
-		par3_ctx->position_list = NULL;
-	}
 	if (par3_ctx->data_packet_list){
 		free(par3_ctx->data_packet_list);
 		par3_ctx->data_packet_list = NULL;
 		par3_ctx->data_packet_count = 0;
 	}
-	if (par3_ctx->recv_packet_list){
-		free(par3_ctx->recv_packet_list);
-		par3_ctx->recv_packet_list = NULL;
-		par3_ctx->recv_packet_count = 0;
-	}
-
-	if (par3_ctx->id_list){
-		free(par3_ctx->id_list);
-		par3_ctx->id_list = NULL;
-	}
-	if (par3_ctx->matrix){
-		free(par3_ctx->matrix);
-		par3_ctx->matrix = NULL;
+	if (par3_ctx->rec_data_packet_list){
+		free(par3_ctx->rec_data_packet_list);
+		par3_ctx->rec_data_packet_list = NULL;
+		par3_ctx->rec_data_packet_count = 0;
 	}
 }
 

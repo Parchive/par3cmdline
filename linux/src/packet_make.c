@@ -38,6 +38,9 @@ static int generate_set_id(PAR3_CTX *par3_ctx, uint8_t *buf, size_t body_size)
 
 	blake3_hasher_init(&hasher);
 
+	// parent's InputSetID, block size, Galois field parameters
+	blake3_hasher_update(&hasher, buf, body_size);
+
 	// all the files' contents
 	if (par3_ctx->input_file_count > 0){
 		uint32_t index;
@@ -134,7 +137,6 @@ static int generate_set_id(PAR3_CTX *par3_ctx, uint8_t *buf, size_t body_size)
 
 	// calculate hash of packet body for InputSetID
 	blake3_hasher_init(&hasher);
-	// random number, parent's InputSetID, parent's Root, block size, Galois field parameters
 	blake3_hasher_update(&hasher, buf, body_size);
 	blake3_hasher_finalize(&hasher, buf - 16, 8);
 
@@ -180,14 +182,12 @@ int make_start_packet(PAR3_CTX *par3_ctx, int flag_trial)
 	if ( (par3_ctx->block_count > 128) || (par3_ctx->recovery_block_count > 128) ){
 		// When there are 129 or more input blocks, use 16-bit Galois Field (0x1100B).
 		par3_ctx->galois_poly = 0x1100B;
-		par3_ctx->gf_size = 2;
 		tmp_p[0] = 2;
 		tmp_p[1] = 0x0B;
 		tmp_p[2] = 0x10;
 	} else if (par3_ctx->block_count > 0){
 		// When there are 128 or less input blocks, use 8-bit Galois Field (0x11D).
 		par3_ctx->galois_poly = 0x11D;
-		par3_ctx->gf_size = 1;
 		tmp_p[0] = 1;
 		tmp_p[1] = 0x1D;
 	} else {
@@ -205,7 +205,7 @@ int make_start_packet(PAR3_CTX *par3_ctx, int flag_trial)
 			return RET_LOGIC_ERROR;
 		}
 		memcpy(par3_ctx->set_id, par3_ctx->start_packet + 32, 8);
-		if (par3_ctx->noise_level >= 1){
+		if (par3_ctx->noise_level >= 2){
 			printf("InputSetID = %02X %02X %02X %02X %02X %02X %02X %02X\n",
 					par3_ctx->set_id[0], par3_ctx->set_id[1], par3_ctx->set_id[2], par3_ctx->set_id[3],
 					par3_ctx->set_id[4], par3_ctx->set_id[5], par3_ctx->set_id[6], par3_ctx->set_id[7]);
@@ -266,10 +266,12 @@ int make_matrix_packet(PAR3_CTX *par3_ctx)
 	// At this time, this supports only Cauchy Matrix Packet.
 	par3_ctx->ecc_method = 1;
 	tmp_p = par3_ctx->matrix_packet + 48;
-	// If the encoding client wants to compute recovery data for every input block, they use the values 0 and 0.
-	// If the number of rows is unknown, the hint is set to zero.
-	memset(tmp_p, 0, 24);	// Thus, three items are zero.
-	tmp_p += 24;
+	memset(tmp_p, 0, 8);	// Index of first input block = 0 normally
+	tmp_p += 8;
+	memcpy(tmp_p, &(par3_ctx->block_count), 8);	// Index of last input block plus 1
+	tmp_p += 8;
+	memcpy(tmp_p, &(par3_ctx->recovery_block_count), 8);	// hint for number of recovery blocks
+	tmp_p += 8;
 	packet_size = 72;
 	make_packet_header(par3_ctx->matrix_packet, packet_size, par3_ctx->set_id, "PAR CAU\0", 1);
 
@@ -466,7 +468,7 @@ int make_file_packet(PAR3_CTX *par3_ctx)
 
 				// check size of chunks
 				if (total_size != file_p->size){
-					printf("Error: total size of chunks = %I64u, file size = %I64u\n", total_size, file_p->size);
+					printf("Error: total size of chunks = %"PRINT64"u, file size = %"PRINT64"u\n", total_size, file_p->size);
 					return RET_LOGIC_ERROR;
 				}
 			}
@@ -831,7 +833,7 @@ int make_ext_data_packet(PAR3_CTX *par3_ctx)
 	block_count = par3_ctx->block_count;
 	block_size = par3_ctx->block_size;
 	block_p = par3_ctx->block_list;
-	//printf("Number of input blocks = %I64u\n", block_count);
+	//printf("Number of input blocks = %"PRINT64"u\n", block_count);
 	find_block_count = 0;
 	write_packet_count = 0;
 	while (block_count > 0){
@@ -857,7 +859,7 @@ int make_ext_data_packet(PAR3_CTX *par3_ctx)
 
 	// If there is no full size blocks, checksums are saved in File Packets.
 	if (par3_ctx->noise_level >= 2){
-		printf("Number of External Data Packets = %zu (number of full size blocks = %I64d)\n", write_packet_count, find_block_count);
+		printf("Number of External Data Packets = %zu (number of full size blocks = %"PRINT64"d)\n", write_packet_count, find_block_count);
 	}
 	if (write_packet_count == 0)
 		return 0;
