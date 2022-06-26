@@ -32,7 +32,9 @@ Archive Files include Data Packets, which is a piece of input files.
 
  It can restore missing or damaged files by using Data Packets.
 It can correct filename of misnamed files, when they were specified as extra files.
-At this time, this supports only Reed-Solomon Codes with Cauchy Matrix.
+
+At this time, this supports Reed-Solomon Codes with Cauchy Matrix.
+I test FFT based Reed-Solomon Codes by Leopard-RS library.
 
 It doesn't use maultiple Recovery Codes at once.
 It doesn't support "PAR inside" feature yet.
@@ -64,13 +66,13 @@ Options: (create)
   -s<n>    : Set the Block-Size (don't use both -b and -s)
   -r<n>    : Level of redundancy (%)
   -c<n>    : Recovery Block-Count (don't use both -r and -c)
-  -f<n>    : First Recovery-Block-Number
   -u       : Uniform recovery file sizes
   -l       : Limit size of recovery files (don't use both -u and -l)
   -n<n>    : Number of recovery files (don't use both -n and -l)
   -R       : Recurse into subdirectories
   -D       : Store Data packets
   -d<n>    : Enable deduplication of input blocks
+  -e<n>    : Set using Error Correction Codes
   -C<text> : Set comment
 
 
@@ -222,6 +224,19 @@ it will consume max 4000 seconds. (2000 * 1000 * 2 = 4000,000 ms)
 
 
 
+[ About "-c" option ]
+
+ It's possible to set the First Recovery-Block-Number.
+Add "f" between "-c" and <number>, then the option is -cf<n>.
+
+ It's possible to set the Max Recovery-Block-Count.
+Add "m" between "-c" and <number>, then the option is -cm<n>.
+Max Recovery-Block-Count is important to make compatible PAR3 files later.
+If the value is different, their recovery blocks may be unavailable each other.
+Be careful to set this value. No need to set mostly.
+
+
+
 [ About "-r" option ]
 
  This redundancy percent is against the number of input blocks.
@@ -257,6 +272,14 @@ Deduplication level 1 : same blocks of ordinary offset are be detected.
 Deduplication level 2 : same blocks of varied offset are detected.
 Be careful, comparing checksum of blocks is slow.
 This may be useless for random data like compressed file.
+
+
+
+[ About "-e<n>" option ]
+
+ At this time, "-e1" and "-e8" are available.
+"-e1" is Cauchy Reed-Solomon Codes. This is the default now.
+"-e8" is FFT based Reed-Solomon Codes by Leopard-RS library.
 
 
 
