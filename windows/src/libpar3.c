@@ -1044,10 +1044,6 @@ void par3_release(PAR3_CTX *par3_ctx)
 		free(par3_ctx->block_data);
 		par3_ctx->block_data = NULL;
 	}
-	if (par3_ctx->galois_table){
-		free(par3_ctx->galois_table);
-		par3_ctx->galois_table = NULL;
-	}
 	if (par3_ctx->work_buf){
 		free(par3_ctx->work_buf);
 		par3_ctx->work_buf = NULL;
@@ -1127,9 +1123,13 @@ void par3_release(PAR3_CTX *par3_ctx)
 		par3_ctx->recv_packet_count = 0;
 	}
 
-	if (par3_ctx->id_list){
-		free(par3_ctx->id_list);
-		par3_ctx->id_list = NULL;
+	if (par3_ctx->galois_table){
+		free(par3_ctx->galois_table);
+		par3_ctx->galois_table = NULL;
+	}
+	if (par3_ctx->recv_id_list){
+		free(par3_ctx->recv_id_list);
+		par3_ctx->recv_id_list = NULL;
 	}
 	if (par3_ctx->matrix){
 		free(par3_ctx->matrix);

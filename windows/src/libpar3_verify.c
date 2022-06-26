@@ -11,9 +11,9 @@
 #include "block.h"
 #include "packet.h"
 #include "read.h"
-#include "reedsolomon.h"
 #include "repair.h"
 #include "verify.h"
+#include "reedsolomon.h"
 
 
 int par3_list(PAR3_CTX *par3_ctx)
@@ -358,34 +358,32 @@ int par3_repair(PAR3_CTX *par3_ctx, char *temp_path)
 	// When recovery blocks are enough, recover lost input blocks.
 	} else if (block_available + recovery_block_available >= block_count){
 
-		if (par3_ctx->ecc_method & 1){	// Cauchy Reed-Solomon Erasure Codes
+		// Make list of index for lost input blocks and using recovery blocks.
+		ret =  make_block_list(par3_ctx, block_count - block_available);
+		if (ret != 0)
+			return ret;
 
+		if (par3_ctx->ecc_method & 1){	// Cauchy Reed-Solomon Erasure Codes
 			// Construct matrix for Reed-Solomon Codes, and solve linear equation.
 			ret = rs_compute_matrix(par3_ctx, block_count - block_available);
 			if (ret != 0)
 				return ret;
+		}
 
-			// Create temporary files for lost input files
-			ret = create_temp_file(par3_ctx, temp_path);
+		// Create temporary files for lost input files
+		ret = create_temp_file(par3_ctx, temp_path);
+		if (ret != 0)
+			return ret;
+
+		// If there are enough memory to keep all lost blocks
+		if (par3_ctx->ecc_method & 0x8000){
+			// Recover lost input blocks at reading each input block.
+			ret = recover_lost_block(par3_ctx, temp_path, (int)(block_count - block_available));
 			if (ret != 0)
 				return ret;
 
-			// If there are enough memory to keep all lost blocks
-			if (par3_ctx->ecc_method & 0x1000){
-				// Recover lost input blocks
-				ret = recover_lost_block(par3_ctx, temp_path, (int)(block_count - block_available));
-				if (ret != 0)
-					return ret;
-			}
-
-		//} else {	// Other Recovery Codes
-
-
-		}
-
-		// When lost input blocks were not recovered yet
-		if ((par3_ctx->ecc_method & 0x1000) == 0){
-			// Recover lost input blocks
+		} else {
+			// Recover lost input blocks by spliting every block.
 			ret = recover_lost_block_split(par3_ctx, temp_path, block_count - block_available);
 			if (ret != 0)
 				return ret;

@@ -132,14 +132,15 @@ typedef struct {
 	uint8_t attribute;	// attributes in Root Packet
 	uint8_t gf_size;	// The size of the Galois field in bytes
 
-	int galois_poly;	// The generator polynomial of the Galois field
-	void *galois_table;	// Pointer of tables for (finite) galois field arithmetic
-	int ecc_method;		// Bit flag: 1 = Reed-Solomon Erasure Codes with Cauchy Matrix
-						//           2 = Erasure Codes with Sparse Random Matrix (no support yet)
-						//           4 = LDPC (no support yet)
-						//      0x1000 = Keep all recovery blocks or lost blocks on memory
+	int galois_poly;		// The generator polynomial of the Galois field
+	void *galois_table;		// Pointer of tables for (finite) galois field arithmetic
+	uint32_t ecc_method;	// Bit flag: 1 = Reed-Solomon Erasure Codes with Cauchy Matrix
+							//           2 = Erasure Codes with Sparse Random Matrix (no support yet)
+							//           4 = LDPC (no support yet)
+							//           8 = FFT based Reed-Solomon Codes
+							//      0x8000 = Keep all recovery blocks or lost blocks on memory
 
-	int *id_list;		// for inverting matrix of Reed-Solomon Codes
+	int *recv_id_list;		// List for index of using recovery blocks
 	void *matrix;
 
 	uint64_t block_size;
@@ -148,6 +149,7 @@ typedef struct {
 	uint8_t *block_data;
 
 	uint64_t first_recovery_block;
+	uint64_t max_recovery_block;
 	uint64_t recovery_block_count;
 	uint32_t recovery_file_count;
 	uint32_t redundancy_size;	// Lower 8-bit (0~250) is percent, or 251=KB, 252=MB, 253=GB.

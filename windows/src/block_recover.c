@@ -12,6 +12,7 @@
 #include "galois.h"
 #include "hash.h"
 #include "reedsolomon.h"
+#include "leopard/leopard.h"
 
 
 /*
@@ -67,8 +68,8 @@ int recover_lost_block(PAR3_CTX *par3_ctx, char *temp_path, int lost_count)
 	galois_poly = par3_ctx->galois_poly;
 	gf_table = par3_ctx->galois_table;
 	matrix = par3_ctx->matrix;
-	lost_id = par3_ctx->id_list;
-	recv_id = lost_id + lost_count;
+	recv_id = par3_ctx->recv_id_list;
+	lost_id = recv_id + lost_count;
 	block_data = par3_ctx->block_data;
 	block_list = par3_ctx->block_list;
 	slice_list = par3_ctx->slice_list;
@@ -225,15 +226,13 @@ int recover_lost_block(PAR3_CTX *par3_ctx, char *temp_path, int lost_count)
 				tail_offset += slice_size;
 			}
 
-			// Zero fill rest bytes
-			if (data_size < block_size)
-				memset(work_buf + data_size, 0, block_size - data_size);
-
 		} else {	// The input block was lost.
 			data_size = 0;	// Mark of lost block
 		}
 
 		if (data_size > 0){	// The block data is available.
+			// Zero fill rest bytes
+			memset(work_buf + data_size, 0, region_size - data_size);
 
 			// Restore lost input slices
 			slice_index = block_list[block_index].slice;
@@ -285,11 +284,11 @@ int recover_lost_block(PAR3_CTX *par3_ctx, char *temp_path, int lost_count)
 
 			// Calculate parity bytes in the region
 			if (gf_size == 2){
-				gf16_region_create_parity(galois_poly, work_buf, region_size, block_size);
+				gf16_region_create_parity(galois_poly, work_buf, region_size);
 			} else if (gf_size == 1){
-				gf8_region_create_parity(galois_poly, work_buf, region_size, block_size);
+				gf8_region_create_parity(galois_poly, work_buf, region_size);
 			} else {
-				region_create_parity(work_buf, region_size, block_size);
+				region_create_parity(work_buf, region_size);
 			}
 
 			// Recover (multiple & add to) lost input blocks
@@ -366,14 +365,16 @@ int recover_lost_block(PAR3_CTX *par3_ctx, char *temp_path, int lost_count)
 				fclose(fp_write);
 			return RET_FILE_IO_ERROR;
 		}
+		// Zero fill rest bytes
+		memset(work_buf + block_size, 0, region_size - block_size);
 
 		// Calculate parity bytes in the region
 		if (gf_size == 2){
-			gf16_region_create_parity(galois_poly, work_buf, region_size, block_size);
+			gf16_region_create_parity(galois_poly, work_buf, region_size);
 		} else if (gf_size == 1){
-			gf8_region_create_parity(galois_poly, work_buf, region_size, block_size);
+			gf8_region_create_parity(galois_poly, work_buf, region_size);
 		} else {
-			region_create_parity(work_buf, region_size, block_size);
+			region_create_parity(work_buf, region_size);
 		}
 
 		// Recover (multiple & add to) lost input blocks
@@ -414,11 +415,11 @@ int recover_lost_block(PAR3_CTX *par3_ctx, char *temp_path, int lost_count)
 
 		// Check parity of recovered block to confirm that calculation was correct.
 		if (gf_size == 2){
-			ret = gf16_region_check_parity(galois_poly, work_buf, region_size, block_size);
+			ret = gf16_region_check_parity(galois_poly, work_buf, region_size);
 		} else if (gf_size == 1){
-			ret = gf8_region_check_parity(galois_poly, work_buf, region_size, block_size);
+			ret = gf8_region_check_parity(galois_poly, work_buf, region_size);
 		} else {
-			ret = region_check_parity(work_buf, region_size, block_size);
+			ret = region_check_parity(work_buf, region_size);
 		}
 		if (ret != 0){
 			printf("Parity of recovered block[%d] is different.\n", block_index);
@@ -552,6 +553,12 @@ int recover_lost_block(PAR3_CTX *par3_ctx, char *temp_path, int lost_count)
 		printf("done in %.1f seconds.\n", (double)clock_now / CLOCKS_PER_SEC);
 	}
 
+	// Release some allocated memory
+	free(recv_id);
+	par3_ctx->recv_id_list = NULL;
+	free(matrix);
+	par3_ctx->matrix = NULL;
+
 	return 0;
 }
 
@@ -563,7 +570,7 @@ int recover_lost_block_split(PAR3_CTX *par3_ctx, char *temp_path, uint64_t lost_
 	uint8_t buf_tail[40];
 	uint8_t *block_data, *buf_p;
 	uint8_t gf_size;
-	int galois_poly, *lost_id, *recv_id;
+	int galois_poly, *recv_id;
 	int ret;
 	int progress_old, progress_now;
 	uint32_t split_count;
@@ -572,7 +579,7 @@ int recover_lost_block_split(PAR3_CTX *par3_ctx, char *temp_path, uint64_t lost_
 	size_t io_size;
 	int64_t slice_index, file_offset;
 	uint64_t block_index, lost_index;
-	uint64_t block_size, block_count;
+	uint64_t block_size, block_count, max_recovery_block;
 	uint64_t alloc_size, region_size, split_size;
 	uint64_t data_size, part_size, split_offset;
 	uint64_t tail_offset, tail_gap;
@@ -588,17 +595,21 @@ int recover_lost_block_split(PAR3_CTX *par3_ctx, char *temp_path, uint64_t lost_
 	time_t time_old, time_now;
 	clock_t clock_now;
 
+	// For Leopard-RS library
+	unsigned int work_count;
+	uint8_t **original_data = NULL, **recovery_data = NULL, **work_data = NULL;
+
 	//printf("\n ecc_method = 0x%x, lost_count = %d\n", par3_ctx->ecc_method, lost_count);
 
 	file_count = par3_ctx->input_file_count;
 	block_size = par3_ctx->block_size;
 	block_count = par3_ctx->block_count;
+	max_recovery_block = par3_ctx->max_recovery_block;
 	gf_size = par3_ctx->gf_size;
 	galois_poly = par3_ctx->galois_poly;
 	gf_table = par3_ctx->galois_table;
 	matrix = par3_ctx->matrix;
-	lost_id = par3_ctx->id_list;
-	recv_id = lost_id + lost_count;
+	recv_id = par3_ctx->recv_id_list;
 	block_list = par3_ctx->block_list;
 	slice_list = par3_ctx->slice_list;
 	chunk_list = par3_ctx->chunk_list;
@@ -607,8 +618,23 @@ int recover_lost_block_split(PAR3_CTX *par3_ctx, char *temp_path, uint64_t lost_
 	packet_count = par3_ctx->recv_packet_count;
 
 	// Set required memory size at first
-	region_size = (block_size + 4 + 3) & ~3;
-	alloc_size = region_size * (block_count + lost_count);
+	if (par3_ctx->ecc_method & 8){	// FFT based Reed-Solomon Codes
+		ret = leo_init();	// Initialize Leopard-RS library.
+		if (ret != 0){
+			printf("Failed to initialize Leopard-RS library (%d)\n", ret);
+			return RET_LOGIC_ERROR;
+		}
+		work_count = leo_decode_work_count((unsigned int)block_count, (unsigned int)max_recovery_block);
+		//printf("Leopard-RS: work_count = %u\n", work_count);
+		// Leopard-RS requires multiple of 64 bytes for SIMD.
+		region_size = (block_size + 4 + 63) & ~63;
+		alloc_size = region_size * (block_count + lost_count + work_count);
+
+	} else {	// Reed-Solomon Erasure Codes
+		// Mmeory alignment is 4 bytes.
+		region_size = (block_size + 4 + 3) & ~3;
+		alloc_size = region_size * (block_count + lost_count);
+	}
 
 	// for test split
 	//par3_ctx->memory_limit = (alloc_size + 2) / 3;
@@ -617,7 +643,13 @@ int recover_lost_block_split(PAR3_CTX *par3_ctx, char *temp_path, uint64_t lost_
 	if ( (par3_ctx->memory_limit > 0) && (alloc_size > par3_ctx->memory_limit) ){
 		split_count = (uint32_t)((alloc_size + par3_ctx->memory_limit - 1) / par3_ctx->memory_limit);
 		split_size = (block_size + split_count - 1) / split_count;	// This is splitted block size to fit in limited memory.
-		split_size = (split_size + 1) & ~1;	// aligned to 2 bytes for 8 or 16-bit Galois Field
+		if (gf_size == 2){
+			// aligned to 2 bytes for 16-bit Galois Field
+			split_size = (split_size + 1) & ~1;
+		}
+		if (split_size > block_size)
+			split_size = block_size;
+		split_count = (uint32_t)((block_size + split_size - 1) / split_size);
 		if (par3_ctx->noise_level >= 1){
 			printf("\nSplit block to %u pieces of %I64u bytes.\n", split_count, split_size);
 		}
@@ -627,15 +659,56 @@ int recover_lost_block_split(PAR3_CTX *par3_ctx, char *temp_path, uint64_t lost_
 	}
 
 	// Allocate memory to keep all splitted blocks.
-	region_size = (split_size + 4 + 3) & ~3;
-	alloc_size = region_size * (block_count + lost_count);
-	//printf("region_size = %I64u, alloc_size = %I64u\n", region_size, alloc_size);
+	if (par3_ctx->ecc_method & 8){	// FFT based Reed-Solomon Codes
+		// Leopard-RS requires alignment of 64 bytes.
+		region_size = (split_size + 4 + 63) & ~63;
+		alloc_size = region_size * (block_count + lost_count + work_count);
+	} else {	// Reed-Solomon Erasure Codes
+		region_size = (split_size + 4 + 3) & ~3;
+		alloc_size = region_size * (block_count + lost_count);
+	}
+	//printf("split_size = %I64u, region_size = %I64u, alloc_size = %I64u\n", split_size, region_size, alloc_size);
 	block_data = malloc(alloc_size);
 	if (block_data == NULL){
 		perror("Failed to allocate memory for block data");
 		return RET_MEMORY_ERROR;
 	}
 	par3_ctx->block_data = block_data;
+
+	if (par3_ctx->ecc_method & 8){	// FFT based Reed-Solomon Codes
+		// List of pointer
+		original_data = malloc(sizeof(block_data) * (block_count + max_recovery_block + work_count));
+		if (original_data == NULL){
+			perror("Failed to allocate memory for Leopard-RS");
+			return RET_MEMORY_ERROR;
+		}
+		buf_p = block_data;
+		for (block_index = 0; block_index < block_count; block_index++){
+			if ((block_list[block_index].state & (4 | 16)) == 0){	// lost input block
+				original_data[block_index] = NULL;
+			} else {
+				original_data[block_index] = buf_p;
+			}
+			buf_p += region_size;
+		}
+		recovery_data = original_data + block_count;
+		lost_index = 0;
+		for (block_index = 0; block_index < max_recovery_block; block_index++){
+			if (block_index == recv_id[lost_index]){
+				recovery_data[block_index] = buf_p;
+				buf_p += region_size;
+				lost_index++;
+			} else {
+				recovery_data[block_index] = NULL;
+			}
+		}
+		work_data = recovery_data + max_recovery_block;
+		for (block_index = 0; block_index < work_count; block_index++){
+			work_data[block_index] = buf_p;
+			buf_p += region_size;
+		}
+		par3_ctx->matrix = original_data;	// Release this later
+	}
 
 	// Base name of temporary file
 	sprintf(temp_path, "par3_%02X%02X%02X%02X%02X%02X%02X%02X_",
@@ -770,17 +843,25 @@ int recover_lost_block_split(PAR3_CTX *par3_ctx, char *temp_path, uint64_t lost_
 			}
 
 			if (data_size > split_offset){	// When there is slice data to process.
-				if (part_size < split_size)
-					memset(buf_p + part_size, 0, split_size - part_size);	// Zero fill rest bytes
+				memset(buf_p + part_size, 0, region_size - part_size);	// Zero fill rest bytes
 				// No need to calculate CRC of reading block, because it will check recovered block later.
 
-				// Calculate parity bytes in the region
-				if (gf_size == 2){
-					gf16_region_create_parity(galois_poly, buf_p, region_size, split_size);
-				} else if (gf_size == 1){
-					gf8_region_create_parity(galois_poly, buf_p, region_size, split_size);
+				if (par3_ctx->ecc_method & 8){	// FFT based Reed-Solomon Codes
+					if (gf_size == 2){
+						leo_region_create_parity(buf_p, region_size);
+					} else {
+						region_create_parity(buf_p, region_size);
+					}
+//					memset(buf_p + split_size, 0, region_size - split_size);
 				} else {
-					region_create_parity(buf_p, region_size, split_size);
+					// Calculate parity bytes in the region
+					if (gf_size == 2){
+						gf16_region_create_parity(galois_poly, buf_p, region_size);
+					} else if (gf_size == 1){
+						gf8_region_create_parity(galois_poly, buf_p, region_size);
+					} else {
+						region_create_parity(buf_p, region_size);
+					}
 				}
 
 			} else {	// Zero fill partial input block
@@ -852,14 +933,25 @@ int recover_lost_block_split(PAR3_CTX *par3_ctx, char *temp_path, uint64_t lost_
 				fclose(fp);
 				return RET_FILE_IO_ERROR;
 			}
+			memset(buf_p + part_size, 0, region_size - part_size);	// Zero fill rest bytes
 
-			// Calculate parity bytes in the region
-			if (gf_size == 2){
-				gf16_region_create_parity(galois_poly, buf_p, region_size, split_size);
-			} else if (gf_size == 1){
-				gf8_region_create_parity(galois_poly, buf_p, region_size, split_size);
+			if (par3_ctx->ecc_method & 8){	// FFT based Reed-Solomon Codes
+				// Parity doesn't work on FFT.
+//				memset(buf_p + split_size, 0, region_size - split_size);
+				if (gf_size == 2){
+					leo_region_create_parity(buf_p, region_size);
+				} else {
+					region_create_parity(buf_p, region_size);
+				}
 			} else {
-				region_create_parity(buf_p, region_size, split_size);
+				// Calculate parity bytes in the region
+				if (gf_size == 2){
+					gf16_region_create_parity(galois_poly, buf_p, region_size);
+				} else if (gf_size == 1){
+					gf8_region_create_parity(galois_poly, buf_p, region_size);
+				} else {
+					region_create_parity(buf_p, region_size);
+				}
 			}
 
 			// Print progress percent
@@ -886,9 +978,28 @@ int recover_lost_block_split(PAR3_CTX *par3_ctx, char *temp_path, uint64_t lost_
 			fp = NULL;
 		}
 
-		// Recover (multiple & add to) lost input blocks
-		if (par3_ctx->ecc_method & 1){	// Reed-Solomon Erasure Codes
+		// Recover lost input blocks
+		if (par3_ctx->ecc_method & 1){	// Cauchy Reed-Solomon Codes
 			rs_recover_all(par3_ctx, region_size, (int)lost_count, progress_total, progress_step);
+
+		} else if (par3_ctx->ecc_method & 8){	// FFT based Reed-Solomon Codes
+			ret = leo_decode(region_size,
+							(unsigned int)block_count, (unsigned int)max_recovery_block, work_count,
+							original_data, recovery_data, work_data);
+			if (ret != 0){
+				printf("Failed to call Leopard-RS library (%d)\n", ret);
+				return RET_LOGIC_ERROR;
+			}
+
+			// Restore recovered data
+			buf_p = block_data;
+			for (block_index = 0; block_index < block_count; block_index++){
+				if ((block_list[block_index].state & (4 | 16)) == 0){	// lost input block
+					memcpy(buf_p, work_data[block_index], region_size);
+				}
+				buf_p += region_size;
+			}
+
 		}
 		if ( (par3_ctx->noise_level >= 0) && (par3_ctx->noise_level <= 1) ){
 			progress_step += block_count * lost_count;
@@ -897,18 +1008,23 @@ int recover_lost_block_split(PAR3_CTX *par3_ctx, char *temp_path, uint64_t lost_
 
 		// Restore all input blocks
 		buf_p = block_data;
-		lost_index = 0;
 		for (block_index = 0; block_index < block_count; block_index++){
-			if (block_index == lost_id[lost_index]){	// recovered input block
-				lost_index++;
-
+			if ((block_list[block_index].state & (4 | 16)) == 0){	// This input block was not complete.
 				// Check parity of recovered block to confirm that calculation was correct.
-				if (gf_size == 2){
-					ret = gf16_region_check_parity(galois_poly, buf_p, region_size, split_size);
-				} else if (gf_size == 1){
-					ret = gf8_region_check_parity(galois_poly, buf_p, region_size, split_size);
+				if (par3_ctx->ecc_method & 8){
+					if (gf_size == 2){
+						ret = leo_region_check_parity(buf_p, region_size);
+					} else {
+						ret = region_check_parity(buf_p, region_size);
+					}
 				} else {
-					ret = region_check_parity(buf_p, region_size, split_size);
+					if (gf_size == 2){
+						ret = gf16_region_check_parity(galois_poly, buf_p, region_size);
+					} else if (gf_size == 1){
+						ret = gf8_region_check_parity(galois_poly, buf_p, region_size);
+					} else {
+						ret = region_check_parity(buf_p, region_size);
+					}
 				}
 				if (ret != 0){
 					printf("Parity of recovered block[%I64u] is different.\n", block_index);
@@ -1073,6 +1189,14 @@ int recover_lost_block_split(PAR3_CTX *par3_ctx, char *temp_path, uint64_t lost_
 	if (par3_ctx->noise_level >= 0){
 		clock_now = clock() - clock_now;
 		printf("done in %.1f seconds.\n", (double)clock_now / CLOCKS_PER_SEC);
+	}
+
+	// Release some allocated memory
+	free(recv_id);
+	par3_ctx->recv_id_list = NULL;
+	if (par3_ctx->matrix){
+		free(par3_ctx->matrix);
+		par3_ctx->matrix = NULL;
 	}
 
 	return 0;

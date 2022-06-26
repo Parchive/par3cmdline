@@ -124,32 +124,6 @@ int add_found_packet(PAR3_CTX *par3_ctx, uint8_t *packet)
 			par3_ctx->start_packet_count++;
 		}
 
-	} else if (memcmp(packet_type, "PAR CAU\0", 8) == 0){	// Cauchy Matrix Packet
-		if (par3_ctx->matrix_packet == NULL){
-			par3_ctx->matrix_packet = malloc(packet_size);
-			if (par3_ctx->matrix_packet == NULL){
-				perror("Failed to allocate memory for Matrix Packet");
-				return RET_MEMORY_ERROR;
-			}
-			memcpy(par3_ctx->matrix_packet, packet, packet_size);
-			par3_ctx->matrix_packet_size = packet_size;
-			par3_ctx->matrix_packet_count = 1;
-		} else if (check_packet_exist(par3_ctx->matrix_packet, par3_ctx->matrix_packet_size, packet, packet_size) == 1){
-			// If there is the packet already, just exit.
-			return -1;
-		} else {
-			// Add this packet after other packets.
-			tmp_p = realloc(par3_ctx->matrix_packet, par3_ctx->matrix_packet_size + packet_size);
-			if (tmp_p == NULL){
-				perror("Failed to re-allocate memory for Matrix Packet");
-				return RET_MEMORY_ERROR;
-			}
-			par3_ctx->matrix_packet = tmp_p;
-			memcpy(par3_ctx->matrix_packet + par3_ctx->matrix_packet_size, packet, packet_size);
-			par3_ctx->matrix_packet_size += packet_size;
-			par3_ctx->matrix_packet_count++;
-		}
-
 	} else if (memcmp(packet_type, "PAR FIL\0", 8) == 0){	// File Packet
 		if (par3_ctx->file_packet == NULL){
 			par3_ctx->file_packet = malloc(packet_size);
@@ -252,6 +226,58 @@ int add_found_packet(PAR3_CTX *par3_ctx, uint8_t *packet)
 			memcpy(par3_ctx->ext_data_packet + par3_ctx->ext_data_packet_size, packet, packet_size);
 			par3_ctx->ext_data_packet_size += packet_size;
 			par3_ctx->ext_data_packet_count++;
+		}
+
+	} else if (memcmp(packet_type, "PAR CAU\0", 8) == 0){	// Cauchy Matrix Packet
+		if (par3_ctx->matrix_packet == NULL){
+			par3_ctx->matrix_packet = malloc(packet_size);
+			if (par3_ctx->matrix_packet == NULL){
+				perror("Failed to allocate memory for Matrix Packet");
+				return RET_MEMORY_ERROR;
+			}
+			memcpy(par3_ctx->matrix_packet, packet, packet_size);
+			par3_ctx->matrix_packet_size = packet_size;
+			par3_ctx->matrix_packet_count = 1;
+		} else if (check_packet_exist(par3_ctx->matrix_packet, par3_ctx->matrix_packet_size, packet, packet_size) == 1){
+			// If there is the packet already, just exit.
+			return -1;
+		} else {
+			// Add this packet after other packets.
+			tmp_p = realloc(par3_ctx->matrix_packet, par3_ctx->matrix_packet_size + packet_size);
+			if (tmp_p == NULL){
+				perror("Failed to re-allocate memory for Matrix Packet");
+				return RET_MEMORY_ERROR;
+			}
+			par3_ctx->matrix_packet = tmp_p;
+			memcpy(par3_ctx->matrix_packet + par3_ctx->matrix_packet_size, packet, packet_size);
+			par3_ctx->matrix_packet_size += packet_size;
+			par3_ctx->matrix_packet_count++;
+		}
+
+	} else if (memcmp(packet_type, "PAR FFT\0", 8) == 0){	// FFT Matrix Packet
+		if (par3_ctx->matrix_packet == NULL){
+			par3_ctx->matrix_packet = malloc(packet_size);
+			if (par3_ctx->matrix_packet == NULL){
+				perror("Failed to allocate memory for Matrix Packet");
+				return RET_MEMORY_ERROR;
+			}
+			memcpy(par3_ctx->matrix_packet, packet, packet_size);
+			par3_ctx->matrix_packet_size = packet_size;
+			par3_ctx->matrix_packet_count = 1;
+		} else if (check_packet_exist(par3_ctx->matrix_packet, par3_ctx->matrix_packet_size, packet, packet_size) == 1){
+			// If there is the packet already, just exit.
+			return -1;
+		} else {
+			// Add this packet after other packets.
+			tmp_p = realloc(par3_ctx->matrix_packet, par3_ctx->matrix_packet_size + packet_size);
+			if (tmp_p == NULL){
+				perror("Failed to re-allocate memory for Matrix Packet");
+				return RET_MEMORY_ERROR;
+			}
+			par3_ctx->matrix_packet = tmp_p;
+			memcpy(par3_ctx->matrix_packet + par3_ctx->matrix_packet_size, packet, packet_size);
+			par3_ctx->matrix_packet_size += packet_size;
+			par3_ctx->matrix_packet_count++;
 		}
 
 	} else {	// Unknown packet type

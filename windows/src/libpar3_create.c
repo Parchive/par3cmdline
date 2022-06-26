@@ -98,13 +98,27 @@ static void calculate_recovery_count(PAR3_CTX *par3_ctx)
 	}
 	if (par3_ctx->redundancy_size == 0)
 		return;	// Not specified
-	if (par3_ctx->recovery_block_count > 0)
-		return;	// Set already
 
-	// If redundancy_size is in range (0 ~ 250), it's a percent rate value.
-	// When there is remainder at division, round up the quotient.
-	par3_ctx->recovery_block_count = (par3_ctx->block_count * par3_ctx->redundancy_size + 99) / 100;
-	//printf("recovery_block_count = %I64u\n", par3_ctx->recovery_block_count);
+	// When number of recovery blocks was not specified, set by redundancy.
+	if ( (par3_ctx->recovery_block_count == 0) && (par3_ctx->redundancy_size > 0) ){
+		// If redundancy_size is in range (0 ~ 250), it's a percent rate value.
+		// When there is remainder at division, round up the quotient.
+		par3_ctx->recovery_block_count = (par3_ctx->block_count * par3_ctx->redundancy_size + 99) / 100;
+	}
+
+	if (par3_ctx->ecc_method & 8){	// FFT Matrix Packet
+		// Leopard-RS library has a restriction; recovery_count <= original_count
+		// It seems to be possible to solve this problem. But, I don't try at this time.
+		if (par3_ctx->recovery_block_count > par3_ctx->block_count)
+			par3_ctx->recovery_block_count = par3_ctx->block_count;
+		if (par3_ctx->max_recovery_block > par3_ctx->block_count)
+			par3_ctx->max_recovery_block = par3_ctx->block_count;
+	}
+
+	printf("Recovery block count = %I64u\n", par3_ctx->recovery_block_count);
+	if (par3_ctx->max_recovery_block > 0){
+		printf("Max recovery block count = %I64u\n", par3_ctx->max_recovery_block);
+	}
 }
 
 
@@ -235,10 +249,12 @@ int par3_create(PAR3_CTX *par3_ctx)
 		if (ret != 0)
 			return ret;
 
-		// Check if it can keep all recovery blocks on memory.
-		ret = allocate_recovery_block(par3_ctx);
-		if (ret != 0)
-			return ret;
+		// When it uses Reed-Solomon Erasure Codes, it tries to keep all recovery blocks on memory.
+		if (par3_ctx->ecc_method & 1){
+			ret = allocate_recovery_block(par3_ctx);
+			if (ret != 0)
+				return ret;
+		}
 
 		// Write PAR3 files with input blocks
 		if (par3_ctx->data_packet != 0){
@@ -249,10 +265,10 @@ int par3_create(PAR3_CTX *par3_ctx)
 
 		// If there are enough memory to keep all recovery blocks,
 		// it calculates recovery blocks before writing Recovery Data Packets.
-		if (par3_ctx->ecc_method & 0x1000){
+		if (par3_ctx->ecc_method & 0x8000){
 			ret = create_recovery_block(par3_ctx);
 			if (ret < 0){
-				par3_ctx->ecc_method &= ~0x1000;
+				par3_ctx->ecc_method &= ~0x8000;
 			} else if (ret > 0){
 				return ret;
 			}
@@ -266,7 +282,7 @@ int par3_create(PAR3_CTX *par3_ctx)
 		}
 
 		// When recovery blocks were not created yet, calculate and write at here.
-		if ((par3_ctx->ecc_method & 0x1000) == 0){
+		if ((par3_ctx->ecc_method & 0x8000) == 0){
 			ret = create_recovery_block_split(par3_ctx);
 			if (ret != 0)
 				return ret;

@@ -3,6 +3,7 @@
 #define _CRT_SECURE_NO_WARNINGS
 
 #include <errno.h>
+#include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -486,5 +487,32 @@ int mem_or16(unsigned char buf[16])
 {
 	return (buf[0] | (buf[1] << 8) | ((buf[2] | buf[3] | buf[4] | buf[5] | buf[6] | buf[7] |
 			buf[8] | buf[9] | buf[10] | buf[11] | buf[12] | buf[13] | buf[14] | buf[15]) << 16));
+}
+
+
+// Popcount
+// https://en.wikipedia.org/wiki/Hamming_weight
+int popcount32(uint32_t x)
+{
+	x -= (x >> 1) & 0x55555555;						//put count of each 2 bits into those 2 bits
+	x = (x & 0x33333333) + ((x >> 2) & 0x33333333);	//put count of each 4 bits into those 4 bits 
+	x = (x + (x >> 4)) & 0x0f0f0f0f;				//put count of each 8 bits into those 8 bits 
+	x += x >>  8;									//put count of each 16 bits into their lowest 8 bits
+	x += x >> 16;									//put count of each 32 bits into their lowest 8 bits
+	return x & 0x7f;
+}
+
+// Return log2 of integer (round up)
+// log2(0) = error, log2(1) = 0, log2(2) = 1, log2(3) = 2, log2(4) = 2, log2(5) = 3, ...
+int int_log2(uint64_t x)
+{
+	int n = 0;
+
+	while (x > 1){
+		x = (x + 1) >> 1;	// This line same as "x = (x + 1) / 2;".
+		n++;
+	}
+
+	return n;
 }
 

@@ -62,13 +62,13 @@ static void print_help(void)
 "  -s<n>    : Set the Block-Size (don't use both -b and -s)\n"
 "  -r<n>    : Level of redundancy (%%)\n"
 "  -c<n>    : Recovery Block-Count (don't use both -r and -c)\n"
-"  -f<n>    : First Recovery-Block-Number\n"
 "  -u       : Uniform recovery file sizes\n"
 "  -l       : Limit size of recovery files (don't use both -u and -l)\n"
 "  -n<n>    : Number of recovery files (don't use both -n and -l)\n"
 "  -R       : Recurse into subdirectories\n"
 "  -D       : Store Data packets\n"
 "  -d<n>    : Enable deduplication of input blocks\n"
+"  -e<n>    : Set using Error Correction Codes\n"
 "  -C<text> : Set comment\n"
 	);
 }
@@ -302,19 +302,28 @@ int main(int argc, char *argv[])
 			It needs a parent PAR3 file instead of input files.
 			It needs to verify before creating recovery blocks.
 			*/
-			} else if ( (tmp_p[0] == 'f') && (tmp_p[1] >= '0') && (tmp_p[1] <= '9') ){	// Specify the First block recovery number
+			} else if ( (tmp_p[0] == 'c') && (tmp_p[1] == 'f') && (tmp_p[2] >= '0') && (tmp_p[2] <= '9') ){	// Specify the First block recovery number
 				if ( (command_operation != 'c') && (command_operation != 't') ){
 					printf("Cannot specify first block number unless creating.\n");
 				} else if (par3_ctx->first_recovery_block > 0){
 					printf("Cannot specify first block twice.\n");
 				} else {
-					par3_ctx->first_recovery_block = strtoull(tmp_p + 1, NULL, 10);
+					par3_ctx->first_recovery_block = strtoull(tmp_p + 2, NULL, 10);
 					if (par3_ctx->first_recovery_block > 0){
 						if (add_creator_text(par3_ctx, tmp_p - 1) != 0){
 							ret = RET_MEMORY_ERROR;
 							goto prepare_return;
 						}
 					}
+				}
+
+			} else if ( (tmp_p[0] == 'c') && (tmp_p[1] == 'm') && (tmp_p[2] >= '0') && (tmp_p[2] <= '9') ){	// Specify the Max block recovery count
+				if ( (command_operation != 'c') && (command_operation != 't') ){
+					printf("Cannot specify max block count unless creating.\n");
+				} else if (par3_ctx->max_recovery_block > 0){
+					printf("Cannot specify max block twice.\n");
+				} else {
+					par3_ctx->max_recovery_block = strtoull(tmp_p + 2, NULL, 10);
 				}
 
 			} else if (strcmp(tmp_p, "u") == 0){	// Specify uniformly sized recovery files
@@ -386,6 +395,19 @@ int main(int argc, char *argv[])
 					if (add_creator_text(par3_ctx, tmp_p - 1) != 0){
 						ret = RET_MEMORY_ERROR;
 						goto prepare_return;
+					}
+				}
+
+			} else if ( (tmp_p[0] == 'e') && (tmp_p[1] >= '1') && (tmp_p[1] <= '9') ){	// Error Correction Codes
+				if ( (command_operation != 'c') && (command_operation != 't') ){
+					printf("Cannot specify Error Correction Codes unless creating.\n");
+				} else if (par3_ctx->deduplication != 0){
+					printf("Cannot specify Error Correction Codes twice.\n");
+				} else {
+					par3_ctx->ecc_method = strtoul(tmp_p + 1, NULL, 10);
+					if (popcount32(par3_ctx->ecc_method) > 1){
+						printf("Cannot specify multiple Error Correction Codes.\n");
+						par3_ctx->ecc_method = 0;
 					}
 				}
 
@@ -491,10 +513,14 @@ int main(int argc, char *argv[])
 			printf("recovery_block_count = %I64u\n", par3_ctx->recovery_block_count);
 		if (par3_ctx->first_recovery_block != 0)
 			printf("first_recovery_block = %I64u\n", par3_ctx->first_recovery_block);
+		if (par3_ctx->max_recovery_block != 0)
+			printf("max_recovery_block = %I64u\n", par3_ctx->max_recovery_block);
 		if (par3_ctx->recovery_file_count != 0)
 			printf("recovery_file_count = %u\n", par3_ctx->recovery_file_count);
 		if (par3_ctx->recovery_file_scheme != 0)
-			printf("par3_ctx->recovery_file_scheme = %c\n", par3_ctx->recovery_file_scheme);
+			printf("recovery_file_scheme = %c\n", par3_ctx->recovery_file_scheme);
+		if (par3_ctx->ecc_method != 0)
+			printf("Error Correction Codes = %u\n", par3_ctx->ecc_method);
 		if (par3_ctx->deduplication != 0)
 			printf("deduplication = level %c\n", par3_ctx->deduplication);
 		if (command_recursive != 0)
@@ -573,11 +599,14 @@ int main(int argc, char *argv[])
 				printf("Suggested block size = %I64u\n", par3_ctx->block_size);
 			}
 		} else if (par3_ctx->block_size & 1){
-			if (calculate_block_count(par3_ctx, par3_ctx->block_size) > 128){
+			// Always increasing to multiple of 2 is easier ?
+			//if ( ( (par3_ctx->ecc_method & 8) != 0) ||
+			//		(calculate_block_count(par3_ctx, par3_ctx->block_size) > 128) ){
+				// 16-bit Galois Field is used for FFT based Reed-Solomon Codes.
 				// Block size must be multiple of 2 for 16-bit Reed-Solomon Codes.
 				par3_ctx->block_size += 1;
 				printf("Suggested block size = %I64u\n", par3_ctx->block_size);
-			}
+			//}
 		}
 		par3_ctx->block_count = calculate_block_count(par3_ctx, par3_ctx->block_size);
 		if (par3_ctx->noise_level >= 0){

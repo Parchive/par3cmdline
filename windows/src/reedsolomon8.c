@@ -26,8 +26,8 @@ int rs8_gaussian_elimination(PAR3_CTX *par3_ctx, int lost_count)
 
 	block_count = (int)(par3_ctx->block_count);
 	gf_table = par3_ctx->galois_table;
-	lost_id = par3_ctx->id_list;
-	recv_id = lost_id + lost_count;
+	recv_id = par3_ctx->recv_id_list;
+	lost_id = recv_id + lost_count;
 
 	// Allocate matrix on memory
 	matrix = malloc(block_count * lost_count);
@@ -131,8 +131,8 @@ int rs8_invert_matrix_cauchy(PAR3_CTX *par3_ctx, int lost_count)
 
 	block_count = (int)(par3_ctx->block_count);
 	gf_table = par3_ctx->galois_table;
-	lost_id = par3_ctx->id_list;
-	recv_id = lost_id + lost_count;
+	recv_id = par3_ctx->recv_id_list;
+	lost_id = recv_id + lost_count;
 
 	// Allocate matrix on memory
 	matrix = malloc(block_count * lost_count);

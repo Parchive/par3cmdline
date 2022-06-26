@@ -19,6 +19,12 @@
     <Filter Include="ヘッダー ファイル\blake3">
       <UniqueIdentifier>{4d183ad8-05e1-45ae-983b-837f0437b8e4}</UniqueIdentifier>
     </Filter>
+    <Filter Include="ソース ファイル\leopard">
+      <UniqueIdentifier>{f560bf0f-2468-4c3e-bf05-7c6caa32666a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ヘッダー ファイル\leopard">
+      <UniqueIdentifier>{8e61fd08-3522-4964-a13d-b53bc20a0ab2}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="common.c">
@@ -108,6 +114,18 @@
     <ClCompile Include="reedsolomon16.c">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
+    <ClCompile Include="leopard\leopard.cpp">
+      <Filter>ソース ファイル\leopard</Filter>
+    </ClCompile>
+    <ClCompile Include="leopard\LeopardCommon.cpp">
+      <Filter>ソース ファイル\leopard</Filter>
+    </ClCompile>
+    <ClCompile Include="leopard\LeopardFF16.cpp">
+      <Filter>ソース ファイル\leopard</Filter>
+    </ClCompile>
+    <ClCompile Include="leopard\LeopardFF8.cpp">
+      <Filter>ソース ファイル\leopard</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="libpar3.h">
@@ -148,6 +166,18 @@
     </ClInclude>
     <ClInclude Include="repair.h">
       <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="leopard\leopard.h">
+      <Filter>ヘッダー ファイル\leopard</Filter>
+    </ClInclude>
+    <ClInclude Include="leopard\LeopardCommon.h">
+      <Filter>ヘッダー ファイル\leopard</Filter>
+    </ClInclude>
+    <ClInclude Include="leopard\LeopardFF16.h">
+      <Filter>ヘッダー ファイル\leopard</Filter>
+    </ClInclude>
+    <ClInclude Include="leopard\LeopardFF8.h">
+      <Filter>ヘッダー ファイル\leopard</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

@@ -278,24 +278,15 @@ void gf16_region_multiply(uint16_t *galois_log_table,
 
 
 // Create parity bytes in the region
-void gf16_region_create_parity(int prim_poly, uint8_t *buf, size_t region_size, size_t data_size)
+void gf16_region_create_parity(int prim_poly, uint8_t *buf, size_t region_size)
 {
-	size_t len;
 	uint32_t sum, temp, mask;
 
 	prim_poly &= 0xFFFF;	// reduce to 16-bit value
 
-	// When block size isn't multiple of 4, zero fill the last 1~3 bytes.
-	if (data_size & 3){
-		for (len = data_size; len < region_size - 4; len++){
-			buf[len] = 0;
-		}
-	}
-
 	// XOR all block data to 4 bytes
-	len = data_size + 3;
 	sum = 0;
-	while (len >= 4){
+	while (region_size > 4){
 		temp = *((uint32_t *)buf);
 
 		// store highest bits of each 16-bit integer
@@ -315,7 +306,7 @@ void gf16_region_create_parity(int prim_poly, uint8_t *buf, size_t region_size, 
 	 	// add new 4 bytes
 		sum ^= temp;
 
-		len -= 4;
+		region_size -= 4;
 		buf += 4;
 	}
 
@@ -323,17 +314,15 @@ void gf16_region_create_parity(int prim_poly, uint8_t *buf, size_t region_size, 
 }
 
 // Check parity bytes in the region
-int gf16_region_check_parity(int galois_poly, uint8_t *buf, size_t region_size, size_t data_size)
+int gf16_region_check_parity(int galois_poly, uint8_t *buf, size_t region_size)
 {
-	size_t len;
 	uint32_t sum, temp, mask;
 
 	galois_poly &= 0xFFFF;	// reduce to 16-bit value
 
 	// XOR all block data to 4 bytes
-	len = data_size + 3;
 	sum = 0;
-	while (len >= 4){
+	while (region_size > 4){
 		temp = *((uint32_t *)buf);
 
 		// store highest bits of each 8-bit integer
@@ -351,7 +340,7 @@ int gf16_region_check_parity(int galois_poly, uint8_t *buf, size_t region_size, 
 	 	// add new 4 bytes
 		sum ^= temp;
 
-		len -= 4;
+		region_size -= 4;
 		buf += 4;
 	}
 

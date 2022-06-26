@@ -540,7 +540,7 @@ static int write_recovery_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t ea
 
 	region_size = (block_size + 4 + 3) & ~3;
 	buf_p = par3_ctx->block_data;
-	if (par3_ctx->ecc_method & 0x1000){
+	if (par3_ctx->ecc_method & 0x8000){
 		// Move to the position of starting recovery block
 		buf_p += (each_start - par3_ctx->first_recovery_block) * region_size;
 	}
@@ -594,14 +594,14 @@ static int write_recovery_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t ea
 
 		// When there is enough memory to keep all recovery blocks,
 		// recovery blocks were created already.
-		if (par3_ctx->ecc_method & 0x1000){
+		if (par3_ctx->ecc_method & 0x8000){
 			// Check parity of recovery block to confirm that calculation was correct.
 			if (gf_size == 2){
-				ret = gf16_region_check_parity(galois_poly, buf_p, region_size, block_size);
+				ret = gf16_region_check_parity(galois_poly, buf_p, region_size);
 			} else if (gf_size == 1){
-				ret = gf8_region_check_parity(galois_poly, buf_p, region_size, block_size);
+				ret = gf8_region_check_parity(galois_poly, buf_p, region_size);
 			} else {
-				ret = region_check_parity(buf_p, region_size, block_size);
+				ret = region_check_parity(buf_p, region_size);
 			}
 			if (ret != 0){
 				printf("Parity of recovery block[%I64u] is different.\n", num);
@@ -754,7 +754,7 @@ int write_recovery_file(PAR3_CTX *par3_ctx)
 	}
 
 	// When recovery blocks were not created yet, allocate memory to store packet position.
-	if ((par3_ctx->ecc_method & 0x1000) == 0){
+	if ((par3_ctx->ecc_method & 0x8000) == 0){
 		par3_ctx->position_list = malloc(sizeof(PAR3_POS_CTX) * block_count);
 		if (par3_ctx->position_list == NULL){
 			perror("Failed to allocate memory for position list");
@@ -809,7 +809,7 @@ int write_recovery_file(PAR3_CTX *par3_ctx)
 		}
 
 		sprintf(filename + len, ".vol%0*I64u+%0*I64u.par3", digit_num1, each_start, digit_num2, each_count);
-		if ((par3_ctx->ecc_method & 0x1000) == 0){
+		if ((par3_ctx->ecc_method & 0x8000) == 0){
 			// When recovery blocks were not created yet, keep list of PAR filename.
 			if ( namez_add(&(par3_ctx->par_file_name), &(par3_ctx->par_file_name_len), &(par3_ctx->par_file_name_max), filename) != 0){
 				perror("Failed to allocate memory for PAR filename");

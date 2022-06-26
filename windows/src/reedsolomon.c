@@ -135,13 +135,12 @@ void rs_create_all(PAR3_CTX *par3_ctx, size_t region_size, uint64_t progress_tot
 // Construct matrix for Cauchy Reed-Solomon, and solve linear equation.
 int rs_compute_matrix(PAR3_CTX *par3_ctx, uint64_t lost_count)
 {
-	uint8_t *packet_checksum;
 	int ret;
-	int *lost_id, *recv_id;
 	size_t alloc_size, region_size;
-	uint64_t count, index, id;
-	PAR3_BLOCK_CTX *block_list;
-	PAR3_PKT_CTX *packet_list;
+
+	// Only when it uses Reed-Solomon Erasure Codes.
+	if ((par3_ctx->ecc_method & 1) == 0)
+		return RET_LOGIC_ERROR;
 
 	if (par3_ctx->gf_size == 2){	// 16-bit Galois Field
 		par3_ctx->galois_table = gf16_create_table(par3_ctx->galois_poly);
@@ -156,58 +155,6 @@ int rs_compute_matrix(PAR3_CTX *par3_ctx, uint64_t lost_count)
 	if (par3_ctx->galois_table == NULL){
 		printf("Failed to create tables for Galois Field (0x%X)\n", par3_ctx->galois_poly);
 		return RET_MEMORY_ERROR;
-	}
-
-	// Only when it uses Reed-Solomon Erasure Codes.
-	if ((par3_ctx->ecc_method & 1) == 0)
-		return RET_LOGIC_ERROR;
-
-	// Make list of index (lost input blocks and using recovery blocks)
-	lost_id = (int *) malloc(sizeof(int) * lost_count * 2);
-	if (lost_id == NULL){
-		printf("Failed to make list for using blocks\n");
-		return RET_MEMORY_ERROR;
-	}
-	recv_id = lost_id + lost_count;
-	par3_ctx->id_list = lost_id;
-
-	// Get checksum of using Matrix Packet
-	packet_checksum = par3_ctx->matrix_packet + par3_ctx->matrix_packet_offset + 8;
-
-	// Set index of using recovery blocks
-	packet_list = par3_ctx->recv_packet_list;
-	count = par3_ctx->recv_packet_count;
-	id = 0;
-	for (index = 0; index < count; index++){
-		// Search only Recovery Data Packets belong to using Matrix Packet
-		if (memcmp(packet_list[index].matrix, packet_checksum, 16) == 0){
-			recv_id[id] = (int)(packet_list[index].index);
-			//printf("recv_id[%I64u] = %d\n", id, recv_id[id]);
-			id++;
-
-			// If there are more blocks than required, just ignore them.
-			// Cauchy Matrix should be invertible always.
-			// Or, is it safe to keep more for full rank ?
-			if (id >= lost_count)
-				break;
-		}
-	}
-
-	// Set index of lost input blocks
-	block_list = par3_ctx->block_list;
-	count = par3_ctx->block_count;
-	id = 0;
-	for (index = 0; index < count; index++){
-		if ((block_list[index].state & (4 | 16)) == 0){
-			if (id >= lost_count){
-				printf("Number of lost input blocks is wrong.\n");
-				return RET_LOGIC_ERROR;
-			}
-
-			lost_id[id] = (int)index;
-			//printf("lost_id[%I64u] = %d\n", id, lost_id[id]);
-			id++;
-		}
 	}
 
 	// Make matrix
@@ -237,20 +184,14 @@ int rs_compute_matrix(PAR3_CTX *par3_ctx, uint64_t lost_count)
 
 	// Limited memory usage
 	alloc_size = region_size * lost_count;
-	if ( (par3_ctx->memory_limit > 0) && (alloc_size > par3_ctx->memory_limit) ){
-		par3_ctx->ecc_method &= ~0x1000;
+	if ( (par3_ctx->memory_limit > 0) && (alloc_size > par3_ctx->memory_limit) )
 		return 0;
-	}
 
 	// Allocate memory to keep lost blocks
 	par3_ctx->block_data = malloc(alloc_size);
 	//par3_ctx->block_data = NULL;	// For testing another method
-	if (par3_ctx->block_data == NULL){
-		// When it cannot allocate memory, it will retry later.
-		par3_ctx->ecc_method &= ~0x1000;
-	} else {
-		par3_ctx->ecc_method |= 0x1000;	// Keep all lost blocks on memory
-	}
+	if (par3_ctx->block_data != NULL)
+		par3_ctx->ecc_method |= 0x8000;	// Keep all lost blocks on memory
 
 	return 0;
 }
@@ -294,7 +235,7 @@ void rs_recover_all(PAR3_CTX *par3_ctx, size_t region_size, int lost_count, uint
 	void *gf_table, *matrix;
 	uint8_t *block_data, *buf_p, *input_p, *recv_p;
 	uint8_t gf_size;
-	int *lost_id, *recv_id;
+	int *lost_id;
 	int x_index, y_index, lost_index, factor;
 	int block_count;
 	int progress_old, progress_now;
@@ -304,8 +245,7 @@ void rs_recover_all(PAR3_CTX *par3_ctx, size_t region_size, int lost_count, uint
 	gf_size = par3_ctx->gf_size;
 	gf_table = par3_ctx->galois_table;
 	matrix = par3_ctx->matrix;
-	lost_id = par3_ctx->id_list;
-	recv_id = lost_id + lost_count;
+	lost_id = par3_ctx->recv_id_list + lost_count;
 	block_data = par3_ctx->block_data;
 	recv_p = block_data + region_size * block_count;
 

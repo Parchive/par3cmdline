@@ -483,51 +483,116 @@ void blake3(const uint8_t *buf, size_t size, uint8_t *hash)
 
 
 // Create parity bytes in the region
-void region_create_parity(uint8_t *buf, size_t region_size, size_t data_size)
+void region_create_parity(uint8_t *buf, size_t region_size)
 {
-	size_t len;
 	uint32_t sum;
 
-	// When block size isn't multiple of 4, zero fill the last 1~3 bytes.
-	if (data_size & 3){
-		for (len = data_size; len < region_size - 4; len++){
-			buf[len] = 0;
-		}
-	}
-
 	// XOR all block data to 4 bytes
-	len = data_size + 3;
 	sum = 0;
-	while (len >= 4){
+	while (region_size > 4){
 		sum ^= *((uint32_t *)buf);
 
-		len -= 4;
+		region_size -= 4;
 		buf += 4;
 	}
 
-	// Parity is 4 bytes.
+	// Parity is saved at the last 4-bytes.
 	((uint32_t *)buf)[0] = sum;
 }
 
 // Check parity bytes in the region
-int region_check_parity(uint8_t *buf, size_t region_size, size_t data_size)
+int region_check_parity(uint8_t *buf, size_t region_size)
 {
-	size_t len;
 	uint32_t sum;
 
 	// XOR all block data to 4 bytes
-	len = data_size + 3;
 	sum = 0;
-	while (len >= 4){
+	while (region_size > 4){
 		sum ^= *((uint32_t *)buf);
 
-		len -= 4;
+		region_size -= 4;
 		buf += 4;
 	}
 
-	// Parity is 4 bytes.
+	// Parity is saved at the last 4-bytes.
 	if (((uint32_t *)buf)[0] != sum)
 		return 1;
+
+	return 0;
+}
+
+
+// Create parity bytes in the region for Leopard-RS (ALTMAP)
+// region_size must be multiple of 64.
+void leo_region_create_parity(uint8_t *buf, size_t region_size)
+{
+	uint8_t temp_buf[64];
+	size_t i;
+	uint32_t sum;
+
+	// XOR all block data to 4 bytes.
+	sum = 0;
+	while (region_size >= 64){
+		if (region_size == 64){	// Parity is saved at the last 4-bytes.
+			for (i = 0; i < 60; i += 4){
+				sum ^= *((uint32_t *)buf);
+				buf += 4;
+			}
+			((uint32_t *)buf)[0] = sum;
+			buf += 4;
+		} else {
+			for (i = 0; i < 64; i += 4){
+				sum ^= *((uint32_t *)buf);
+				buf += 4;
+			}
+		}
+
+		// move to ALTMAP
+		buf -= 64;
+		for (i = 0; i < 32; i++){
+			temp_buf[i     ] = buf[i * 2    ];
+			temp_buf[i + 32] = buf[i * 2 + 1];
+		}
+		memcpy(buf, temp_buf, 64);
+
+		buf += 64;
+		region_size -= 64;
+	}
+}
+
+// Check parity bytes in the region for Leopard-RS (ALTMAP)
+int leo_region_check_parity(uint8_t *buf, size_t region_size)
+{
+	uint8_t temp_buf[64];
+	size_t i;
+	uint32_t sum;
+
+	// XOR all block data to 4 bytes.
+	sum = 0;
+	while (region_size >= 64){
+		// return from ALTMAP
+		for (i = 0; i < 32; i++){
+			temp_buf[i * 2    ] = buf[i     ];
+			temp_buf[i * 2 + 1] = buf[i + 32];
+		}
+		memcpy(buf, temp_buf, 64);
+
+		if (region_size == 64){	// Parity is saved at the last 4-bytes.
+			for (i = 0; i < 60; i += 4){
+				sum ^= *((uint32_t *)buf);
+				buf += 4;
+			}
+			if (((uint32_t *)buf)[0] != sum)
+				return 1;
+		} else {
+			for (i = 0; i < 64; i += 4){
+				sum ^= *((uint32_t *)buf);
+				buf += 4;
+			}
+		}
+
+		region_size -= 64;
+	}
 
 	return 0;
 }

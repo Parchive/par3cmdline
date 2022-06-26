@@ -339,7 +339,7 @@ uint64_t aggregate_recovery_block(PAR3_CTX *par3_ctx)
 		memcpy(&packet_size, buf + offset + 24, 8);
 		packet_type = buf + offset + 40;
 
-		// At this time, this supports only Reed-Solomon Erasure Codes with Cauchy Matrix.
+		// At this time, this supports only one Error Correction Codes at a time.
 
 		if (memcmp(packet_type, "PAR CAU\0", 8) == 0){	// Cauchy Matrix Packet
 			// Search Recovery Data packet for this Matrix Packet
@@ -350,13 +350,40 @@ uint64_t aggregate_recovery_block(PAR3_CTX *par3_ctx)
 				}
 			}
 			if (par3_ctx->noise_level >= 0){
-				printf("You have %I64u recovery blocks available for Cauchy Matrix.\n", find_count);
+				printf("You have %I64u recovery blocks available for Cauchy Reed-Solomon Codes.\n", find_count);
 			}
 			if (find_count > find_count_max){
 				find_count_max = find_count;
-				par3_ctx->ecc_method |= 1;
+				par3_ctx->ecc_method = 1;	// At this time, exclusive to others.
+				// hint for number of recovery blocks
+				memcpy(&(par3_ctx->max_recovery_block), buf + offset + 64, 8);
+				//printf("max_recovery_block = %I64u\n", par3_ctx->max_recovery_block);
 				par3_ctx->matrix_packet_offset = offset;
 			}
+
+		} else if (memcmp(packet_type, "PAR FFT\0", 8) == 0){	// FFT Matrix Packet
+			// Search Recovery Data packet for this Matrix Packet
+			find_count = 0;
+			for (item_index = 0; item_index < packet_count; item_index++){
+				if (memcmp(packet_list[item_index].matrix, packet_checksum, 16) == 0){
+					find_count++;
+				}
+			}
+			if (par3_ctx->noise_level >= 0){
+				printf("You have %I64u recovery blocks available for FFT based Reed-Solomon Codes.\n", find_count);
+			}
+			if (find_count > find_count_max){
+				find_count_max = find_count;
+				par3_ctx->ecc_method = 8;
+				// max number of recovery blocks
+				par3_ctx->max_recovery_block = (uint64_t)1 << buf[offset + 64];
+				// Leopard-RS library has a restriction; recovery_count <= original_count
+				if (par3_ctx->max_recovery_block > par3_ctx->block_count)
+					par3_ctx->max_recovery_block = par3_ctx->block_count;
+				//printf("max_recovery_block = %I64u\n", par3_ctx->max_recovery_block);
+				par3_ctx->matrix_packet_offset = offset;
+			}
+
 		}
 
 		offset += packet_size;
@@ -434,5 +461,74 @@ uint32_t check_possible_restore(PAR3_CTX *par3_ctx)
 	//printf("possible_count = %u\n", possible_count);
 
 	return possible_count;
+}
+
+// Make list of index for lost input blocks and using recovery blocks.
+int make_block_list(PAR3_CTX *par3_ctx, uint64_t lost_count)
+{
+	uint8_t *packet_checksum;
+	int *lost_id, *recv_id;
+	uint64_t count, index, id;
+	PAR3_BLOCK_CTX *block_list;
+	PAR3_PKT_CTX *packet_list;
+
+	if (par3_ctx->ecc_method & 1){	// Cauchy Reed-Solomon Codes
+		// Make list of index (lost input blocks and using recovery blocks)
+		count = lost_count * 2;
+	} else {
+		// Make list of index (using recovery blocks)
+		count = lost_count;
+	}
+	recv_id = (int *) malloc(sizeof(int) * count);
+	if (recv_id == NULL){
+		printf("Failed to make list for using blocks\n");
+		return RET_MEMORY_ERROR;
+	}
+	par3_ctx->recv_id_list = recv_id;
+
+	// Get checksum of using Matrix Packet
+	packet_checksum = par3_ctx->matrix_packet + par3_ctx->matrix_packet_offset + 8;
+
+	// Set index of using recovery blocks
+	packet_list = par3_ctx->recv_packet_list;
+	count = par3_ctx->recv_packet_count;
+	id = 0;
+	for (index = 0; index < count; index++){
+		// Search only Recovery Data Packets belong to using Matrix Packet
+		if (memcmp(packet_list[index].matrix, packet_checksum, 16) == 0){
+			recv_id[id] = (int)(packet_list[index].index);
+			//printf("recv_id[%I64u] = %d\n", id, recv_id[id]);
+			id++;
+
+			// If there are more blocks than required, just ignore them.
+			// Cauchy Matrix should be invertible always.
+			// Or, is it safe to keep more for full rank ?
+			if (id >= lost_count)
+				break;
+		}
+	}
+
+	if (par3_ctx->ecc_method & 1){	// Cauchy Reed-Solomon Codes
+		lost_id = recv_id + lost_count;
+
+		// Set index of lost input blocks
+		block_list = par3_ctx->block_list;
+		count = par3_ctx->block_count;
+		id = 0;
+		for (index = 0; index < count; index++){
+			if ((block_list[index].state & (4 | 16)) == 0){
+				if (id >= lost_count){
+					printf("Number of lost input blocks is wrong.\n");
+					return RET_LOGIC_ERROR;
+				}
+
+				lost_id[id] = (int)index;
+				//printf("lost_id[%I64u] = %d\n", id, lost_id[id]);
+				id++;
+			}
+		}
+	}
+
+	return 0;
 }
 

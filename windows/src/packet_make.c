@@ -11,6 +11,7 @@
 #include "blake3/blake3.h"
 #include "libpar3.h"
 #include "hash.h"
+#include "common.h"
 
 
 // Fill each field in packet header, and calculate hash of packet.
@@ -153,15 +154,8 @@ int make_start_packet(PAR3_CTX *par3_ctx, int flag_trial)
 
 	// Packet size depends on galois field size.
 	packet_size = 48 + 8 + 8 + 16 + 8 + 1;
-	if (par3_ctx->block_count > 128){
-		// When there are 129 or more input blocks, use 16-bit Galois Field (0x1100B).
-		packet_size += 2;
-	} else if (par3_ctx->block_count > 0){
-		// When there are 128 or less input blocks, use 8-bit Galois Field (0x11D).
-		packet_size += 1;
-	}
 	if (par3_ctx->start_packet == NULL){
-		par3_ctx->start_packet = malloc(packet_size);
+		par3_ctx->start_packet = malloc(packet_size + 4);	// Upto 32-bit Galois Field
 		if (par3_ctx->start_packet == NULL){
 			perror("Failed to allocate memory for Start Packet");
 			return RET_MEMORY_ERROR;
@@ -177,27 +171,58 @@ int make_start_packet(PAR3_CTX *par3_ctx, int flag_trial)
 	tmp_p += 24;
 	memcpy(tmp_p, &(par3_ctx->block_size), 8);	// Block size
 	tmp_p += 8;
-	if ( (par3_ctx->block_count > 128) || (par3_ctx->recovery_block_count > 128) ){
-		// When there are 129 or more input blocks, use 16-bit Galois Field (0x1100B).
-		par3_ctx->galois_poly = 0x1100B;
-		par3_ctx->gf_size = 2;
-		tmp_p[0] = 2;
-		tmp_p[1] = 0x0B;
-		tmp_p[2] = 0x10;
-	} else if (par3_ctx->block_count > 0){
-		// When there are 128 or less input blocks, use 8-bit Galois Field (0x11D).
-		par3_ctx->galois_poly = 0x11D;
-		par3_ctx->gf_size = 1;
-		tmp_p[0] = 1;
-		tmp_p[1] = 0x1D;
-	} else {
-		// When there is no input blocks, no need to set Galois Field.
+	// Galois Field is varied by using Error Correction Codes.
+	if ( (par3_ctx->block_count > 0) && (par3_ctx->ecc_method == 0) ){
+		// When using algothim was not specified.
+		par3_ctx->ecc_method = 1;	// At this time, select Cauchy Reed-Solomon Codes by default.
+	}
+	if (par3_ctx->ecc_method & 1){	// Reed-Solomon Erasure Codes with Cauchy Matrix
+		if ( (par3_ctx->block_count > 128) ||
+				(par3_ctx->block_count + par3_ctx->recovery_block_count > 256) ||
+				(par3_ctx->block_count + par3_ctx->max_recovery_block > 256) ){
+			// When there are 129 or more input blocks, use 16-bit Galois Field (0x1100B).
+			par3_ctx->galois_poly = 0x1100B;
+			par3_ctx->gf_size = 2;
+			tmp_p[0] = 2;
+			tmp_p[1] = 0x0B;
+			tmp_p[2] = 0x10;
+		} else if (par3_ctx->block_count > 0){
+			// When there are 128 or less input blocks, use 8-bit Galois Field (0x11D).
+			par3_ctx->galois_poly = 0x11D;
+			par3_ctx->gf_size = 1;
+			tmp_p[0] = 1;
+			tmp_p[1] = 0x1D;
+		}
+
+	} else if (par3_ctx->ecc_method & 8){	// FFT based Reed-Solomon Codes
+		// This value is used in Leopard-RS library.
+		if (par3_ctx->block_count > 128){
+			par3_ctx->galois_poly = 0x1002D;
+			par3_ctx->gf_size = 2;
+			tmp_p[0] = 2;
+			tmp_p[1] = 0x2D;
+			tmp_p[2] = 0x00;
+		} else if (par3_ctx->block_count > 0){
+			par3_ctx->galois_poly = 0x11D;
+			par3_ctx->gf_size = 1;
+			tmp_p[0] = 1;
+			tmp_p[1] = 0x1D;
+		}
+	}
+	if (par3_ctx->gf_size == 0){	// When there is no input blocks, no need to set Galois Field.
 		par3_ctx->galois_poly = 0;
 		tmp_p[0] = 0;
 	}
+	packet_size += par3_ctx->gf_size;
 	par3_ctx->start_packet_size = packet_size;
 	par3_ctx->start_packet_count = 1;
 	//printf("Start Packet body size = %zu\n", par3_ctx->start_packet_size - 48);
+/*
+	if (par3_ctx->noise_level >= 1){
+		printf("Galois field size = %u\n", par3_ctx->gf_size);
+		printf("Galois field generator = 0x%X\n", par3_ctx->galois_poly);
+	}
+*/
 
 	if (flag_trial == 0){	// Trial mode doesn't calculate InputSetID.
 		// generate InputSetID
@@ -254,7 +279,7 @@ int make_matrix_packet(PAR3_CTX *par3_ctx)
 	// Cauchy Matrix Packet : 48 + 24 = 72
 	// Sparse Random Matrix Packet : 48 + 40 = 88
 	// Explicit Matrix Packet : not supported yet
-	packet_size = 88;
+	packet_size = 88;	// Set the largest size temporary.
 	if (par3_ctx->matrix_packet == NULL){
 		par3_ctx->matrix_packet = malloc(packet_size);
 		if (par3_ctx->matrix_packet == NULL){
@@ -263,15 +288,69 @@ int make_matrix_packet(PAR3_CTX *par3_ctx)
 		}
 	}
 
-	// At this time, this supports only Cauchy Matrix Packet.
-	par3_ctx->ecc_method = 1;
-	tmp_p = par3_ctx->matrix_packet + 48;
-	// If the encoding client wants to compute recovery data for every input block, they use the values 0 and 0.
-	// If the number of rows is unknown, the hint is set to zero.
-	memset(tmp_p, 0, 24);	// Thus, three items are zero.
-	tmp_p += 24;
-	packet_size = 72;
-	make_packet_header(par3_ctx->matrix_packet, packet_size, par3_ctx->set_id, "PAR CAU\0", 1);
+	if (par3_ctx->ecc_method & 1){	// Cauchy Matrix Packet
+		tmp_p = par3_ctx->matrix_packet + 48;
+		// If the encoding client wants to compute recovery data for every input block, they use the values 0 and 0.
+		if (par3_ctx->max_recovery_block == 0){
+			// If the number of rows is unknown, the hint is set to zero.
+			memset(tmp_p, 0, 24);	// Thus, three items are zero.
+			tmp_p += 24;
+		} else {
+			memset(tmp_p, 0, 16);	// Two items are zero.
+			tmp_p += 16;
+			// Set hint for number of recovery blocks
+			// This will cause compatibility issue. Be careful !
+			if (par3_ctx->gf_size == 2){
+				if (par3_ctx->block_count + par3_ctx->max_recovery_block > 65536)
+					par3_ctx->max_recovery_block = 65536 - par3_ctx->block_count;
+			} else if (par3_ctx->gf_size == 1){
+				if (par3_ctx->block_count + par3_ctx->max_recovery_block > 256)
+					par3_ctx->max_recovery_block = 256 - par3_ctx->block_count;
+			}
+			memcpy(tmp_p, &(par3_ctx->max_recovery_block), 8);
+			tmp_p += 8;
+		}
+		packet_size = 72;
+		make_packet_header(par3_ctx->matrix_packet, packet_size, par3_ctx->set_id, "PAR CAU\0", 1);
+
+
+/*
+	} else if (par3_ctx->ecc_method & 2){	// Sparse Random Matrix Packet
+		par3_ctx->ecc_method = 2;
+		tmp_p = par3_ctx->matrix_packet + 48;
+		// How to know maximum number of recovery blocks ?
+		memset(tmp_p, 0, 24);
+		tmp_p += 24;
+		// How to select number of non-zero elements per input block ?
+		// Is it a density rate against number of input blocks ? such like 1%
+		
+		// How is random number generator seed ?
+		// Is it ok to set a fixed value always ?
+		// Start Packet has unique random number already.
+
+		packet_size = 88;
+		make_packet_header(par3_ctx->matrix_packet, packet_size, par3_ctx->set_id, "PAR SPA\0", 1);
+*/
+
+	} else if (par3_ctx->ecc_method & 8){	// FFT Matrix Packet
+		tmp_p = par3_ctx->matrix_packet + 48;
+		memset(tmp_p, 0, 16);	// At this time, two items are zero.
+		tmp_p += 16;
+		// If the max count isn't set, use the creating number of recovery blocks.
+		if (par3_ctx->max_recovery_block == 0)
+			par3_ctx->max_recovery_block = par3_ctx->recovery_block_count;
+		// Store max count as power. Because the value range is 1 ~ 32768, log2 range is 0 ~ 15.
+		tmp_p[0] = int_log2(par3_ctx->max_recovery_block);
+		tmp_p += 1;
+		// Store number of cohort ?
+		// Test behavior and speed at first.
+		packet_size = 65;
+		make_packet_header(par3_ctx->matrix_packet, packet_size, par3_ctx->set_id, "PAR FFT\0", 1);
+
+	} else {
+		printf("The specified Error Correction Codes (%u) isn't implemented yet.\n", par3_ctx->ecc_method);
+		return RET_LOGIC_ERROR;
+	}
 
 	par3_ctx->matrix_packet_size = packet_size;
 	par3_ctx->matrix_packet_count = 1;

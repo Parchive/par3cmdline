@@ -17,6 +17,7 @@ uint32_t check_possible_restore(PAR3_CTX *par3_ctx);
 
 
 // For repair
+int make_block_list(PAR3_CTX *par3_ctx, uint64_t lost_count);
 int recover_lost_block(PAR3_CTX *par3_ctx, char *temp_path, int lost_count);
 int recover_lost_block_split(PAR3_CTX *par3_ctx, char *temp_path, uint64_t lost_count);
 
