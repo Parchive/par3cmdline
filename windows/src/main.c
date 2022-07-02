@@ -600,9 +600,8 @@ int main(int argc, char *argv[])
 			}
 		} else if (par3_ctx->block_size & 1){
 			// Always increasing to multiple of 2 is easier ?
-			//if ( ( (par3_ctx->ecc_method & 8) != 0) ||
+			//if ( (par3_ctx->recovery_block_count > 128) || (par3_ctx->max_recovery_block > 128) ||
 			//		(calculate_block_count(par3_ctx, par3_ctx->block_size) > 128) ){
-				// 16-bit Galois Field is used for FFT based Reed-Solomon Codes.
 				// Block size must be multiple of 2 for 16-bit Reed-Solomon Codes.
 				par3_ctx->block_size += 1;
 				printf("Suggested block size = %I64u\n", par3_ctx->block_size);

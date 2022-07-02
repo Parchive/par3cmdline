@@ -504,7 +504,7 @@ int popcount32(uint32_t x)
 
 // Return log2 of integer (round up)
 // log2(0) = error, log2(1) = 0, log2(2) = 1, log2(3) = 2, log2(4) = 2, log2(5) = 3, ...
-int int_log2(uint64_t x)
+int roundup_log2(uint64_t x)
 {
 	int n = 0;
 

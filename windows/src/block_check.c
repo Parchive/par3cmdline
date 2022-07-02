@@ -377,10 +377,10 @@ uint64_t aggregate_recovery_block(PAR3_CTX *par3_ctx)
 				par3_ctx->ecc_method = 8;
 				// max number of recovery blocks
 				par3_ctx->max_recovery_block = (uint64_t)1 << buf[offset + 64];
-				// Leopard-RS library has a restriction; recovery_count <= original_count
-				if (par3_ctx->max_recovery_block > par3_ctx->block_count)
-					par3_ctx->max_recovery_block = par3_ctx->block_count;
-				//printf("max_recovery_block = %I64u\n", par3_ctx->max_recovery_block);
+				if (par3_ctx->noise_level >= 1){
+					// No need to show this for users ?
+					printf("Max recovery block count = %I64u\n", par3_ctx->max_recovery_block);
+				}
 				par3_ctx->matrix_packet_offset = offset;
 			}
 

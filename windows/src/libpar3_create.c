@@ -89,15 +89,15 @@ int add_comment_text(PAR3_CTX *par3_ctx, char *text)
 
 
 // Calculate creating amount of recovery blocks from given redundancy.
-static void calculate_recovery_count(PAR3_CTX *par3_ctx)
+static int calculate_recovery_count(PAR3_CTX *par3_ctx)
 {
 	if (par3_ctx->block_count == 0){
 		par3_ctx->redundancy_size = 0;
 		par3_ctx->recovery_block_count = 0;
-		return;	// There is no input block.
+		return 0;	// There is no input block.
 	}
 	if (par3_ctx->redundancy_size == 0)
-		return;	// Not specified
+		return 0;	// Not specified
 
 	// When number of recovery blocks was not specified, set by redundancy.
 	if ( (par3_ctx->recovery_block_count == 0) && (par3_ctx->redundancy_size > 0) ){
@@ -106,19 +106,33 @@ static void calculate_recovery_count(PAR3_CTX *par3_ctx)
 		par3_ctx->recovery_block_count = (par3_ctx->block_count * par3_ctx->redundancy_size + 99) / 100;
 	}
 
-	if (par3_ctx->ecc_method & 8){	// FFT Matrix Packet
-		// Leopard-RS library has a restriction; recovery_count <= original_count
-		// It seems to be possible to solve this problem. But, I don't try at this time.
-		if (par3_ctx->recovery_block_count > par3_ctx->block_count)
-			par3_ctx->recovery_block_count = par3_ctx->block_count;
-		if (par3_ctx->max_recovery_block > par3_ctx->block_count)
-			par3_ctx->max_recovery_block = par3_ctx->block_count;
+	// Test number of blocks
+	if (par3_ctx->ecc_method & 8){	// FFT based Reed-Solomon Codes
+		if (par3_ctx->block_count + par3_ctx->recovery_block_count > 65536){
+			printf("Total block count %I64u are too many.\n", par3_ctx->block_count + par3_ctx->recovery_block_count);
+			return RET_LOGIC_ERROR;
+		}
+		// Leopard-RS library has a restriction; recovery_count <= 32768
+		// It seems to be possible to solve this problem.
+		// But, I don't try at this time.
+		if (par3_ctx->recovery_block_count > 32768){
+			printf("Recovery block count %I64u are too many.\n", par3_ctx->recovery_block_count);
+			return RET_LOGIC_ERROR;
+		}
+
+	} else {	// Cauchy Reed-Solomon Codes
+		if (par3_ctx->block_count + par3_ctx->recovery_block_count > 65536){
+			printf("Total block count %I64u are too many.\n", par3_ctx->block_count + par3_ctx->recovery_block_count);
+			return RET_LOGIC_ERROR;
+		}
 	}
 
 	printf("Recovery block count = %I64u\n", par3_ctx->recovery_block_count);
 	if (par3_ctx->max_recovery_block > 0){
 		printf("Max recovery block count = %I64u\n", par3_ctx->max_recovery_block);
 	}
+
+	return 0;
 }
 
 
@@ -145,7 +159,9 @@ int par3_trial(PAR3_CTX *par3_ctx)
 		return ret;
 
 	// Call this function before creating Start Packet.
-	calculate_recovery_count(par3_ctx);
+	ret = calculate_recovery_count(par3_ctx);
+	if (ret != 0)
+		return ret;
 
 	// Creator Packet, Comment Packet, Start Packet
 	ret = make_start_packet(par3_ctx, 1);
@@ -214,7 +230,9 @@ int par3_create(PAR3_CTX *par3_ctx)
 		return ret;
 
 	// Call this function before creating Start Packet.
-	calculate_recovery_count(par3_ctx);
+	ret = calculate_recovery_count(par3_ctx);
+	if (ret != 0)
+		return ret;
 
 	// Creator Packet, Comment Packet, Start Packet
 	ret = make_start_packet(par3_ctx, 0);

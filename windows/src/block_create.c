@@ -362,7 +362,7 @@ int create_recovery_block_split(PAR3_CTX *par3_ctx)
 	if (par3_ctx->ecc_method & 8){	// FFT based Reed-Solomon Codes
 		// Leopard-RS requires alignment of 64 bytes.
 		region_size = (split_size + 4 + 63) & ~63;
-		alloc_size = region_size * (block_count + work_count);	// work_count >= recovery_block_count
+		alloc_size = region_size * (block_count + work_count);	// work_count is larger than recovery_block_count.
 		// Though Leopard-RS doesn't require memory alignment for SIMD, align to 32 bytes may be faster.
 	} else {	// Reed-Solomon Erasure Codes
 		region_size = (split_size + 4 + 3) & ~3;

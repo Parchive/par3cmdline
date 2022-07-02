@@ -336,11 +336,11 @@ int make_matrix_packet(PAR3_CTX *par3_ctx)
 		tmp_p = par3_ctx->matrix_packet + 48;
 		memset(tmp_p, 0, 16);	// At this time, two items are zero.
 		tmp_p += 16;
-		// If the max count isn't set, use the creating number of recovery blocks.
-		if (par3_ctx->max_recovery_block == 0)
+		// If the max count was not set, use the creating number of recovery blocks.
+		if (par3_ctx->max_recovery_block < par3_ctx->recovery_block_count)
 			par3_ctx->max_recovery_block = par3_ctx->recovery_block_count;
 		// Store max count as power. Because the value range is 1 ~ 32768, log2 range is 0 ~ 15.
-		tmp_p[0] = int_log2(par3_ctx->max_recovery_block);
+		tmp_p[0] = roundup_log2(par3_ctx->max_recovery_block);
 		tmp_p += 1;
 		// Store number of cohort ?
 		// Test behavior and speed at first.

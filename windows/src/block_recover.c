@@ -667,6 +667,9 @@ int recover_lost_block_split(PAR3_CTX *par3_ctx, char *temp_path, uint64_t lost_
 		region_size = (split_size + 4 + 3) & ~3;
 		alloc_size = region_size * (block_count + lost_count);
 	}
+	// When MDS Codes, buffer size can be smaller.
+	// It may store recovery blocks in place of lost input blocks.
+	// Total number of using blocks are same as original input blocks.
 	//printf("split_size = %I64u, region_size = %I64u, alloc_size = %I64u\n", split_size, region_size, alloc_size);
 	block_data = malloc(alloc_size);
 	if (block_data == NULL){
