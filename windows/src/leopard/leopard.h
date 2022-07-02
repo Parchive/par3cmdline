@@ -214,7 +214,7 @@ LEO_EXPORT unsigned leo_decode_work_count(
     recovery_count: Number of recovery_data[] buffers provided.
     recovery_data:  Array of pointers to recovery data buffers.
     work_count:     Number of work_data[] buffers, from leo_decode_work_count().
-    work_data:      Array of pointers to recovery data buffers.
+    work_data:      Array of pointers to work data buffers.
 
     Lost original/recovery data should be set to NULL.
 

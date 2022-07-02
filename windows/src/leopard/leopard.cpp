@@ -131,7 +131,7 @@ LEO_EXPORT LeopardResult leo_encode(
     if (buffer_bytes <= 0 || buffer_bytes % 64 != 0)
         return Leopard_InvalidSize;
 
-    if (recovery_count <= 0 || recovery_count > original_count)
+    if (recovery_count <= 0)
         return Leopard_InvalidCounts;
 
     if (!original_data || !work_data)
@@ -242,7 +242,7 @@ LEO_EXPORT LeopardResult leo_decode(
     if (buffer_bytes <= 0 || buffer_bytes % 64 != 0)
         return Leopard_InvalidSize;
 
-    if (recovery_count <= 0 || recovery_count > original_count)
+    if (recovery_count <= 0)
         return Leopard_InvalidCounts;
 
     if (!original_data || !recovery_data || !work_data)
