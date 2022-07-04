@@ -91,12 +91,14 @@ int add_comment_text(PAR3_CTX *par3_ctx, char *text)
 // Calculate creating amount of recovery blocks from given redundancy.
 static int calculate_recovery_count(PAR3_CTX *par3_ctx)
 {
+	uint64_t total_count;
+
 	if (par3_ctx->block_count == 0){
 		par3_ctx->redundancy_size = 0;
 		par3_ctx->recovery_block_count = 0;
 		return 0;	// There is no input block.
 	}
-	if (par3_ctx->redundancy_size == 0)
+	if ( (par3_ctx->recovery_block_count == 0) && (par3_ctx->redundancy_size == 0) )
 		return 0;	// Not specified
 
 	// When number of recovery blocks was not specified, set by redundancy.
@@ -108,28 +110,45 @@ static int calculate_recovery_count(PAR3_CTX *par3_ctx)
 
 	// Test number of blocks
 	if (par3_ctx->ecc_method & 8){	// FFT based Reed-Solomon Codes
-		if (par3_ctx->block_count + par3_ctx->recovery_block_count > 65536){
-			printf("Total block count %I64u are too many.\n", par3_ctx->block_count + par3_ctx->recovery_block_count);
+		if (par3_ctx->noise_level >= 0){
+			printf("FFT based Reed-Solomon Codes\n");
+		}
+		total_count = par3_ctx->block_count + par3_ctx->first_recovery_block + par3_ctx->recovery_block_count;
+		if (total_count < par3_ctx->block_count + par3_ctx->max_recovery_block)
+			total_count = par3_ctx->block_count + par3_ctx->max_recovery_block;
+		if (total_count > 65536){
+			printf("Total block count %I64u are too many.\n", total_count);
 			return RET_LOGIC_ERROR;
 		}
 		// Leopard-RS library has a restriction; recovery_count <= 32768
 		// It seems to be possible to solve this problem.
 		// But, I don't try at this time.
-		if (par3_ctx->recovery_block_count > 32768){
-			printf("Recovery block count %I64u are too many.\n", par3_ctx->recovery_block_count);
+		total_count = par3_ctx->first_recovery_block + par3_ctx->recovery_block_count;
+		if (total_count < par3_ctx->max_recovery_block)
+			total_count = par3_ctx->max_recovery_block;
+		if (total_count > 32768){
+			printf("Recovery block count %I64u are too many.\n", total_count);
 			return RET_LOGIC_ERROR;
 		}
 
 	} else {	// Cauchy Reed-Solomon Codes
-		if (par3_ctx->block_count + par3_ctx->recovery_block_count > 65536){
-			printf("Total block count %I64u are too many.\n", par3_ctx->block_count + par3_ctx->recovery_block_count);
+		if (par3_ctx->noise_level >= 0){
+			printf("Cauchy Reed-Solomon Codes\n");
+		}
+		total_count = par3_ctx->block_count + par3_ctx->first_recovery_block + par3_ctx->recovery_block_count;
+		if (total_count < par3_ctx->block_count + par3_ctx->max_recovery_block)
+			total_count = par3_ctx->block_count + par3_ctx->max_recovery_block;
+		if (total_count > 65536){
+			printf("Total block count %I64u are too many.\n", total_count);
 			return RET_LOGIC_ERROR;
 		}
 	}
 
-	printf("Recovery block count = %I64u\n", par3_ctx->recovery_block_count);
-	if (par3_ctx->max_recovery_block > 0){
-		printf("Max recovery block count = %I64u\n", par3_ctx->max_recovery_block);
+	if (par3_ctx->noise_level >= 0){
+		printf("Recovery block count = %I64u\n", par3_ctx->recovery_block_count);
+		if (par3_ctx->max_recovery_block > 0){
+			printf("Max recovery block count = %I64u\n", par3_ctx->max_recovery_block);
+		}
 	}
 
 	return 0;

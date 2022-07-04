@@ -285,6 +285,7 @@ static int construct_directory_tree(PAR3_CTX *par3_ctx, uint8_t *checksum, size_
 					if (memcmp(checksum + checksum_offset, file_packet + packet_offset + 8, 16) == 0){
 						flag_find = 1;
 						file_p = par3_ctx->input_file_list + par3_ctx->input_file_count;
+						file_p->offset = packet_offset;	// offset of packet
 						memcpy(file_p->chk, file_packet + packet_offset + 8, 16);	// checksum of packet
 
 						// file name
@@ -371,6 +372,7 @@ static int construct_directory_tree(PAR3_CTX *par3_ctx, uint8_t *checksum, size_
 					if (memcmp(checksum + checksum_offset, dir_packet + packet_offset + 8, 16) == 0){
 						flag_find = 1;
 						dir_p = par3_ctx->input_dir_list + par3_ctx->input_dir_count;
+						dir_p->offset = packet_offset;	// offset of packet
 						memcpy(dir_p->chk, dir_packet + packet_offset + 8, 16);	// checksum of packet
 
 						// directory name

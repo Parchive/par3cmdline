@@ -175,8 +175,8 @@ int recover_lost_block(PAR3_CTX *par3_ctx, char *temp_path, int lost_count)
 				while (slice_index != -1){
 					//printf("block = %d, size = %I64u, offset = %I64u, slice = %I64d\n", block_index, data_size, tail_offset, slice_index);
 					// Even when chunk tails are overlaped, it will find tail slice of next position.
-					if ( (slice_list[slice_index].tail_offset + slice_list[slice_index].size > tail_offset) &&
-							(slice_list[slice_index].tail_offset <= tail_offset) ){
+					if ( (slice_list[slice_index].tail_offset + slice_list[slice_index].size > tail_offset)
+							&& (slice_list[slice_index].tail_offset <= tail_offset) ){
 						break;
 					}
 					slice_index = slice_list[slice_index].next;
@@ -797,8 +797,8 @@ int recover_lost_block_split(PAR3_CTX *par3_ctx, char *temp_path, uint64_t lost_
 					while (slice_index != -1){
 						//printf("block = %d, size = %I64u, offset = %I64u, slice = %I64d\n", block_index, data_size, tail_offset, slice_index);
 						// Even when chunk tails are overlaped, it will find tail slice of next position.
-						if ( (slice_list[slice_index].tail_offset + slice_list[slice_index].size > tail_offset) &&
-								(slice_list[slice_index].tail_offset <= tail_offset) ){
+						if ( (slice_list[slice_index].tail_offset + slice_list[slice_index].size > tail_offset)
+								&& (slice_list[slice_index].tail_offset <= tail_offset) ){
 							break;
 						}
 						slice_index = slice_list[slice_index].next;

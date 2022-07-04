@@ -44,6 +44,7 @@ typedef struct {
 	uint64_t slice;		// index of the first slice
 
 	uint64_t chk[2];	// checksum of File Packet
+	int64_t offset;		// offset bytes of this File Packet
 
 	uint32_t state;		// Result of verification (bit flag)
 						// 1 = missing, 2 = damaged
@@ -55,6 +56,7 @@ typedef struct {
 typedef struct {
 	char *name;			// directory name
 	uint64_t chk[2];	// checksum of Directory Packet
+	int64_t offset;		// offset bytes of this Directory Packet
 } PAR3_DIR_CTX;
 
 typedef struct {

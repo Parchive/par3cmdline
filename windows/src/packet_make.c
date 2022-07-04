@@ -177,9 +177,9 @@ int make_start_packet(PAR3_CTX *par3_ctx, int flag_trial)
 		par3_ctx->ecc_method = 1;	// At this time, select Cauchy Reed-Solomon Codes by default.
 	}
 	if (par3_ctx->ecc_method & 1){	// Reed-Solomon Erasure Codes with Cauchy Matrix
-		if ( (par3_ctx->block_count > 128) ||
-				(par3_ctx->block_count + par3_ctx->recovery_block_count > 256) ||
-				(par3_ctx->block_count + par3_ctx->max_recovery_block > 256) ){
+		if ( (par3_ctx->block_count > 128)
+				|| (par3_ctx->block_count + par3_ctx->first_recovery_block + par3_ctx->recovery_block_count > 256)
+				|| (par3_ctx->block_count + par3_ctx->max_recovery_block > 256) ){
 			// When there are 129 or more input blocks, use 16-bit Galois Field (0x1100B).
 			par3_ctx->galois_poly = 0x1100B;
 			par3_ctx->gf_size = 2;
@@ -196,7 +196,9 @@ int make_start_packet(PAR3_CTX *par3_ctx, int flag_trial)
 
 	} else if (par3_ctx->ecc_method & 8){	// FFT based Reed-Solomon Codes
 		// This value is used in Leopard-RS library.
-		if (par3_ctx->block_count > 128){
+		if ( (par3_ctx->block_count > 128)
+				|| (par3_ctx->block_count + par3_ctx->first_recovery_block + par3_ctx->recovery_block_count > 256)
+				|| (par3_ctx->block_count + par3_ctx->max_recovery_block > 256) ){
 			par3_ctx->galois_poly = 0x1002D;
 			par3_ctx->gf_size = 2;
 			tmp_p[0] = 2;
@@ -300,13 +302,6 @@ int make_matrix_packet(PAR3_CTX *par3_ctx)
 			tmp_p += 16;
 			// Set hint for number of recovery blocks
 			// This will cause compatibility issue. Be careful !
-			if (par3_ctx->gf_size == 2){
-				if (par3_ctx->block_count + par3_ctx->max_recovery_block > 65536)
-					par3_ctx->max_recovery_block = 65536 - par3_ctx->block_count;
-			} else if (par3_ctx->gf_size == 1){
-				if (par3_ctx->block_count + par3_ctx->max_recovery_block > 256)
-					par3_ctx->max_recovery_block = 256 - par3_ctx->block_count;
-			}
 			memcpy(tmp_p, &(par3_ctx->max_recovery_block), 8);
 			tmp_p += 8;
 		}
@@ -337,8 +332,8 @@ int make_matrix_packet(PAR3_CTX *par3_ctx)
 		memset(tmp_p, 0, 16);	// At this time, two items are zero.
 		tmp_p += 16;
 		// If the max count was not set, use the creating number of recovery blocks.
-		if (par3_ctx->max_recovery_block < par3_ctx->recovery_block_count)
-			par3_ctx->max_recovery_block = par3_ctx->recovery_block_count;
+		if (par3_ctx->max_recovery_block < par3_ctx->first_recovery_block + par3_ctx->recovery_block_count)
+			par3_ctx->max_recovery_block = par3_ctx->first_recovery_block + par3_ctx->recovery_block_count;
 		// Store max count as power. Because the value range is 1 ~ 32768, log2 range is 0 ~ 15.
 		tmp_p[0] = roundup_log2(par3_ctx->max_recovery_block);
 		tmp_p += 1;
@@ -471,6 +466,8 @@ int make_file_packet(PAR3_CTX *par3_ctx)
 		file_p = par3_ctx->input_file_list;
 		chunk_p = par3_ctx->chunk_list;
 		while (num > 0){
+			// offset of this packet
+			file_p->offset = tmp_p - par3_ctx->file_packet;
 			packet_size = 48;
 			// Remove sub-directories to store name only.
 			name_p = strrchr(file_p->name, '/');
@@ -606,6 +603,8 @@ int make_file_packet(PAR3_CTX *par3_ctx)
 		tmp_p = par3_ctx->dir_packet;
 		dir_p = par3_ctx->input_dir_list;
 		while (num > 0){
+			// offset of this packet
+			dir_p->offset = tmp_p - par3_ctx->dir_packet;
 			packet_size = 48;
 			// Remove sub-directories to store name only.
 			name_p = strrchr(dir_p->name, '/');

@@ -319,7 +319,7 @@ uint64_t aggregate_recovery_block(PAR3_CTX *par3_ctx)
 	uint8_t packet_checksum[16];
 	size_t offset, total_size;
 	uint64_t item_index, packet_size, packet_count;
-	uint64_t find_count, find_count_max;
+	uint64_t find_count, find_count_max, hint_num;
 	PAR3_PKT_CTX *packet_list;
 
 	if (par3_ctx->matrix_packet_count == 0)
@@ -349,15 +349,19 @@ uint64_t aggregate_recovery_block(PAR3_CTX *par3_ctx)
 					find_count++;
 				}
 			}
+			// hint for number of recovery blocks
+			memcpy(&hint_num, buf + offset + 64, 8);
 			if (par3_ctx->noise_level >= 0){
-				printf("You have %I64u recovery blocks available for Cauchy Reed-Solomon Codes.\n", find_count);
+				if (hint_num == 0){
+					printf("You have %I64u recovery blocks available for Cauchy Reed-Solomon Codes.\n", find_count);
+				} else {
+					printf("You have %I64u / %I64u recovery blocks available for Cauchy Reed-Solomon Codes.\n", find_count, hint_num);
+				}
 			}
 			if (find_count > find_count_max){
 				find_count_max = find_count;
 				par3_ctx->ecc_method = 1;	// At this time, exclusive to others.
-				// hint for number of recovery blocks
-				memcpy(&(par3_ctx->max_recovery_block), buf + offset + 64, 8);
-				//printf("max_recovery_block = %I64u\n", par3_ctx->max_recovery_block);
+				par3_ctx->max_recovery_block = hint_num;
 				par3_ctx->matrix_packet_offset = offset;
 			}
 
@@ -369,18 +373,20 @@ uint64_t aggregate_recovery_block(PAR3_CTX *par3_ctx)
 					find_count++;
 				}
 			}
+			// max number of recovery blocks
+			hint_num = buf[offset + 64];
+			hint_num = (uint64_t)1 << hint_num;
 			if (par3_ctx->noise_level >= 0){
-				printf("You have %I64u recovery blocks available for FFT based Reed-Solomon Codes.\n", find_count);
+				if (find_count * 2 > hint_num){
+					printf("You have %I64u recovery blocks available for FFT based Reed-Solomon Codes.\n", find_count);
+				} else {
+					printf("You have %I64u / %I64u recovery blocks available for FFT based Reed-Solomon Codes.\n", find_count, hint_num);
+				}
 			}
 			if (find_count > find_count_max){
 				find_count_max = find_count;
 				par3_ctx->ecc_method = 8;
-				// max number of recovery blocks
-				par3_ctx->max_recovery_block = (uint64_t)1 << buf[offset + 64];
-				if (par3_ctx->noise_level >= 1){
-					// No need to show this for users ?
-					printf("Max recovery block count = %I64u\n", par3_ctx->max_recovery_block);
-				}
+				par3_ctx->max_recovery_block = hint_num;
 				par3_ctx->matrix_packet_offset = offset;
 			}
 

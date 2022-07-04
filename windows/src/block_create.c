@@ -173,8 +173,8 @@ int create_recovery_block(PAR3_CTX *par3_ctx)
 				while (slice_index != -1){
 					//printf("block = %I64u, size = %zu, offset = %zu, slice = %I64d\n", block_index, data_size, tail_offset, slice_index);
 					// Even when chunk tails are overlaped, it will find tail slice of next position.
-					if ( (slice_list[slice_index].tail_offset + slice_list[slice_index].size > tail_offset) &&
-							(slice_list[slice_index].tail_offset <= tail_offset) ){
+					if ( (slice_list[slice_index].tail_offset + slice_list[slice_index].size > tail_offset)
+							&& (slice_list[slice_index].tail_offset <= tail_offset) ){
 						break;
 					}
 					slice_index = slice_list[slice_index].next;
@@ -287,7 +287,8 @@ int create_recovery_block_split(PAR3_CTX *par3_ctx)
 	size_t io_size;
 	int64_t slice_index, file_offset;
 	uint64_t crc, block_index;
-	uint64_t block_size, block_count, recovery_block_count;
+	uint64_t block_size, block_count;
+	uint64_t recovery_block_count, first_recovery_block;
 	uint64_t alloc_size, region_size, split_size;
 	uint64_t data_size, part_size, split_offset;
 	uint64_t tail_offset, tail_gap;
@@ -307,6 +308,7 @@ int create_recovery_block_split(PAR3_CTX *par3_ctx)
 	block_size = par3_ctx->block_size;
 	block_count = par3_ctx->block_count;
 	recovery_block_count = par3_ctx->recovery_block_count;
+	first_recovery_block = par3_ctx->first_recovery_block;
 	gf_size = par3_ctx->gf_size;
 	galois_poly = par3_ctx->galois_poly;
 	file_list = par3_ctx->input_file_list;
@@ -324,7 +326,8 @@ int create_recovery_block_split(PAR3_CTX *par3_ctx)
 			printf("Failed to initialize Leopard-RS library (%d)\n", ret);
 			return RET_LOGIC_ERROR;
 		}
-		work_count = leo_encode_work_count((unsigned int)block_count, (unsigned int)recovery_block_count);
+		work_count = leo_encode_work_count((unsigned int)block_count,
+							(unsigned int)(first_recovery_block + recovery_block_count));
 		//printf("Leopard-RS: work_count = %u\n", work_count);
 		// Leopard-RS requires multiple of 64 bytes for SIMD.
 		region_size = (block_size + 4 + 63) & ~63;
@@ -389,7 +392,16 @@ int create_recovery_block_split(PAR3_CTX *par3_ctx)
 			buf_p += region_size;
 		}
 		work_data = original_data + block_count;
-		for (block_index = 0; block_index < work_count; block_index++){
+		// Change order of recovery data to skip until first_recovery_block.
+		for (block_index = first_recovery_block; block_index < first_recovery_block + recovery_block_count; block_index++){
+			work_data[block_index] = buf_p;
+			buf_p += region_size;
+		}
+		for (block_index = 0; block_index < first_recovery_block; block_index++){
+			work_data[block_index] = buf_p;
+			buf_p += region_size;
+		}
+		for (block_index = first_recovery_block + recovery_block_count; block_index < work_count; block_index++){
 			work_data[block_index] = buf_p;
 			buf_p += region_size;
 		}
@@ -474,8 +486,8 @@ int create_recovery_block_split(PAR3_CTX *par3_ctx)
 					while (slice_index != -1){
 						//printf("block = %I64u, size = %zu, offset = %zu, slice = %I64d\n", block_index, data_size, tail_offset, slice_index);
 						// Even when chunk tails are overlaped, it will find tail slice of next position.
-						if ( (slice_list[slice_index].tail_offset + slice_list[slice_index].size > tail_offset) &&
-								(slice_list[slice_index].tail_offset <= tail_offset) ){
+						if ( (slice_list[slice_index].tail_offset + slice_list[slice_index].size > tail_offset)
+								&& (slice_list[slice_index].tail_offset <= tail_offset) ){
 							break;
 						}
 						slice_index = slice_list[slice_index].next;
@@ -589,8 +601,8 @@ int create_recovery_block_split(PAR3_CTX *par3_ctx)
 
 		} else if (par3_ctx->ecc_method & 8){	// FFT based Reed-Solomon Codes
 			ret = leo_encode(region_size,
-							(unsigned int)block_count, (unsigned int)recovery_block_count, work_count,
-							original_data, work_data);
+							(unsigned int)block_count, (unsigned int)(first_recovery_block + recovery_block_count),
+							work_count, original_data, work_data);
 			if (ret != 0){
 				printf("Failed to call Leopard-RS library (%d)\n", ret);
 				return RET_LOGIC_ERROR;
