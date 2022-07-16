@@ -73,6 +73,7 @@ Options: (create)
   -D       : Store Data packets
   -d<n>    : Enable deduplication of input blocks
   -e<n>    : Set using Error Correction Codes
+  -fu<n>   : Use UNIX Permissions Packet
   -C<text> : Set comment
 
 
@@ -280,6 +281,23 @@ This may be useless for random data like compressed file.
  At this time, "-e1" and "-e8" are available.
 "-e1" is Cauchy Reed-Solomon Codes. This is the default now.
 "-e8" is FFT based Reed-Solomon Codes by Leopard-RS library.
+
+
+
+[ About "-fu<n>" option ]
+
+ You may use UNIX Permissions Packet to store file's meta data.
+At this time, this supports only two fields: mtime and i_mode.
+The number is bitwise or.
+If you omit number, it stores all values.
+"-fu1" : mtime only
+"-fu2" : i_mode only
+"-fu" or "-fu3" : both mtime and i_mode
+
+ Causion about permissions (-fu2 option).
+You may not repair files, when there isn't write permission.
+I cannot test behavior on Linux OS.
+It may be safe to store/recover mtime only (-fu1 option).
 
 
 
