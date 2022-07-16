@@ -12,6 +12,7 @@
 #include "libpar3.h"
 #include "hash.h"
 #include "common.h"
+#include "file.h"
 
 
 // Fill each field in packet header, and calculate hash of packet.
@@ -367,7 +368,7 @@ int make_file_packet(PAR3_CTX *par3_ctx)
 	uint8_t *tmp_p, *name_p, *chk_p;
 	uint32_t num, max, i, packet_count, absolute_num;
 	size_t alloc_size, packet_size, total_packet_size, len;
-	size_t file_alloc_size, dir_alloc_size, root_alloc_size;
+	size_t file_alloc_size, dir_alloc_size, root_alloc_size, file_system_alloc_size;
 	PAR3_FILE_CTX *file_p, *file_list;
 	PAR3_DIR_CTX *dir_p, *dir_list;
 
@@ -380,10 +381,11 @@ int make_file_packet(PAR3_CTX *par3_ctx)
 		return 0;
 
 	// Allocate buffer for packets. (This isn't strict size, but a little larger.)
-	// At this time, size of optional packets is ignored.
 	num = par3_ctx->input_file_count;
 	if (num > 0){
 		alloc_size = (48 + 2 + 8 + 16 + 1) * num;	// packet header, length of name, CRC-64, hash, options
+		if (par3_ctx->file_system & 3)
+			alloc_size += 16 * num;	// UNIX Permissions Packet
 		alloc_size += par3_ctx->input_file_name_len - num;	// subtle null-string of each name
 		alloc_size += (16 + 40) * par3_ctx->chunk_count;	// chunk description with tail info
 		if (par3_ctx->noise_level >= 2){
@@ -431,6 +433,24 @@ int make_file_packet(PAR3_CTX *par3_ctx)
 				return RET_MEMORY_ERROR;
 			}
 		}
+	}
+
+	if (par3_ctx->file_system & 3){	// UNIX Permissions Packet
+		num = par3_ctx->input_file_count + par3_ctx->input_dir_count + absolute_num;
+		alloc_size = 84 * num;	// mtime and i_mode are set.
+		if (par3_ctx->noise_level >= 2){
+			printf("Possible total size of UNIX Permissions Packets = %zu\n", alloc_size);
+		}
+		file_system_alloc_size = alloc_size;
+		if (par3_ctx->file_system_packet == NULL){
+			par3_ctx->file_system_packet = malloc(alloc_size);
+			if (par3_ctx->file_system_packet == NULL){
+				perror("Failed to allocate memory for UNIX Permissions Packet");
+				return RET_MEMORY_ERROR;
+			}
+		}
+		par3_ctx->file_system_packet_size = 0;
+		par3_ctx->file_system_packet_count = 0;
 	}
 
 	alloc_size = 48 + 8 + 1 + 4;	// packet header, index, attributes, options
@@ -490,10 +510,18 @@ int make_file_packet(PAR3_CTX *par3_ctx)
 			// hash of the protected data in the file
 			memcpy(tmp_p + packet_size, file_p->hash, 16);
 			packet_size += 16;
+
 			// number of options
 			tmp_p[packet_size] = 0;
 			packet_size += 1;
 			// This doesn't support packets for options yet.
+			// UNIX Permissions Packet
+			if (par3_ctx->file_system & 3){
+				if (make_unix_permission_packet(par3_ctx, file_p->name, tmp_p + packet_size) == 0){
+					tmp_p[packet_size - 1] += 1;
+					packet_size += 16;
+				}
+			}
 
 			if (file_p->size > 0){	// chunk descriptions
 				total_size = 0;
@@ -880,6 +908,25 @@ int make_file_packet(PAR3_CTX *par3_ctx)
 	}
 	free(chk_p);
 
+	if (par3_ctx->file_system & 3){	// UNIX Permissions Packet
+		if (par3_ctx->file_system_packet_size == 0){
+			free(par3_ctx->file_system_packet);
+			par3_ctx->file_system_packet = NULL;
+		} else {
+			if (par3_ctx->file_system_packet_size < file_system_alloc_size){	// Reduce memory usage to used size.
+				tmp_p = realloc(par3_ctx->file_system_packet, par3_ctx->file_system_packet_size);
+				if (tmp_p == NULL){
+					perror("Failed to re-allocate memory for File System Specific Packet");
+					return RET_MEMORY_ERROR;
+				}
+				par3_ctx->file_system_packet = tmp_p;
+			}
+			if (par3_ctx->noise_level >= 1){
+				printf("Size of File System Specific Packets = %zu (count = %u)\n", par3_ctx->file_system_packet_size, par3_ctx->file_system_packet_count);
+			}
+		}
+	}
+
 	return 0;
 }
 
@@ -1011,9 +1058,9 @@ int duplicate_common_packet(PAR3_CTX *par3_ctx)
 
 	// Creator Packet and Comment Packet are not repeated.
 	// Other important optional packets may be included in future.
-	packet_size = par3_ctx->start_packet_size + par3_ctx->matrix_packet_size +
-			par3_ctx->file_packet_size + par3_ctx->dir_packet_size + par3_ctx->root_packet_size +
-			par3_ctx->ext_data_packet_size;
+	packet_size = par3_ctx->start_packet_size + par3_ctx->matrix_packet_size
+			+ par3_ctx->file_packet_size + par3_ctx->dir_packet_size + par3_ctx->root_packet_size
+			+ par3_ctx->ext_data_packet_size + par3_ctx->file_system_packet_size;
 
 	if (par3_ctx->common_packet == NULL){
 		par3_ctx->common_packet = malloc(packet_size);
@@ -1043,6 +1090,7 @@ int duplicate_common_packet(PAR3_CTX *par3_ctx)
 		tmp_p += par3_ctx->dir_packet_size;
 		packet_count += par3_ctx->dir_packet_count;
 	}
+	// Root Packet exists always.
 	memcpy(tmp_p, par3_ctx->root_packet, par3_ctx->root_packet_size);
 	tmp_p += par3_ctx->root_packet_size;
 	packet_count++;
@@ -1050,6 +1098,12 @@ int duplicate_common_packet(PAR3_CTX *par3_ctx)
 		memcpy(tmp_p, par3_ctx->ext_data_packet, par3_ctx->ext_data_packet_size);
 		tmp_p += par3_ctx->ext_data_packet_size;
 		packet_count += par3_ctx->ext_data_packet_count;
+	}
+	// Optional packets
+	if (par3_ctx->file_system_packet_size > 0){
+		memcpy(tmp_p, par3_ctx->file_system_packet, par3_ctx->file_system_packet_size);
+		tmp_p += par3_ctx->file_system_packet_size;
+		packet_count += par3_ctx->file_system_packet_count;
 	}
 
 	par3_ctx->common_packet_size = packet_size;

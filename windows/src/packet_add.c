@@ -12,7 +12,7 @@
 
 
 // 0 = no packet yet, 1 = the packet exists already
-static int check_packet_exist(uint8_t *buf, size_t buf_size, uint8_t *packet, uint64_t packet_size)
+int check_packet_exist(uint8_t *buf, size_t buf_size, uint8_t *packet, uint64_t packet_size)
 {
 	size_t offset;
 	uint64_t this_size;
@@ -278,6 +278,32 @@ int add_found_packet(PAR3_CTX *par3_ctx, uint8_t *packet)
 			memcpy(par3_ctx->matrix_packet + par3_ctx->matrix_packet_size, packet, packet_size);
 			par3_ctx->matrix_packet_size += packet_size;
 			par3_ctx->matrix_packet_count++;
+		}
+
+	} else if (memcmp(packet_type, "PAR UNX\0", 8) == 0){	// UNIX Permissions Packet
+		if (par3_ctx->file_system_packet == NULL){
+			par3_ctx->file_system_packet = malloc(packet_size);
+			if (par3_ctx->file_system_packet == NULL){
+				perror("Failed to allocate memory for UNIX Permissions Packet");
+				return RET_MEMORY_ERROR;
+			}
+			memcpy(par3_ctx->file_system_packet, packet, packet_size);
+			par3_ctx->file_system_packet_size = packet_size;
+			par3_ctx->file_system_packet_count = 1;
+		} else if (check_packet_exist(par3_ctx->file_system_packet, par3_ctx->file_system_packet_size, packet, packet_size) == 1){
+			// If there is the packet already, just exit.
+			return -1;
+		} else {
+			// Add this packet after other packets.
+			tmp_p = realloc(par3_ctx->file_system_packet, par3_ctx->file_system_packet_size + packet_size);
+			if (tmp_p == NULL){
+				perror("Failed to re-allocate memory for UNIX Permissions Packet");
+				return RET_MEMORY_ERROR;
+			}
+			par3_ctx->file_system_packet = tmp_p;
+			memcpy(par3_ctx->file_system_packet + par3_ctx->file_system_packet_size, packet, packet_size);
+			par3_ctx->file_system_packet_size += packet_size;
+			par3_ctx->file_system_packet_count++;
 		}
 
 	} else {	// Unknown packet type
@@ -613,6 +639,24 @@ static int remove_other_packet(PAR3_CTX *par3_ctx, uint64_t *id_list, int id_cou
 			par3_ctx->root_packet_count = new_count;
 		}
 	}
+	if (par3_ctx->file_system_packet_size > 0){
+		new_size = adjust_packet_buf(par3_ctx->file_system_packet, par3_ctx->file_system_packet_size, id_list, id_count, &new_count);
+		if (new_size == 0){
+			free(par3_ctx->file_system_packet);
+			par3_ctx->file_system_packet = NULL;
+			par3_ctx->file_system_packet_size = 0;
+			par3_ctx->file_system_packet_count = 0;
+		} else if (new_size < par3_ctx->file_system_packet_size){
+			tmp_p = realloc(par3_ctx->file_system_packet, new_size);
+			if (tmp_p == NULL){
+				perror("Failed to re-allocate memory for File System Packet");
+				return RET_MEMORY_ERROR;
+			}
+			par3_ctx->file_system_packet = tmp_p;
+			par3_ctx->file_system_packet_size = new_size;
+			par3_ctx->file_system_packet_count = new_count;
+		}
+	}
 	if (par3_ctx->ext_data_packet_size > 0){
 		new_size = adjust_packet_buf(par3_ctx->ext_data_packet, par3_ctx->ext_data_packet_size, id_list, id_count, &new_count);
 		if (new_size == 0){
@@ -804,6 +848,8 @@ int check_packet_set(PAR3_CTX *par3_ctx)
 			printf("Number of Directory Packets     =%3u (%4I64d bytes)\n", par3_ctx->dir_packet_count, par3_ctx->dir_packet_size);
 		if (par3_ctx->root_packet_count > 0)
 			printf("Number of Root Packets          =%3u (%4I64d bytes)\n", par3_ctx->root_packet_count, par3_ctx->root_packet_size);
+		if (par3_ctx->file_system_packet_count > 0)
+			printf("Number of File System Packets   =%3u (%4I64d bytes)\n", par3_ctx->file_system_packet_count, par3_ctx->file_system_packet_size);
 		if (par3_ctx->ext_data_packet_count > 0)
 			printf("Number of External Data Packets =%3u (%4I64d bytes)\n", par3_ctx->ext_data_packet_count, par3_ctx->ext_data_packet_size);
 		if (par3_ctx->data_packet_count > 0)

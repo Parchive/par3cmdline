@@ -1101,6 +1101,12 @@ void par3_release(PAR3_CTX *par3_ctx)
 		par3_ctx->ext_data_packet_size = 0;
 		par3_ctx->ext_data_packet_count = 0;
 	}
+	if (par3_ctx->file_system_packet){
+		free(par3_ctx->file_system_packet);
+		par3_ctx->file_system_packet = NULL;
+		par3_ctx->file_system_packet_size = 0;
+		par3_ctx->file_system_packet_count = 0;
+	}
 	if (par3_ctx->common_packet){
 		free(par3_ctx->common_packet);
 		par3_ctx->common_packet = NULL;

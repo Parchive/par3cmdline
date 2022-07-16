@@ -115,6 +115,8 @@ typedef struct {
 	char deduplication;
 	char data_packet;
 	char absolute_path;
+	uint32_t file_system;	// Bit flag to store/recover in File System Specific Packets
+							// UNIX Permissions Packet: 1 = mtime, 2 = i_mode
 	uint32_t search_limit;	// how long time to slide search (milli second)
 	uint64_t memory_limit;	// how much memory to use (byte)
 
@@ -216,6 +218,10 @@ typedef struct {
 	uint8_t *ext_data_packet;		// pointer to External Data Packets
 	size_t ext_data_packet_size;	// total size of External Data Packets
 	uint32_t ext_data_packet_count;
+
+	uint8_t *file_system_packet;	// pointer to File System Specific Packets
+	size_t file_system_packet_size;	// total size of File System Specific Packets
+	uint32_t file_system_packet_count;
 
 	uint8_t *common_packet;			// pointer to duplicated common packets
 	size_t common_packet_size;		// total size of duplicated common packets

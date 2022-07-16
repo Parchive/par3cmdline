@@ -20,7 +20,7 @@ int par3_list(PAR3_CTX *par3_ctx)
 {
 	int ret;
 
-	ret = read_vital_packet(par3_ctx);
+	ret = read_packet(par3_ctx);
 	if (ret != 0)
 		return ret;
 
@@ -50,7 +50,7 @@ int par3_verify(PAR3_CTX *par3_ctx)
 	uint32_t possible_count;
 	uint64_t block_count, block_available, recovery_block_available;
 
-	ret = read_vital_packet(par3_ctx);
+	ret = read_packet(par3_ctx);
 	if (ret != 0)
 		return ret;
 
@@ -195,7 +195,7 @@ int par3_repair(PAR3_CTX *par3_ctx, char *temp_path)
 	uint32_t possible_count;
 	uint64_t block_count, block_available, recovery_block_available;
 
-	ret = read_vital_packet(par3_ctx);
+	ret = read_packet(par3_ctx);
 	if (ret != 0)
 		return ret;
 

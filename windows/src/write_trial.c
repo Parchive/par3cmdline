@@ -39,6 +39,9 @@ void try_index_file(PAR3_CTX *par3_ctx)
 	// External Data Packet
 	file_size += par3_ctx->ext_data_packet_size;
 
+	// File System Specific Packets
+	file_size += par3_ctx->file_system_packet_size;
+
 	// Comment Packet
 	file_size += par3_ctx->comment_packet_size;
 

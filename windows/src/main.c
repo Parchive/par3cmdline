@@ -69,6 +69,7 @@ static void print_help(void)
 "  -D       : Store Data packets\n"
 "  -d<n>    : Enable deduplication of input blocks\n"
 "  -e<n>    : Set using Error Correction Codes\n"
+"  -fu<n>   : Use UNIX Permissions Packet\n"
 "  -C<text> : Set comment\n"
 	);
 }
@@ -419,6 +420,19 @@ int main(int argc, char *argv[])
 					}
 				}
 
+			} else if ( (tmp_p[0] == 'f') && (tmp_p[1] == 'u')
+					&& ( (tmp_p[2] == 0) || ( (tmp_p[2] >= '1') && (tmp_p[2] <= '9') ) ) ){	// UNIX Permissions Packet
+				if ((par3_ctx->file_system & 3) != 0){
+					printf("Cannot specify UNIX Permissions Packet twice.\n");
+				} else {
+					if (tmp_p[2] == 0){
+						ret = 3;	// 1 = mtime, 2 = i_mode
+					} else {
+						ret = strtoul(tmp_p + 2, NULL, 10) & 3;
+					}
+					par3_ctx->file_system |= ret;
+				}
+
 			} else if ( (tmp_p[0] == 'C') && (tmp_p[1] != 0) ){	// Set comment
 				if (add_comment_text(par3_ctx, tmp_p + 1) != 0){
 					ret = RET_MEMORY_ERROR;
@@ -452,20 +466,27 @@ int main(int argc, char *argv[])
 		}
 		argi++;
 
-		// may add ".vol32768+32768.par3"
-		if (path_copy(par3_ctx->par_filename, tmp_p, _MAX_PATH - 20) == 0){
+		// PAR filename must not include wildcard (* or ?).
+		len = strcspn(tmp_p, "*?");
+		if (len < strlen(tmp_p)){
+			printf("Found wildcard in PAR filename, %s\n", tmp_p);
 			par3_ctx->par_filename[0] = 0;
 		} else {
-			// PAR filename may be a relative path from current working directory.
-			if (par3_ctx->base_path[0] != 0){
-				// if base-path isn't empty, relative from current working directory.
-				ret = get_absolute_path(file_name, par3_ctx->par_filename, _MAX_PATH - 8);
-				if (ret != 0){
-					printf("Failed to convert PAR filename to absolute path\n");
-					ret = RET_FILE_IO_ERROR;
-					goto prepare_return;
+			// may add ".vol32768+32768.par3"
+			if (path_copy(par3_ctx->par_filename, tmp_p, _MAX_PATH - 20) == 0){
+				par3_ctx->par_filename[0] = 0;
+			} else {
+				// PAR filename may be a relative path from current working directory.
+				if (par3_ctx->base_path[0] != 0){
+					// if base-path isn't empty, relative from current working directory.
+					ret = get_absolute_path(file_name, par3_ctx->par_filename, _MAX_PATH - 8);
+					if (ret != 0){
+						printf("Failed to convert PAR filename to absolute path\n");
+						ret = RET_FILE_IO_ERROR;
+						goto prepare_return;
+					}
+					strcpy(par3_ctx->par_filename, file_name);
 				}
-				strcpy(par3_ctx->par_filename, file_name);
 			}
 		}
 	}
@@ -529,6 +550,8 @@ int main(int argc, char *argv[])
 			printf("recovery_file_scheme = %c\n", par3_ctx->recovery_file_scheme);
 		if (par3_ctx->ecc_method != 0)
 			printf("Error Correction Codes = %u\n", par3_ctx->ecc_method);
+		if (par3_ctx->file_system != 0)
+			printf("File System Specific Packets = 0x%X\n", par3_ctx->file_system);
 		if (par3_ctx->deduplication != 0)
 			printf("deduplication = level %c\n", par3_ctx->deduplication);
 		if (command_recursive != 0)

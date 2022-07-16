@@ -126,6 +126,9 @@
     <ClCompile Include="leopard\LeopardFF8.cpp">
       <Filter>ソース ファイル\leopard</Filter>
     </ClCompile>
+    <ClCompile Include="file.c">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="libpar3.h">
@@ -178,6 +181,9 @@
     </ClInclude>
     <ClInclude Include="leopard\LeopardFF8.h">
       <Filter>ヘッダー ファイル\leopard</Filter>
+    </ClInclude>
+    <ClInclude Include="file.h">
+      <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

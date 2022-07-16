@@ -153,6 +153,7 @@
     <ClCompile Include="block_map.c" />
     <ClCompile Include="block_recover.c" />
     <ClCompile Include="common.c" />
+    <ClCompile Include="file.c" />
     <ClCompile Include="galois16.c" />
     <ClCompile Include="galois8.c" />
     <ClCompile Include="leopard\leopard.cpp" />
@@ -185,6 +186,7 @@
     <ClInclude Include="blake3\blake3_impl.h" />
     <ClInclude Include="block.h" />
     <ClInclude Include="common.h" />
+    <ClInclude Include="file.h" />
     <ClInclude Include="leopard\leopard.h" />
     <ClInclude Include="leopard\LeopardCommon.h" />
     <ClInclude Include="leopard\LeopardFF16.h" />

@@ -9,31 +9,30 @@
 #include <string.h>
 
 // MSVC headers
-#include <io.h>
+#include <sys/stat.h>
 
 #include "blake3/blake3.h"
 #include "libpar3.h"
 #include "common.h"
 #include "hash.h"
+#include "file.h"
 #include "verify.h"
 
 
 // This will check permission and attributes in future.
 // return 0 = exist, 1 = missing
 // 0x8000 = not directory
-// 0x****0000 = permission or attribute is different ?
+// 0x****0000 = different property (timestamp, permission, or attribute)
 static int check_directory(char *path)
 {
-	// MSVC
-	struct _finddatai64_t c_file;
-	intptr_t handle;
+	struct _stat64 stat_buf;
 
-	handle = _findfirst64(path, &c_file);
-	if (handle == -1)
+	// Check infomation, only when scuucess.
+	if (_stat64(path, &stat_buf) != 0)
 		return 1;
-	_findclose(handle);
 
-	if ((c_file.attrib & _A_SUBDIR) == 0)
+	// _S_IFDIR = 0x4000
+	if ((stat_buf.st_mode & _S_IFDIR) == 0)
 		return 0x8000;
 
 	return 0;
@@ -91,25 +90,30 @@ uint32_t check_input_directory(PAR3_CTX *par3_ctx)
 // This will check permission and attributes in future.
 // return 0 = exist, 1 = missing
 // 0x8000 = not file
-// 0x****0000 = permission or attribute is different ?
-static int check_file(char *path, uint64_t *current_size)
+// 0x****0000 = different property (timestamp, permission, or attribute)
+static int check_file(PAR3_CTX *par3_ctx, char *path, uint64_t *current_size, int64_t offset)
 {
-	// MSVC
-	struct _finddatai64_t c_file;
-	intptr_t handle;
+	int ret;
+	struct _stat64 stat_buf;
 
-	handle = _findfirst64(path, &c_file);
-	if (handle == -1)
+	// Check infomation, only when scuucess.
+	if (_stat64(path, &stat_buf) != 0)
 		return 1;
-	_findclose(handle);
 
 	// Get size of existing file.
-	*current_size = c_file.size;	// This may be different from original size.
+	*current_size = stat_buf.st_size;	// This may be different from original size.
 
-	if ((c_file.attrib & _A_SUBDIR) == 1)
+	// _S_IFREG = 0x8000
+	if ((stat_buf.st_mode & _S_IFREG) == 0)
 		return 0x8000;
 
-	return 0;
+	ret = 0;
+	if ( (offset >= 0) && (par3_ctx->file_system & 3) ){
+		//printf("offset of File Packet = %I64d\n", offset);
+		ret = check_file_system_option(par3_ctx, offset, &stat_buf);
+	}
+
+	return ret;
 }
 
 // Check existense and content of each input file.
@@ -200,9 +204,10 @@ int verify_input_file(PAR3_CTX *par3_ctx, uint32_t *missing_file_count, uint32_t
 
 	file_p = par3_ctx->input_file_list;
 	for (num = 0; num < par3_ctx->input_file_count; num++){
-		ret = check_file(file_p->name, &current_size);
+		ret = check_file(par3_ctx, file_p->name, &current_size, file_p->offset);
+		//printf("check_file = 0x%x, size = %I64u\n", ret, current_size);
 		file_p->state = ret;
-		if ( (ret == 0) && ( (file_p->size > 0) || (current_size > 0) ) ){
+		if ( ((ret & 0xFFFF) == 0) && ( (file_p->size > 0) || (current_size > 0) ) ){
 			if (par3_ctx->noise_level >= 0){
 				printf("Opening: \"%s\"\n", file_p->name);
 			}
@@ -212,10 +217,17 @@ int verify_input_file(PAR3_CTX *par3_ctx, uint32_t *missing_file_count, uint32_t
 			if (ret > 0)
 				return ret;	// error
 			if (ret == 0){
-				// While file data is complete, file name may be different case on Windows PC.
-				// Because Windows OS is case insensitive, I ignore the case, too.
-				if (par3_ctx->noise_level >= -1){
-					printf("Target: \"%s\" - complete.\n", file_p->name);
+				if (file_p->state & 0xFFFF0000){
+					*damaged_file_count += 1;
+					if (par3_ctx->noise_level >= -1){
+						printf("Target: \"%s\" - different property.\n", file_p->name);
+					}
+				} else {
+					// While file data is complete, file name may be different case on Windows PC.
+					// Because Windows OS is case insensitive, I ignore the case, too.
+					if (par3_ctx->noise_level >= -1){
+						printf("Target: \"%s\" - complete.\n", file_p->name);
+					}
 				}
 			} else {
 				file_p->state |= 2;
@@ -294,7 +306,7 @@ int verify_extra_file(PAR3_CTX *par3_ctx, uint32_t *missing_file_count, uint32_t
 		}
 
 		// Get file size
-		ret = check_file(list_name + off, &current_size);
+		ret = check_file(par3_ctx, list_name + off, &current_size, -1);
 		if ((ret & 0xFFFF) != 0){
 			if (par3_ctx->noise_level >= -1){
 				printf("Target: \"%s\" - unknown.\n", list_name + off);

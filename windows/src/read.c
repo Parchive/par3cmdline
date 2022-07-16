@@ -16,9 +16,10 @@
 #include "common.h"
 #include "hash.h"
 #include "packet.h"
+#include "file.h"
 
 
-int read_vital_packet(PAR3_CTX *par3_ctx)
+int read_packet(PAR3_CTX *par3_ctx)
 {
 	char *namez, packet_type[9];
 	uint8_t *buf, buf_hash[16];
@@ -214,6 +215,8 @@ int read_vital_packet(PAR3_CTX *par3_ctx)
 			printf("Number of Directory Packets     =%3u (%4I64d bytes)\n", par3_ctx->dir_packet_count, par3_ctx->dir_packet_size);
 		if (par3_ctx->root_packet_count > 0)
 			printf("Number of Root Packets          =%3u (%4I64d bytes)\n", par3_ctx->root_packet_count, par3_ctx->root_packet_size);
+		if (par3_ctx->file_system_packet_count > 0)
+			printf("Number of File System Packets   =%3u (%4I64d bytes)\n", par3_ctx->file_system_packet_count, par3_ctx->file_system_packet_size);
 		if (par3_ctx->ext_data_packet_count > 0)
 			printf("Number of External Data Packets =%3u (%4I64d bytes)\n", par3_ctx->ext_data_packet_count, par3_ctx->ext_data_packet_size);
 		if (par3_ctx->data_packet_count > 0)
@@ -276,6 +279,11 @@ void show_read_result(PAR3_CTX *par3_ctx, int flag_detail)
 					file_p->hash[8], file_p->hash[9], file_p->hash[10], file_p->hash[11],
 					file_p->hash[12], file_p->hash[13], file_p->hash[14], file_p->hash[15]);
 				printf("\"%s\"\n", file_p->name);
+
+				if (par3_ctx->file_system & 3){	// UNIX Permissions Packet
+					//printf("offset of File Packet = %I64d\n", file_p->offset);
+					read_file_system_option(par3_ctx, file_p->offset);
+				}
 			}
 			//printf("index of file = %u, index of the first chunk = %u\n", par3_ctx->input_file_count, file_p->chunk);
 
