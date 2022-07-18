@@ -1,0 +1,51 @@
+
+ I write some updated points in Parity Volume Set Specification 3.0.
+This is a reminder for later implementation.
+
+
+##### UNIX Permissions Packet
+
+ I changed the default value for i_mode.
+By doing this change, all non used values are same 0xff bytes.
+It's easy to see which value is set or not.
+
+*Table: UNIX Permissions Packet Unset Values
+
+| Field | Unset Value |
+|------:|------------:|
+| atime, ctime, mtime | 2^64-1 (maximum unsigned value) |
+| UID, GID | 2^32-1 (maximum unsigned value) |
+| i_mode | 0xffff | invalid value to indicate unset
+| owner name, group name | empty string | 
+| xattr | empty list |
+
+
+##### FAT Permissions Packet
+
+ I changed the default value for FileAttributes.
+By doing this change, all non used values are same 0xff bytes.
+It's easy to see which value is set or not.
+
+*Table: FAT Permissions Packet Unset Values
+
+| Field | Unset Value |
+|------:|------------:|
+| CreationTimestamp, LastAccessTimestamp, LastWriteTimestamp |  2^64-1 (maximum unsigned value)  |
+| FileAttributes | 0xffff | invalid value to indicate unset
+
+
+##### FFT Matrix Packet
+
+ I made this packet for test.
+This will be changed later.
+
+The FFT matrix packet has a type value of "PAR FFT\0" (ASCII). The packet's body contains the following:
+
+*Table: FFT Packet Body Contents*
+
+| Length (bytes) | Type | Description |
+|---------------:|:-----|:------------|
+| 8 | unsigned int | Index of first input block |
+| 8 | unsigned int | Index of last input block plus 1 |
+| 1 | unsigned int | max number of recovery blocks (as power of 2) |
+

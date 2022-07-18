@@ -293,11 +293,17 @@ If you omit number, it stores all values.
 "-fu1" : mtime only
 "-fu2" : i_mode only
 "-fu" or "-fu3" : both mtime and i_mode
+"-fu4" : store/recover options of directory
 
  Causion about permissions (-fu2 option).
 You may not repair files, when there isn't write permission.
 I cannot test behavior on Linux OS.
 It may be safe to store/recover mtime only (-fu1 option).
+
+ Causion about directories (-fu7 option).
+You cannot change permissions of directories on Windows OS.
+You may not modify mtime of directories on Windows OS.
+I don't know it works on Linux OS.
 
 
 
