@@ -282,7 +282,7 @@ void show_read_result(PAR3_CTX *par3_ctx, int flag_detail)
 
 				if (par3_ctx->file_system & 3){	// UNIX Permissions Packet
 					//printf("offset of File Packet = %I64d\n", file_p->offset);
-					read_file_system_option(par3_ctx, file_p->offset);
+					read_file_system_option(par3_ctx, 1, file_p->offset);
 				}
 			}
 			//printf("index of file = %u, index of the first chunk = %u\n", par3_ctx->input_file_count, file_p->chunk);
@@ -312,6 +312,11 @@ void show_read_result(PAR3_CTX *par3_ctx, int flag_detail)
 		num = par3_ctx->input_dir_count;
 		while (num > 0){
 			printf("\"%s\"\n", dir_p->name);
+
+			if ( ((par3_ctx->file_system & 4) != 0) && ((par3_ctx->file_system & 3) != 0) ){	// UNIX Permissions Packet
+				//printf("offset of Directory Packet = %I64d\n", dir_p->offset);
+				read_file_system_option(par3_ctx, 2, dir_p->offset);
+			}
 
 			dir_p++;
 			num--;

@@ -23,7 +23,7 @@
 // return 0 = exist, 1 = missing
 // 0x8000 = not directory
 // 0x****0000 = different property (timestamp, permission, or attribute)
-static int check_directory(char *path)
+int check_directory(PAR3_CTX *par3_ctx, char *path, int64_t offset)
 {
 	struct _stat64 stat_buf;
 
@@ -35,44 +35,55 @@ static int check_directory(char *path)
 	if ((stat_buf.st_mode & _S_IFDIR) == 0)
 		return 0x8000;
 
+	if ( (offset >= 0) && ((par3_ctx->file_system & 4) != 0) && ((par3_ctx->file_system & 3) != 0) ){
+		//printf("offset of Directory Packet = %I64d\n", offset);
+		return check_file_system_option(par3_ctx, 2, offset, &stat_buf);
+	}
+
 	return 0;
 }
 
 // Check existense of each input directory.
 // Return number of missing directories.
-uint32_t check_input_directory(PAR3_CTX *par3_ctx)
+void check_input_directory(PAR3_CTX *par3_ctx, uint32_t *missing_dir_count, uint32_t *bad_dir_count)
 {
 	int ret;
-	uint32_t num, missing_dir_count;
+	uint32_t num;
 	PAR3_DIR_CTX *dir_p;
 
 	if (par3_ctx->input_dir_count == 0)
-		return 0;
+		return;
 
 	if (par3_ctx->noise_level >= -1){
 		printf("\nVerifying input directories:\n\n");
 	}
 
-	missing_dir_count = 0;
 	num = par3_ctx->input_dir_count;
 	dir_p = par3_ctx->input_dir_list;
 	while (num > 0){
 		if (par3_ctx->noise_level >= -1){
 			printf("Target: \"%s\"", dir_p->name);
 		}
-		ret = check_directory(dir_p->name);
+		ret = check_directory(par3_ctx, dir_p->name, dir_p->offset);
+		//printf("\n check_directory = 0x%x\n", ret);
 		if (ret == 0){
 			if (par3_ctx->noise_level >= -1){
 				printf(" - found.\n");
 			}
 		} else if (ret == 1){
-			missing_dir_count++;
+			*missing_dir_count += 1;
 			if (par3_ctx->noise_level >= -1){
 				printf(" - missing.\n");
 			}
 		} else if (ret == 0x8000){
+			*missing_dir_count += 1;
 			if (par3_ctx->noise_level >= -1){
 				printf(" - not directory.\n");
+			}
+		} else if (ret & 0xFFFF0000){
+			*bad_dir_count += 1;
+			if (par3_ctx->noise_level >= -1){
+				printf(" - different.\n");
 			}
 		} else {
 			if (par3_ctx->noise_level >= -1){
@@ -83,17 +94,14 @@ uint32_t check_input_directory(PAR3_CTX *par3_ctx)
 		dir_p++;
 		num--;
 	}
-
-	return missing_dir_count;
 }
 
-// This will check permission and attributes in future.
+// This will check permission and attributes, only when you set an option.
 // return 0 = exist, 1 = missing
 // 0x8000 = not file
 // 0x****0000 = different property (timestamp, permission, or attribute)
 static int check_file(PAR3_CTX *par3_ctx, char *path, uint64_t *current_size, int64_t offset)
 {
-	int ret;
 	struct _stat64 stat_buf;
 
 	// Check infomation, only when scuucess.
@@ -107,17 +115,16 @@ static int check_file(PAR3_CTX *par3_ctx, char *path, uint64_t *current_size, in
 	if ((stat_buf.st_mode & _S_IFREG) == 0)
 		return 0x8000;
 
-	ret = 0;
 	if ( (offset >= 0) && (par3_ctx->file_system & 3) ){
 		//printf("offset of File Packet = %I64d\n", offset);
-		ret = check_file_system_option(par3_ctx, offset, &stat_buf);
+		return check_file_system_option(par3_ctx, 1, offset, &stat_buf);
 	}
 
-	return ret;
+	return 0;
 }
 
 // Check existense and content of each input file.
-int verify_input_file(PAR3_CTX *par3_ctx, uint32_t *missing_file_count, uint32_t *damaged_file_count)
+int verify_input_file(PAR3_CTX *par3_ctx, uint32_t *missing_file_count, uint32_t *damaged_file_count, uint32_t *bad_file_count)
 {
 	int ret;
 	uint32_t num;
@@ -218,9 +225,9 @@ int verify_input_file(PAR3_CTX *par3_ctx, uint32_t *missing_file_count, uint32_t
 				return ret;	// error
 			if (ret == 0){
 				if (file_p->state & 0xFFFF0000){
-					*damaged_file_count += 1;
+					*bad_file_count += 1;
 					if (par3_ctx->noise_level >= -1){
-						printf("Target: \"%s\" - different property.\n", file_p->name);
+						printf("Target: \"%s\" - different.\n", file_p->name);
 					}
 				} else {
 					// While file data is complete, file name may be different case on Windows PC.
@@ -259,6 +266,7 @@ int verify_input_file(PAR3_CTX *par3_ctx, uint32_t *missing_file_count, uint32_t
 					printf(" - missing.\n");
 				}
 			} else if (ret == 0x8000){
+				*missing_file_count += 1;
 				if (par3_ctx->noise_level >= -1){
 					printf(" - not file.\n");
 				}

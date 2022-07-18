@@ -422,13 +422,13 @@ int main(int argc, char *argv[])
 
 			} else if ( (tmp_p[0] == 'f') && (tmp_p[1] == 'u')
 					&& ( (tmp_p[2] == 0) || ( (tmp_p[2] >= '1') && (tmp_p[2] <= '9') ) ) ){	// UNIX Permissions Packet
-				if ((par3_ctx->file_system & 3) != 0){
+				if ((par3_ctx->file_system & 7) != 0){
 					printf("Cannot specify UNIX Permissions Packet twice.\n");
 				} else {
 					if (tmp_p[2] == 0){
-						ret = 3;	// 1 = mtime, 2 = i_mode
+						ret = 7;	// 1 = mtime, 2 = i_mode, 4 = directory
 					} else {
-						ret = strtoul(tmp_p + 2, NULL, 10) & 3;
+						ret = strtoul(tmp_p + 2, NULL, 10) & 7;
 					}
 					par3_ctx->file_system |= ret;
 				}

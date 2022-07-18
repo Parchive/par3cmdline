@@ -25,6 +25,13 @@ st_gid and st_uid are not supported on Windows OS.
 st_atime may not be supported on Windows OS.
 st_ctime has different property on Windows OS.
 
+Bit of st_mode;
+_S_IFDIR  = 0x4000, Directory
+_S_IFREG  = 0x8000, Regular file
+_S_IREAD  = 0x0100, Read permission, owner
+_S_IWRITE = 0x0080, Write permission, owner
+_S_IEXEC  = 0x0040, Execute/search permission, owner
+
 At this time, it stores st_mtime and st_mode for compatibility.
 */
 
@@ -41,6 +48,7 @@ int make_unix_permission_packet(PAR3_CTX *par3_ctx, char *file_name, uint8_t *ch
 	// Store infomation, only when scuucess.
 	if (_stat64(file_name, &stat_buf) != 0)
 		return 1;
+
 /*
 	printf("Status information of \"%s\"\n", file_name);
 	//printf("st_mtime = %016I64x\n", stat_buf.st_mtime);
@@ -63,7 +71,7 @@ int make_unix_permission_packet(PAR3_CTX *par3_ctx, char *file_name, uint8_t *ch
 	if (par3_ctx->file_system & 2){
 		ret = stat_buf.st_mode & 0x0FFF;	// lower 12-bit of i_mode
 	} else {
-		ret = 0x0180;	// Default value (owner read+write)
+		ret = 0xFFFF;	// When this item isn't used, store an invalid value.
 	}
 	memcpy(pkt_buf + packet_size, &ret, 2);
 	packet_size += 2;
@@ -113,11 +121,13 @@ static void show_file_system_info(PAR3_CTX *par3_ctx, uint8_t *checksum)
 					if (par3_ctx->file_system & 2){	// i_mode
 						item_value4 = 0;
 						memcpy(&item_value4, buf + offset + 48 + 32, 2);
-						printf("i_mode = 0x%04x", item_value4);
-						if (par3_ctx->file_system & 1){
-							printf(" , ");
-						} else {
-							printf("\n");
+						if ((item_value4 & 0xF000) == 0){	// i_mode must be 12-bit value.
+							printf("i_mode = 0x%03x", item_value4);
+							if (par3_ctx->file_system & 1){
+								printf(" , ");
+							} else {
+								printf("\n");
+							}
 						}
 					}
 					if (par3_ctx->file_system & 1){	// mtime
@@ -137,27 +147,50 @@ static void show_file_system_info(PAR3_CTX *par3_ctx, uint8_t *checksum)
 	}
 }
 
-void read_file_system_option(PAR3_CTX *par3_ctx, int64_t offset)
+// packet_type: 1 = file, 2 = directory, 3 = root
+void read_file_system_option(PAR3_CTX *par3_ctx, int packet_type, int64_t offset)
 {
 	uint8_t *tmp_p;
 	int len;
 
-	tmp_p = par3_ctx->file_packet;
-	if (offset + 48 + 2 + 24 + 1 > (int64_t)(par3_ctx->file_packet_size))
+	if (packet_type == 1){	// File Packet
+		tmp_p = par3_ctx->file_packet;
+		if (offset + 48 + 2 + 24 + 1 > (int64_t)(par3_ctx->file_packet_size))
+			return;
+		tmp_p += offset + 48;
+		// Check name's length
+		len = 0;
+		memcpy(&len, tmp_p, 2);
+		//printf("file name length = %d\n", len);
+		if (offset + 48 + 2 + len + 24 + 1 > (int64_t)(par3_ctx->file_packet_size))
+			return;
+		tmp_p += 2 + len + 24;
+		// Check options
+		len = 0;
+		memcpy(&len, tmp_p, 1);
+		tmp_p += 1;
+
+	} else if (packet_type == 2){	// Directory Packet
+		tmp_p = par3_ctx->dir_packet;
+		if (offset + 48 + 2 + 4 > (int64_t)(par3_ctx->dir_packet_size))
+			return;
+		tmp_p += offset + 48;
+		// Check name's length
+		len = 0;
+		memcpy(&len, tmp_p, 2);
+		//printf("dir name length = %d\n", len);
+		if (offset + 48 + 2 + len + 4 > (int64_t)(par3_ctx->dir_packet_size))
+			return;
+		tmp_p += 2 + len;
+		// Check options
+		len = 0;
+		memcpy(&len, tmp_p, 4);
+		tmp_p += 4;
+
+	} else {
 		return;
-	tmp_p += offset + 48;
-	// Check length of filename
-	len = 0;
-	memcpy(&len, tmp_p, 2);
-	//printf("filename length = %d\n", len);
-	if (offset + 48 + 2 + len + 24 + 1 > (int64_t)(par3_ctx->file_packet_size))
-		return;
-	tmp_p += 2 + len + 24;
-	// Check options
-	len = 0;
-	memcpy(&len, tmp_p, 1);
+	}
 	//printf("number of options = %d\n", len);
-	tmp_p += 1;
 
 	while (len > 0){
 		show_file_system_info(par3_ctx, tmp_p);
@@ -200,10 +233,12 @@ static int check_file_system_info(PAR3_CTX *par3_ctx, uint8_t *checksum, void *s
 					if (par3_ctx->file_system & 2){	// i_mode
 						item_value4 = 0;
 						memcpy(&item_value4, buf + offset + 48 + 32, 2);
-						//printf("i_mode = 0x%04x\n", item_value4);
-						if (item_value4 != (stat_buf->st_mode & 0x0FFF)){
-							// i_mode is different.
-							ret |= 0x20000;
+						if ((item_value4 & 0xF000) == 0){	// i_mode must be 12-bit value.
+							//printf("i_mode = 0x%04x\n", item_value4);
+							if (item_value4 != (stat_buf->st_mode & 0x0FFF)){
+								// i_mode is different.
+								ret |= 0x20000;
+							}
 						}
 					}
 					if (par3_ctx->file_system & 1){	// mtime
@@ -230,27 +265,50 @@ static int check_file_system_info(PAR3_CTX *par3_ctx, uint8_t *checksum, void *s
 	return ret;
 }
 
-int check_file_system_option(PAR3_CTX *par3_ctx, int64_t offset, void *stat_p)
+// packet_type: 1 = file, 2 = directory, 3 = root
+int check_file_system_option(PAR3_CTX *par3_ctx, int packet_type, int64_t offset, void *stat_p)
 {
 	uint8_t *tmp_p;
 	int len, ret;
 
-	tmp_p = par3_ctx->file_packet;
-	if (offset + 48 + 2 + 24 + 1 > (int64_t)(par3_ctx->file_packet_size))
+	if (packet_type == 1){	// File Packet
+		tmp_p = par3_ctx->file_packet;
+		if (offset + 48 + 2 + 24 + 1 > (int64_t)(par3_ctx->file_packet_size))
+			return 0;
+		tmp_p += offset + 48;
+		// Check length of filename
+		len = 0;
+		memcpy(&len, tmp_p, 2);
+		//printf("filename length = %d\n", len);
+		if (offset + 48 + 2 + len + 24 + 1 > (int64_t)(par3_ctx->file_packet_size))
+			return 0;
+		tmp_p += 2 + len + 24;
+		// Check options
+		len = 0;
+		memcpy(&len, tmp_p, 1);
+		tmp_p += 1;
+
+	} else if (packet_type == 2){	// Directory Packet
+		tmp_p = par3_ctx->dir_packet;
+		if (offset + 48 + 2 + 4 > (int64_t)(par3_ctx->dir_packet_size))
+			return 0;
+		tmp_p += offset + 48;
+		// Check name's length
+		len = 0;
+		memcpy(&len, tmp_p, 2);
+		//printf("dir name length = %d\n", len);
+		if (offset + 48 + 2 + len + 4 > (int64_t)(par3_ctx->dir_packet_size))
+			return 0;
+		tmp_p += 2 + len;
+		// Check options
+		len = 0;
+		memcpy(&len, tmp_p, 4);
+		tmp_p += 4;
+
+	} else {
 		return 0;
-	tmp_p += offset + 48;
-	// Check length of filename
-	len = 0;
-	memcpy(&len, tmp_p, 2);
-	//printf("filename length = %d\n", len);
-	if (offset + 48 + 2 + len + 24 + 1 > (int64_t)(par3_ctx->file_packet_size))
-		return 0;
-	tmp_p += 2 + len + 24;
-	// Check options
-	len = 0;
-	memcpy(&len, tmp_p, 1);
+	}
 	//printf("number of options = %d\n", len);
-	tmp_p += 1;
 
 	ret = 0;
 	while (len > 0){
@@ -303,7 +361,7 @@ static int reset_file_system_info(PAR3_CTX *par3_ctx, uint8_t *checksum, char *f
 
 									// When there is no write permission, set temporary.
 									if ((stat_buf.st_mode & _S_IWRITE) == 0){
-										if (_chmod(file_name, _S_IREAD | _S_IWRITE) == 0){
+										if (_chmod(file_name, stat_buf.st_mode | _S_IWRITE) == 0){
 											stat_buf.st_mode |= _S_IWRITE;
 										}
 									}
@@ -313,16 +371,19 @@ static int reset_file_system_info(PAR3_CTX *par3_ctx, uint8_t *checksum, char *f
 									ut.modtime = item_value8;		// Recover to stored mtime
 									if (_utime(file_name, &ut) != 0)
 										ret |= 0x10000;	// Failed to reset mtime
+									// Caution ! this cannot modify directory on Windows OS.
 								}
 							}
 						}
 						if (par3_ctx->file_system & 2){	// i_mode
 							item_value4 = 0;
 							memcpy(&item_value4, buf + offset + 48 + 32, 2);
-							if (item_value4 != (stat_buf.st_mode & 0x0FFF)){	// i_mode is different.
-								//printf("i_mode = 0x%04x, 0x%04x\n", item_value4, stat_buf.st_mode & 0x0FFF);
-								if (_chmod(file_name, item_value4) != 0)
-									ret |= 0x20000;	// Failed to reset permissions
+							if ((item_value4 & 0xF000) == 0){	// i_mode must be 12-bit value.
+								if (item_value4 != (stat_buf.st_mode & 0x0FFF)){	// i_mode is different.
+									//printf("i_mode = 0x%04x, 0x%04x\n", item_value4, stat_buf.st_mode & 0x0FFF);
+									if (_chmod(file_name, item_value4) != 0)
+										ret |= 0x20000;	// Failed to reset permissions
+								}
 							}
 						}
 					}
@@ -340,27 +401,51 @@ static int reset_file_system_info(PAR3_CTX *par3_ctx, uint8_t *checksum, char *f
 	return ret;
 }
 
-int test_file_system_option(PAR3_CTX *par3_ctx, int64_t offset, char *file_name)
+// packet_type: 1 = file, 2 = directory, 3 = root
+int test_file_system_option(PAR3_CTX *par3_ctx, int packet_type, int64_t offset, char *file_name)
 {
 	uint8_t *tmp_p;
 	int len, ret;
 
-	tmp_p = par3_ctx->file_packet;
-	if (offset + 48 + 2 + 24 + 1 > (int64_t)(par3_ctx->file_packet_size))
+	if (packet_type == 1){	// File Packet
+
+		tmp_p = par3_ctx->file_packet;
+		if (offset + 48 + 2 + 24 + 1 > (int64_t)(par3_ctx->file_packet_size))
+			return 0;
+		tmp_p += offset + 48;
+		// Check length of filename
+		len = 0;
+		memcpy(&len, tmp_p, 2);
+		//printf("filename length = %d\n", len);
+		if (offset + 48 + 2 + len + 24 + 1 > (int64_t)(par3_ctx->file_packet_size))
+			return 0;
+		tmp_p += 2 + len + 24;
+		// Check options
+		len = 0;
+		memcpy(&len, tmp_p, 1);
+		tmp_p += 1;
+
+	} else if (packet_type == 2){	// Directory Packet
+		tmp_p = par3_ctx->dir_packet;
+		if (offset + 48 + 2 + 4 > (int64_t)(par3_ctx->dir_packet_size))
+			return 0;
+		tmp_p += offset + 48;
+		// Check name's length
+		len = 0;
+		memcpy(&len, tmp_p, 2);
+		//printf("dir name length = %d\n", len);
+		if (offset + 48 + 2 + len + 4 > (int64_t)(par3_ctx->dir_packet_size))
+			return 0;
+		tmp_p += 2 + len;
+		// Check options
+		len = 0;
+		memcpy(&len, tmp_p, 4);
+		tmp_p += 4;
+
+	} else {
 		return 0;
-	tmp_p += offset + 48;
-	// Check length of filename
-	len = 0;
-	memcpy(&len, tmp_p, 2);
-	//printf("filename length = %d\n", len);
-	if (offset + 48 + 2 + len + 24 + 1 > (int64_t)(par3_ctx->file_packet_size))
-		return 0;
-	tmp_p += 2 + len + 24;
-	// Check options
-	len = 0;
-	memcpy(&len, tmp_p, 1);
+	}
 	//printf("number of options = %d\n", len);
-	tmp_p += 1;
 
 	ret = 0;
 	while (len > 0){

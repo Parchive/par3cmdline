@@ -18,7 +18,7 @@
 #include "verify.h"
 
 
-// This will restore permission and attributes in future.
+// It will restore permissions or attributes after files are repaired.
 // return 0 = no need repair, 1 = restored successfully, 2 = failed
 // 0x8000 = not directory
 static int restore_directory(char *path)
@@ -33,7 +33,7 @@ static int restore_directory(char *path)
 			return 2;	// Failed
 		}
 
-	} else {	// Restore permission and attributes
+	} else {
 		if ((stat_buf.st_mode & _S_IFDIR) == 0)
 			return 0x8000;
 	}
@@ -62,16 +62,15 @@ uint32_t reconstruct_directory_tree(PAR3_CTX *par3_ctx)
 					flag_show++;
 					printf("\nReconstructing input directories:\n\n");
 				}
-				printf("Target: \"%s\"", dir_p->name);
 			}
 			if (ret == 1){
 				if (par3_ctx->noise_level >= 1){
-					printf(" - made.\n");
+					printf("Target: \"%s\" - made.\n", dir_p->name);
 				}
 			} else {
 				failed_dir_count++;
 				if (par3_ctx->noise_level >= 1){
-					printf(" - failed.\n");
+					printf("Target: \"%s\" - failed.\n", dir_p->name);
 				}
 			}
 		}
@@ -496,7 +495,7 @@ static int backup_file(char *filename)
 
 // Verify repaired file and rename to original name
 int verify_repaired_file(PAR3_CTX *par3_ctx, char *temp_path,
-		uint32_t *missing_file_count, uint32_t *damaged_file_count, uint32_t *misnamed_file_count)
+		uint32_t *missing_file_count, uint32_t *damaged_file_count, uint32_t *misnamed_file_count, uint32_t *bad_file_count)
 {
 	int flag_show = 0;
 	char *file_name;
@@ -525,6 +524,7 @@ int verify_repaired_file(PAR3_CTX *par3_ctx, char *temp_path,
 	*missing_file_count = 0;
 	*damaged_file_count = 0;
 	*misnamed_file_count = 0;
+	*bad_file_count = 0;
 	for (file_index = 0; file_index < file_count; file_index++){
 		// This input file is misnamed.
 		if (file_list[file_index].state & 4){
@@ -559,13 +559,13 @@ int verify_repaired_file(PAR3_CTX *par3_ctx, char *temp_path,
 				}
 
 			} else if (par3_ctx->file_system & 3){	// test property
-				ret = test_file_system_option(par3_ctx, file_list[file_index].offset, file_list[file_index].name);
+				ret = test_file_system_option(par3_ctx, 1, file_list[file_index].offset, file_list[file_index].name);
 				if (ret == 0){
 					if (par3_ctx->noise_level >= 0){
 						printf("Target: \"%s\" - repaired.\n", file_list[file_index].name);
 					}
 				} else {
-					*damaged_file_count += 1;	// Though file data was repaired, property is different.
+					*bad_file_count += 1;	// Though file data was repaired, property is different.
 					if (par3_ctx->noise_level >= 0){
 						printf("Target: \"%s\" - failed.\n", file_list[file_index].name);
 					}
@@ -617,13 +617,13 @@ int verify_repaired_file(PAR3_CTX *par3_ctx, char *temp_path,
 					}
 
 				} else if (par3_ctx->file_system & 3){	// test property
-					ret = test_file_system_option(par3_ctx, file_list[file_index].offset, file_list[file_index].name);
+					ret = test_file_system_option(par3_ctx, 1, file_list[file_index].offset, file_list[file_index].name);
 					if (ret == 0){
 						if (par3_ctx->noise_level >= 0){
 							printf("Target: \"%s\" - repaired.\n", file_list[file_index].name);
 						}
 					} else {
-						*damaged_file_count += 1;	// Though file data was repaired, property is different.
+						*bad_file_count += 1;	// Though file data was repaired, property is different.
 						if (par3_ctx->noise_level >= 0){
 							printf("Target: \"%s\" - failed.\n", file_list[file_index].name);
 						}
@@ -669,13 +669,13 @@ int verify_repaired_file(PAR3_CTX *par3_ctx, char *temp_path,
 				}
 			}
 
-			ret = test_file_system_option(par3_ctx, file_list[file_index].offset, file_list[file_index].name);
+			ret = test_file_system_option(par3_ctx, 1, file_list[file_index].offset, file_list[file_index].name);
 			if (ret == 0){
 				if (par3_ctx->noise_level >= 0){
 					printf("Target: \"%s\" - repaired.\n", file_list[file_index].name);
 				}
 			} else {
-				*damaged_file_count += 1;
+				*bad_file_count += 1;
 				if (par3_ctx->noise_level >= 0){
 					printf("Target: \"%s\" - failed.\n", file_list[file_index].name);
 				}
@@ -689,3 +689,51 @@ int verify_repaired_file(PAR3_CTX *par3_ctx, char *temp_path,
 	return 0;
 }
 
+// Reset option of directories
+uint32_t reset_directory_option(PAR3_CTX *par3_ctx)
+{
+	int ret, flag_show = 0;
+	uint32_t num, failed_dir_count;
+	PAR3_DIR_CTX *dir_p;
+
+	if (par3_ctx->input_dir_count == 0)
+		return 0;
+
+	if ( ((par3_ctx->file_system & 4) == 0) || ((par3_ctx->file_system & 3) == 0) )
+		return 0;
+
+	failed_dir_count = 0;
+	num = par3_ctx->input_dir_count;
+	dir_p = par3_ctx->input_dir_list;
+	while (num > 0){
+		ret = check_directory(par3_ctx, dir_p->name, dir_p->offset);
+		if (ret & 0xFFFF0000){
+			//printf("check_directory = 0x%x\n", ret);
+
+			if (par3_ctx->noise_level >= 0){
+				if (flag_show == 0){
+					flag_show++;
+					printf("\nReseting input directories:\n\n");
+				}
+			}
+
+			ret = test_file_system_option(par3_ctx, 2, dir_p->offset, dir_p->name);
+			//printf("test_file_system_option = 0x%x\n", ret);
+			if (ret == 0){
+				if (par3_ctx->noise_level >= 0){
+					printf("Target: \"%s\" - repaired.\n", dir_p->name);
+				}
+			} else {
+				failed_dir_count++;
+				if (par3_ctx->noise_level >= 0){
+					printf("Target: \"%s\" - failed.\n", dir_p->name);
+				}
+			}
+		}
+
+		dir_p++;
+		num--;
+	}
+
+	return failed_dir_count;
+}

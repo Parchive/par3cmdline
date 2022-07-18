@@ -10,5 +10,8 @@ int try_restore_input_file(PAR3_CTX *par3_ctx, char *temp_path);
 
 // Confirm input files after repair
 int verify_repaired_file(PAR3_CTX *par3_ctx, char *temp_path,
-		uint32_t *missing_file_count, uint32_t *damaged_file_count, uint32_t *misnamed_file_count);
+		uint32_t *missing_file_count, uint32_t *damaged_file_count, uint32_t *misnamed_file_count, uint32_t *bad_file_count);
+
+// Reset option of directories
+uint32_t reset_directory_option(PAR3_CTX *par3_ctx);
 

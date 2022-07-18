@@ -366,8 +366,8 @@ static int compare_checksum( const void *arg1, const void *arg2 )
 int make_file_packet(PAR3_CTX *par3_ctx)
 {
 	uint8_t *tmp_p, *name_p, *chk_p;
-	uint32_t num, max, i, packet_count, absolute_num;
-	size_t alloc_size, packet_size, total_packet_size, len;
+	uint32_t num, max, i, packet_count, absolute_num, option_num;
+	size_t alloc_size, packet_size, total_packet_size, len, option_offset;
 	size_t file_alloc_size, dir_alloc_size, root_alloc_size, file_system_alloc_size;
 	PAR3_FILE_CTX *file_p, *file_list;
 	PAR3_DIR_CTX *dir_p, *dir_list;
@@ -436,6 +436,7 @@ int make_file_packet(PAR3_CTX *par3_ctx)
 	}
 
 	if (par3_ctx->file_system & 3){	// UNIX Permissions Packet
+		// Every files and directories may have this optional packet.
 		num = par3_ctx->input_file_count + par3_ctx->input_dir_count + absolute_num;
 		alloc_size = 84 * num;	// mtime and i_mode are set.
 		if (par3_ctx->noise_level >= 2){
@@ -512,16 +513,17 @@ int make_file_packet(PAR3_CTX *par3_ctx)
 			packet_size += 16;
 
 			// number of options
-			tmp_p[packet_size] = 0;
+			option_offset = packet_size;
+			option_num = 0;
 			packet_size += 1;
-			// This doesn't support packets for options yet.
 			// UNIX Permissions Packet
 			if (par3_ctx->file_system & 3){
 				if (make_unix_permission_packet(par3_ctx, file_p->name, tmp_p + packet_size) == 0){
-					tmp_p[packet_size - 1] += 1;
+					option_num++;
 					packet_size += 16;
 				}
 			}
+			tmp_p[option_offset] = option_num;	// Value is saved in 1-byte.
 
 			if (file_p->size > 0){	// chunk descriptions
 				total_size = 0;
@@ -585,6 +587,8 @@ int make_file_packet(PAR3_CTX *par3_ctx)
 			for (i = 0; i < max; i++){
 				if ( (file_p->chk[0] == file_list[i].chk[0]) && (file_p->chk[1] == file_list[i].chk[1]) ){
 					//printf("find duplicated File Packet ! %u and %u\n", i, max);
+					//printf("offset %I64d and %I64d\n", file_list[i].offset, file_p->offset);
+					file_p->offset = file_list[i].offset;
 					break;
 				}
 			}
@@ -649,10 +653,19 @@ int make_file_packet(PAR3_CTX *par3_ctx)
 			// name of directory
 			memcpy(tmp_p + packet_size, name_p, len);
 			packet_size += len;
+
 			// number of options
-			memset(tmp_p + packet_size, 0, 4);
+			option_offset = packet_size;
+			option_num = 0;
 			packet_size += 4;
-			// This doesn't support packets for options yet.
+			// UNIX Permissions Packet
+			if ( ((par3_ctx->file_system & 4) != 0) && ((par3_ctx->file_system & 3) != 0) ){
+				if (make_unix_permission_packet(par3_ctx, dir_p->name, tmp_p + packet_size) == 0){
+					option_num++;
+					packet_size += 16;
+				}
+			}
+			memcpy(tmp_p + option_offset, &option_num, 4);	// Value is saved in 4-bytes.
 
 			// Search children files
 			//printf("search children of \"%s\"\n", dir_p->name);
@@ -700,6 +713,7 @@ int make_file_packet(PAR3_CTX *par3_ctx)
 			for (i = 0; i < max; i++){
 				if ( (dir_p->chk[0] == dir_list[i].chk[0]) && (dir_p->chk[1] == dir_list[i].chk[1]) ){
 					//printf("find duplicated Directory Packet ! %u and %u\n", i, max);
+					dir_p->offset = dir_list[i].offset;
 					break;
 				}
 			}
@@ -729,6 +743,8 @@ int make_file_packet(PAR3_CTX *par3_ctx)
 				// number of options
 				memset(tmp_p + packet_size, 0, 4);
 				packet_size += 4;
+				// Directories of base path don't store File System Specific Packets.
+				// Changing property of parent directories will be a security risk.
 
 				// Search children files (similar to Root Packet's children)
 				//printf("search base path's children\n");
