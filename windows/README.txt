@@ -74,6 +74,7 @@ Options: (create)
   -d<n>    : Enable deduplication of input blocks
   -e<n>    : Set using Error Correction Codes
   -fu<n>   : Use UNIX Permissions Packet
+  -ff      : Use FAT Permissions Packet
   -C<text> : Set comment
 
 
@@ -286,14 +287,17 @@ This may be useless for random data like compressed file.
 
 [ About "-fu<n>" option ]
 
- You may use UNIX Permissions Packet to store file's meta data.
+ You may use UNIX Permissions Packet to store meta data of files and/or directories.
 At this time, this supports only two fields: mtime and i_mode.
-The number is bitwise or.
+Another PAR3 client may support other fields.
+
+ The number after "-fu" is bitwise or.
 If you omit number, it stores all values.
 "-fu1" : mtime only
 "-fu2" : i_mode only
-"-fu" or "-fu3" : both mtime and i_mode
+"-fu3" : both mtime and i_mode
 "-fu4" : store/recover options of directory
+"-fu" or "-fu7" : all fields of all files and directories
 
  Causion about permissions (-fu2 option).
 You may not repair files, when there isn't write permission.
@@ -304,6 +308,17 @@ It may be safe to store/recover mtime only (-fu1 option).
 You cannot change permissions of directories on Windows OS.
 You may not modify mtime of directories on Windows OS.
 I don't know it works on Linux OS.
+
+
+
+[ About "-ff" option ]
+
+ You may use FAT Permissions Packet to store meta data of files.
+At this time, this supports only one field: LastWriteTime.
+
+ Because Microsoft C-runtime library doesn't support FileAttributes nor directory,
+you cannot store/recover them in par3cmdline.
+Another PAR3 client may support other fields or directory.
 
 
 

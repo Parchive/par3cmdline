@@ -1,6 +1,38 @@
 
- I write some updated points in Parity Volume Set Specification 3.0.
+ I write some updating points in Parity Volume Set Specification 3.0.
 This is a reminder for later implementation.
+
+
+
+##### Start packet
+
+ It's possible to remove the first field (a globally unique random number).
+The unique random number is set to randomize InputSetID internally.
+No need to store the number in Start Packet, because it's not refered later.
+
+
+*Old table: Start Packet Body Contents*
+
+| Length (bytes) | Type | Description |
+|---------------:|:-----|:------------|
+|  8 | Random | A globally unique random number |
+|  8 | InputSetID | The "parent" InputSetID, or zeros if none. |
+| 16 | fingerprint hash | The checksum of the parent's Root packet, or zeros if none. |
+|  8 | unsigned int | Block size in bytes |
+|  1 | unsigned int | The size of the Galois field in bytes. |
+|  ? | ?-byte GF | The generator of the Galois field without its leading 1. |
+
+
+*Table: Start Packet Body Contents*
+
+| Length (bytes) | Type | Description |
+|---------------:|:-----|:------------|
+|  8 | InputSetID | The "parent" InputSetID, or zeros if none. |
+| 16 | fingerprint hash | The checksum of the parent's Root packet, or zeros if none. |
+|  8 | unsigned int | Block size in bytes |
+|  1 | unsigned int | The size of the Galois field in bytes. |
+|  ? | ?-byte GF | The generator of the Galois field without its leading 1. |
+
 
 
 ##### UNIX Permissions Packet
@@ -9,15 +41,28 @@ This is a reminder for later implementation.
 By doing this change, all non used values are same 0xff bytes.
 It's easy to see which value is set or not.
 
+
+*Old table: UNIX Permissions Packet Unset Values
+
+| Field | Unset Value |
+|------:|------------:|
+| atime, ctime, mtime | 2^64-1 (maximum unsigned value) |
+| UID, GID | 2^32-1 (maximum unsigned value) |
+| i_mode | 0x0180 (owner read+write) |
+| owner name, group name | empty string | 
+| xattr | empty list |
+
+
 *Table: UNIX Permissions Packet Unset Values
 
 | Field | Unset Value |
 |------:|------------:|
 | atime, ctime, mtime | 2^64-1 (maximum unsigned value) |
 | UID, GID | 2^32-1 (maximum unsigned value) |
-| i_mode | 0xffff | invalid value to indicate unset
+| i_mode | 0xffff | value to indicate unset
 | owner name, group name | empty string | 
 | xattr | empty list |
+
 
 
 ##### FAT Permissions Packet
@@ -26,18 +71,66 @@ It's easy to see which value is set or not.
 By doing this change, all non used values are same 0xff bytes.
 It's easy to see which value is set or not.
 
+
+*Old table: FAT Permissions Packet Unset Values
+
+| Field | Unset Value |
+|------:|------------:|
+| CreationTimestamp, LastAccessTimestamp, LastWriteTimestamp |  2^64-1 (maximum unsigned value)  |
+| FileAttributes | 0 | 
+
+
 *Table: FAT Permissions Packet Unset Values
 
 | Field | Unset Value |
 |------:|------------:|
 | CreationTimestamp, LastAccessTimestamp, LastWriteTimestamp |  2^64-1 (maximum unsigned value)  |
-| FileAttributes | 0xffff | invalid value to indicate unset
+| FileAttributes | 0xffff | value to indicate unset
+
 
 
 ##### FFT Matrix Packet
 
  I made this packet for test.
 This will be changed later.
+
+ The last field is for max number of recovery blocks.
+The value is important, because different max value makes incompatible recovery blocks.
+If you have a plan to add more recovery blocks later,
+you must set the max number for the possible creating blocks.
+
+ It uses power of 2 for max number of recovery blocks.
+Currently, the value is exponent of power for Low Rate encoder.
+The value is like below;
+
+Stored value | Max number of recovery blocks
+   0         |     1
+   1         |     2
+   2         |     4
+   3         |     8
+   4         |    16
+   5         |    32
+   6         |    64
+   7         |   128
+   8         |   256
+   9         |   512
+  10         |  1024
+  11         |  2048
+  12         |  4096
+  13         |  8192
+  14         | 16384
+  15         | 32768
+
+ It will be different format for High Rate encoder in future.
+At this time, it doesn't support High Rate encoding yet.
+  17         | 65536 -     2 = 65534
+  18         | 65536 -     4 = 65532
+  19         | 65536 -     8 = 65528
+  20         | 65536 -    16 = 65520
+...
+  29         | 65536 -  8192 = 57344
+  30         | 65536 - 16384 = 49152
+
 
 The FFT matrix packet has a type value of "PAR FFT\0" (ASCII). The packet's body contains the following:
 
