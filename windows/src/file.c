@@ -18,6 +18,29 @@
 #include "packet.h"
 
 
+/*
+Converting a time_t value to a FILETIME
+https://docs.microsoft.com/en-us/windows/win32/sysinfo/converting-a-time-t-value-to-a-file-time
+*/
+static uint64_t TimetToFileTime(uint64_t unix_time)
+{
+	uint64_t file_time;
+
+	file_time = (unix_time * 10000000LL) + 116444736000000000LL;
+
+	return file_time;
+}
+
+static uint64_t FileTimeToTimet(uint64_t file_time)
+{
+	uint64_t unix_time;
+
+	unix_time = (file_time - 116444736000000000LL) / 10000000LL;
+
+	return unix_time;
+}
+
+
 // File System Specific Packets (optional packets)
 /*
 https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/stat-functions?view=msvc-170
@@ -37,7 +60,7 @@ At this time, it stores st_mtime and st_mode for compatibility.
 
 // UNIX Permissions Packet
 // 0 = write ok, 1 = failed (no checksum)
-// Return checksum of UNIX Permissions Packet in *chk_pkt.
+// Return checksum of UNIX Permissions Packet in *checksum.
 int make_unix_permission_packet(PAR3_CTX *par3_ctx, char *file_name, uint8_t *checksum)
 {
 	uint8_t pkt_buf[84];	// This is the minimum size of this packet.
@@ -79,6 +102,53 @@ int make_unix_permission_packet(PAR3_CTX *par3_ctx, char *file_name, uint8_t *ch
 	packet_size += 2;
 	// Packet size = 48 + 36 = 84
 	make_packet_header(pkt_buf, packet_size, par3_ctx->set_id, "PAR UNX\0", 1);
+
+	// Check existing packets if this packet was made already.
+	ret = check_packet_exist(par3_ctx->file_system_packet, par3_ctx->file_system_packet_size, pkt_buf, packet_size);
+	//printf("ret = %d, size = %zu\n", ret, par3_ctx->file_system_packet_size);
+	if (ret == 0){
+		memcpy(par3_ctx->file_system_packet + par3_ctx->file_system_packet_size, pkt_buf, packet_size);
+		par3_ctx->file_system_packet_size += packet_size;
+		par3_ctx->file_system_packet_count += 1;
+	}
+
+	// Write checksum of this packet
+	memcpy(checksum, pkt_buf + 8, 16);
+
+	return 0;
+}
+
+// FAT Permissions Packet
+// 0 = write ok, 1 = failed (no checksum)
+// Return checksum of FAT Permissions Packet in *checksum.
+int make_fat_permission_packet(PAR3_CTX *par3_ctx, char *file_name, uint8_t *checksum)
+{
+	uint8_t pkt_buf[74];	// This is size of this packet.
+	int ret;
+	size_t packet_size;
+	uint64_t file_time;
+	struct _stat64 stat_buf;
+
+	// Store infomation, only when scuucess.
+	if (_stat64(file_name, &stat_buf) != 0)
+		return 1;
+
+/*
+	printf("Status information of \"%s\"\n", file_name);
+	printf("st_mtime = %s", _ctime64(&(stat_buf.st_mtime)));
+*/
+
+	// It makes a packet on stack memory temporary.
+	packet_size = 48;
+	memset(pkt_buf + packet_size, 0xFF, 16);	// CreationTimestamp and LastAccessTimestamp are not set.
+	packet_size += 16;
+	file_time = TimetToFileTime(stat_buf.st_mtime);	// Convert UNIX time to Windows FILETIME.
+	memcpy(pkt_buf + packet_size, &file_time, 8);	// LastWriteTimestamp
+	packet_size += 8;
+	memset(pkt_buf + packet_size, 0xFF, 2);	// FileAttributes isn't set.
+	packet_size += 2;
+	// Packet size = 48 + 26 = 74
+	make_packet_header(pkt_buf, packet_size, par3_ctx->set_id, "PAR FAT\0", 1);
 
 	// Check existing packets if this packet was made already.
 	ret = check_packet_exist(par3_ctx->file_system_packet, par3_ctx->file_system_packet_size, pkt_buf, packet_size);
@@ -137,9 +207,16 @@ static void show_file_system_info(PAR3_CTX *par3_ctx, uint8_t *checksum)
 						}
 					}
 				}
+
 			} else if (memcmp(packet_type, "PAR FAT\0", 8) == 0){	// FAT Permissions Packet
-			
-			
+				if (par3_ctx->file_system & 0x10000){
+					printf("FAT Permissions: ");
+					memcpy(&item_value8, buf + offset + 48 + 16, 8);
+					if (item_value8 != 0xFFFFFFFFFFFFFFFF){
+						item_value8 = FileTimeToTimet(item_value8);
+						printf("LastWriteTime = %s", _ctime64(&item_value8));
+					}
+				}
 			}
 		}
 
@@ -236,7 +313,7 @@ static int check_file_system_info(PAR3_CTX *par3_ctx, uint8_t *checksum, void *s
 						if ((item_value4 & 0xF000) == 0){	// i_mode must be 12-bit value.
 							//printf("i_mode = 0x%04x\n", item_value4);
 							if (item_value4 != (stat_buf->st_mode & 0x0FFF)){
-								// i_mode is different.
+								// Permission is different.
 								ret |= 0x20000;
 							}
 						}
@@ -246,7 +323,7 @@ static int check_file_system_info(PAR3_CTX *par3_ctx, uint8_t *checksum, void *s
 						if (item_value8 != 0xFFFFFFFFFFFFFFFF){
 							//printf("mtime = %s", _ctime64(&item_value8));
 							if (item_value8 != stat_buf->st_mtime){
-								// mtime is different.
+								// Timestamp is different.
 								ret |= 0x10000;
 							}
 						}
@@ -254,8 +331,17 @@ static int check_file_system_info(PAR3_CTX *par3_ctx, uint8_t *checksum, void *s
 				}
 
 			} else if (memcmp(packet_type, "PAR FAT\0", 8) == 0){	// FAT Permissions Packet
-			
-			
+				if (par3_ctx->file_system & 0x10000){	// LastWriteTimestamp
+					memcpy(&item_value8, buf + offset + 48 + 16, 8);
+					if (item_value8 != 0xFFFFFFFFFFFFFFFF){
+						item_value8 = FileTimeToTimet(item_value8);
+						//printf("LastWriteTime = %s", _ctime64(&item_value8));
+						if (item_value8 != stat_buf->st_mtime){
+							// Timestamp is different.
+							ret |= 0x10000;
+						}
+					}
+				}
 			}
 		}
 
@@ -356,7 +442,7 @@ static int reset_file_system_info(PAR3_CTX *par3_ctx, uint8_t *checksum, char *f
 							memcpy(&item_value8, buf + offset + 48 + 16, 8);
 							if (item_value8 != 0xFFFFFFFFFFFFFFFF){
 								//printf("mtime = %s", _ctime64(&item_value8));
-								if (item_value8 != stat_buf.st_mtime){	// mtime is different.
+								if (item_value8 != stat_buf.st_mtime){	// Timestamp is different.
 									struct _utimbuf ut;
 
 									// When there is no write permission, set temporary.
@@ -370,7 +456,7 @@ static int reset_file_system_info(PAR3_CTX *par3_ctx, uint8_t *checksum, char *f
 									ut.actime = stat_buf.st_atime;	// Reuse current atime
 									ut.modtime = item_value8;		// Recover to stored mtime
 									if (_utime(file_name, &ut) != 0)
-										ret |= 0x10000;	// Failed to reset mtime
+										ret |= 0x10000;	// Failed to reset timestamp
 									// Caution ! this cannot modify directory on Windows OS.
 								}
 							}
@@ -379,7 +465,7 @@ static int reset_file_system_info(PAR3_CTX *par3_ctx, uint8_t *checksum, char *f
 							item_value4 = 0;
 							memcpy(&item_value4, buf + offset + 48 + 32, 2);
 							if ((item_value4 & 0xF000) == 0){	// i_mode must be 12-bit value.
-								if (item_value4 != (stat_buf.st_mode & 0x0FFF)){	// i_mode is different.
+								if (item_value4 != (stat_buf.st_mode & 0x0FFF)){	// Permission is different.
 									//printf("i_mode = 0x%04x, 0x%04x\n", item_value4, stat_buf.st_mode & 0x0FFF);
 									if (_chmod(file_name, item_value4) != 0)
 										ret |= 0x20000;	// Failed to reset permissions
@@ -390,8 +476,27 @@ static int reset_file_system_info(PAR3_CTX *par3_ctx, uint8_t *checksum, char *f
 				}
 
 			} else if (memcmp(packet_type, "PAR FAT\0", 8) == 0){	// FAT Permissions Packet
-			
-			
+				// Recover infomation, only when scuucess.
+				if (_stat64(file_name, &stat_buf) == 0){
+					//printf("mtime = %s", _ctime64(&(stat_buf.st_mtime)));
+
+					if (par3_ctx->file_system & 0x10000){	// LastWriteTimestamp
+						memcpy(&item_value8, buf + offset + 48 + 16, 8);
+						if (item_value8 != 0xFFFFFFFFFFFFFFFF){
+							item_value8 = FileTimeToTimet(item_value8);
+							//printf("LastWriteTime = %s", _ctime64(&item_value8));
+							if (item_value8 != stat_buf.st_mtime){	// Timestamp is different.
+								struct _utimbuf ut;
+
+								ut.actime = stat_buf.st_atime;	// Reuse current atime
+								ut.modtime = item_value8;		// Recover to stored mtime
+								if (_utime(file_name, &ut) != 0)
+									ret |= 0x10000;	// Failed to reset timestamp
+								// Caution ! UNIX time is low resolution than Windows FILETIME.
+							}
+						}
+					}
+				}
 			}
 		}
 

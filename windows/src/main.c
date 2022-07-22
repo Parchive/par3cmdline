@@ -70,6 +70,7 @@ static void print_help(void)
 "  -d<n>    : Enable deduplication of input blocks\n"
 "  -e<n>    : Set using Error Correction Codes\n"
 "  -fu<n>   : Use UNIX Permissions Packet\n"
+"  -ff      : Use FAT Permissions Packet\n"
 "  -C<text> : Set comment\n"
 	);
 }
@@ -431,6 +432,25 @@ int main(int argc, char *argv[])
 						ret = strtoul(tmp_p + 2, NULL, 10) & 7;
 					}
 					par3_ctx->file_system |= ret;
+					if ( (command_operation == 'c') || (command_operation == 't') ){	// Only creating time
+						if (add_creator_text(par3_ctx, tmp_p - 1) != 0){
+							ret = RET_MEMORY_ERROR;
+							goto prepare_return;
+						}
+					}
+				}
+
+			} else if (strcmp(tmp_p, "ff") == 0){	// FAT Permissions Packet
+				if ((par3_ctx->file_system & 0x10000) != 0){
+					printf("Cannot specify FAT Permissions Packet twice.\n");
+				} else {
+					par3_ctx->file_system |= 0x10000;
+					if ( (command_operation == 'c') || (command_operation == 't') ){	// Only creating time
+						if (add_creator_text(par3_ctx, tmp_p - 1) != 0){
+							ret = RET_MEMORY_ERROR;
+							goto prepare_return;
+						}
+					}
 				}
 
 			} else if ( (tmp_p[0] == 'C') && (tmp_p[1] != 0) ){	// Set comment
@@ -551,7 +571,7 @@ int main(int argc, char *argv[])
 		if (par3_ctx->ecc_method != 0)
 			printf("Error Correction Codes = %u\n", par3_ctx->ecc_method);
 		if (par3_ctx->file_system != 0)
-			printf("File System Specific Packets = 0x%X\n", par3_ctx->file_system);
+			printf("File System Packets = 0x%X\n", par3_ctx->file_system);
 		if (par3_ctx->deduplication != 0)
 			printf("deduplication = level %c\n", par3_ctx->deduplication);
 		if (command_recursive != 0)

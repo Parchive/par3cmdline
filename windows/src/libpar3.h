@@ -117,6 +117,7 @@ typedef struct {
 	char absolute_path;
 	uint32_t file_system;	// Bit flag to store/recover in File System Specific Packets
 							// UNIX Permissions Packet: 1 = mtime, 2 = i_mode
+							// FAT Permissions Packet: 0x10000 = LastWriteTimestamp
 	uint32_t search_limit;	// how long time to slide search (milli second)
 	uint64_t memory_limit;	// how much memory to use (byte)
 

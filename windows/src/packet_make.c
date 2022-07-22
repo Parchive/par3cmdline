@@ -14,6 +14,9 @@
 #include "common.h"
 #include "file.h"
 
+// MSVC headers
+#include <sys/stat.h>
+
 
 // Fill each field in packet header, and calculate hash of packet.
 void make_packet_header(uint8_t *buf, uint64_t packet_size, uint8_t *set_id, uint8_t *packet_type, int flag_hash)
@@ -30,14 +33,15 @@ void make_packet_header(uint8_t *buf, uint64_t packet_size, uint8_t *set_id, uin
 }
 
 // Input is packet body of Start Packet.
-// Return a globally unique random number as BLAKE3 hash at "buf + 8".
 // Return generated InputSetID at "buf - 16".
-static int generate_set_id(PAR3_CTX *par3_ctx, uint8_t *buf, size_t body_size)
+static void generate_set_id(PAR3_CTX *par3_ctx, uint8_t *buf, size_t body_size)
 {
 	uint32_t num, chunk_num;
 	size_t len;
 	blake3_hasher hasher;
+	struct _stat64 stat_buf;
 
+	// prepare a globally unique random number
 	blake3_hasher_init(&hasher);
 
 	// all the files' contents
@@ -62,7 +66,17 @@ static int generate_set_id(PAR3_CTX *par3_ctx, uint8_t *buf, size_t body_size)
 			// file hash of protected chunks
 			blake3_hasher_update(&hasher, file_p->hash, 16);
 
-			// If it include options (releated packets), calculate the data also.
+			// If it includes options (releated packets), calculate the data also.
+			if (par3_ctx->file_system & 0x10003){
+				if (_stat64(file_p->name, &stat_buf) == 0){
+					if (par3_ctx->file_system & 1)
+						blake3_hasher_update(&hasher, &(stat_buf.st_mtime), 8);
+					if (par3_ctx->file_system & 2)
+						blake3_hasher_update(&hasher, &(stat_buf.st_mode), 8);
+					if (par3_ctx->file_system & 0x10000)
+						blake3_hasher_update(&hasher, &(stat_buf.st_mtime), 8);
+				}
+			}
 
 			// Chunk Descriptions
 			if (file_p->size > 0){
@@ -108,7 +122,15 @@ static int generate_set_id(PAR3_CTX *par3_ctx, uint8_t *buf, size_t body_size)
 			len = strlen(dir_p->name) + 1;	// Include null string as boundary mark.
 			blake3_hasher_update(&hasher, dir_p->name, len);
 
-			// If it include options (releated packets), calculate the data also.
+			// If it includes options (releated packets), calculate the data also.
+			if ( ((par3_ctx->file_system & 4) != 0) && ((par3_ctx->file_system & 3) != 0) ){
+				if (_stat64(dir_p->name, &stat_buf) == 0){
+					if (par3_ctx->file_system & 1)
+						blake3_hasher_update(&hasher, &(stat_buf.st_mtime), 8);
+					if (par3_ctx->file_system & 2)
+						blake3_hasher_update(&hasher, &(stat_buf.st_mode), 8);
+				}
+			}
 
 			dir_p++;
 			num--;
@@ -132,15 +154,15 @@ static int generate_set_id(PAR3_CTX *par3_ctx, uint8_t *buf, size_t body_size)
 	}
 
 	// result in 8-bytes hash for a globally unique random number
-	blake3_hasher_finalize(&hasher, buf, 8);
+	blake3_hasher_finalize(&hasher, buf - 8, 8);
 
 	// calculate hash of packet body for InputSetID
 	blake3_hasher_init(&hasher);
-	// random number, parent's InputSetID, parent's Root, block size, Galois field parameters
+	// include bytes of the random number at first
+	blake3_hasher_update(&hasher, buf - 8, 8);
+	// parent's InputSetID, parent's Root, block size, Galois field parameters
 	blake3_hasher_update(&hasher, buf, body_size);
 	blake3_hasher_finalize(&hasher, buf - 16, 8);
-
-	return 0;
 }
 
 // Start Packet, Creator Packet, Comment Packet
@@ -154,7 +176,7 @@ int make_start_packet(PAR3_CTX *par3_ctx, int flag_trial)
 		return 0;
 
 	// Packet size depends on galois field size.
-	packet_size = 48 + 8 + 8 + 16 + 8 + 1;
+	packet_size = 48 + 8 + 16 + 8 + 1;	// 81 + additional bytes
 	if (par3_ctx->start_packet == NULL){
 		par3_ctx->start_packet = malloc(packet_size + 4);	// Upto 32-bit Galois Field
 		if (par3_ctx->start_packet == NULL){
@@ -165,8 +187,6 @@ int make_start_packet(PAR3_CTX *par3_ctx, int flag_trial)
 
 	// Set initial value temporary.
 	tmp_p = par3_ctx->start_packet + 48;
-	// A globally unique random number will be set by generate_set_id().
-	tmp_p += 8;
 	// At this time, "PAR inside" feature isn't made.
 	memset(tmp_p, 0, 24);	// When there is no parent, fill zeros.
 	tmp_p += 24;
@@ -219,7 +239,6 @@ int make_start_packet(PAR3_CTX *par3_ctx, int flag_trial)
 	packet_size += par3_ctx->gf_size;
 	par3_ctx->start_packet_size = packet_size;
 	par3_ctx->start_packet_count = 1;
-	//printf("Start Packet body size = %zu\n", par3_ctx->start_packet_size - 48);
 /*
 	if (par3_ctx->noise_level >= 1){
 		printf("Galois field size = %u\n", par3_ctx->gf_size);
@@ -229,9 +248,7 @@ int make_start_packet(PAR3_CTX *par3_ctx, int flag_trial)
 
 	if (flag_trial == 0){	// Trial mode doesn't calculate InputSetID.
 		// generate InputSetID
-		if (generate_set_id(par3_ctx, par3_ctx->start_packet + 48, par3_ctx->start_packet_size - 48) != 0){
-			return RET_LOGIC_ERROR;
-		}
+		generate_set_id(par3_ctx, par3_ctx->start_packet + 48, par3_ctx->start_packet_size - 48);
 		memcpy(par3_ctx->set_id, par3_ctx->start_packet + 32, 8);
 		if (par3_ctx->noise_level >= 1){
 			printf("InputSetID = %02X %02X %02X %02X %02X %02X %02X %02X\n",
@@ -386,6 +403,8 @@ int make_file_packet(PAR3_CTX *par3_ctx)
 		alloc_size = (48 + 2 + 8 + 16 + 1) * num;	// packet header, length of name, CRC-64, hash, options
 		if (par3_ctx->file_system & 3)
 			alloc_size += 16 * num;	// UNIX Permissions Packet
+		if (par3_ctx->file_system & 0x10000)
+			alloc_size += 16 * num;	// FAT Permissions Packet
 		alloc_size += par3_ctx->input_file_name_len - num;	// subtle null-string of each name
 		alloc_size += (16 + 40) * par3_ctx->chunk_count;	// chunk description with tail info
 		if (par3_ctx->noise_level >= 2){
@@ -435,18 +454,29 @@ int make_file_packet(PAR3_CTX *par3_ctx)
 		}
 	}
 
-	if (par3_ctx->file_system & 3){	// UNIX Permissions Packet
-		// Every files and directories may have this optional packet.
-		num = par3_ctx->input_file_count + par3_ctx->input_dir_count + absolute_num;
-		alloc_size = 84 * num;	// mtime and i_mode are set.
-		if (par3_ctx->noise_level >= 2){
-			printf("Possible total size of UNIX Permissions Packets = %zu\n", alloc_size);
+	if (par3_ctx->file_system & 0x10003){	// UNIX Permissions Packet or FAT Permissions Packet
+		alloc_size = 0;
+		if (par3_ctx->file_system & 3){	// UNIX Permissions Packet
+			// Every files and directories may have this optional packet.
+			num = par3_ctx->input_file_count + par3_ctx->input_dir_count + absolute_num;
+			alloc_size += 84 * num;	// mtime and i_mode are set.
+			if (par3_ctx->noise_level >= 2){
+				printf("Possible total size of UNIX Permissions Packets = %u\n", 84 * num);
+			}
+		}
+		if (par3_ctx->file_system & 0x10000){	// FAT Permissions Packet
+			// Every files may have this optional packet. (exclude directories)
+			num = par3_ctx->input_file_count;
+			alloc_size += 74 * num;	// LastWriteTimestamp is set.
+			if (par3_ctx->noise_level >= 2){
+				printf("Possible total size of FAT Permissions Packets = %u\n", 74 * num);
+			}
 		}
 		file_system_alloc_size = alloc_size;
 		if (par3_ctx->file_system_packet == NULL){
 			par3_ctx->file_system_packet = malloc(alloc_size);
 			if (par3_ctx->file_system_packet == NULL){
-				perror("Failed to allocate memory for UNIX Permissions Packet");
+				perror("Failed to allocate memory for File System Packets");
 				return RET_MEMORY_ERROR;
 			}
 		}
@@ -519,6 +549,13 @@ int make_file_packet(PAR3_CTX *par3_ctx)
 			// UNIX Permissions Packet
 			if (par3_ctx->file_system & 3){
 				if (make_unix_permission_packet(par3_ctx, file_p->name, tmp_p + packet_size) == 0){
+					option_num++;
+					packet_size += 16;
+				}
+			}
+			// FAT Permissions Packet
+			if (par3_ctx->file_system & 0x10000){
+				if (make_fat_permission_packet(par3_ctx, file_p->name, tmp_p + packet_size) == 0){
 					option_num++;
 					packet_size += 16;
 				}
@@ -924,7 +961,7 @@ int make_file_packet(PAR3_CTX *par3_ctx)
 	}
 	free(chk_p);
 
-	if (par3_ctx->file_system & 3){	// UNIX Permissions Packet
+	if (par3_ctx->file_system & 0x10003){	// UNIX Permissions Packet or FAT Permissions Packet
 		if (par3_ctx->file_system_packet_size == 0){
 			free(par3_ctx->file_system_packet);
 			par3_ctx->file_system_packet = NULL;
@@ -932,13 +969,13 @@ int make_file_packet(PAR3_CTX *par3_ctx)
 			if (par3_ctx->file_system_packet_size < file_system_alloc_size){	// Reduce memory usage to used size.
 				tmp_p = realloc(par3_ctx->file_system_packet, par3_ctx->file_system_packet_size);
 				if (tmp_p == NULL){
-					perror("Failed to re-allocate memory for File System Specific Packet");
+					perror("Failed to re-allocate memory for File System Packet");
 					return RET_MEMORY_ERROR;
 				}
 				par3_ctx->file_system_packet = tmp_p;
 			}
 			if (par3_ctx->noise_level >= 1){
-				printf("Size of File System Specific Packets = %zu (count = %u)\n", par3_ctx->file_system_packet_size, par3_ctx->file_system_packet_count);
+				printf("Size of File System Packets = %zu (count = %u)\n", par3_ctx->file_system_packet_size, par3_ctx->file_system_packet_count);
 			}
 		}
 	}

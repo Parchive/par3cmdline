@@ -83,7 +83,13 @@ void check_input_directory(PAR3_CTX *par3_ctx, uint32_t *missing_dir_count, uint
 		} else if (ret & 0xFFFF0000){
 			*bad_dir_count += 1;
 			if (par3_ctx->noise_level >= -1){
-				printf(" - different.\n");
+				if ((ret & 0xFFFF0000) == 0x10000){
+					printf(" - different timestamp.\n");
+				} else if ((ret & 0xFFFF0000) == 0x20000){
+					printf(" - different permissions.\n");
+				} else {
+					printf(" - different property.\n");
+				}
 			}
 		} else {
 			if (par3_ctx->noise_level >= -1){
@@ -115,7 +121,7 @@ static int check_file(PAR3_CTX *par3_ctx, char *path, uint64_t *current_size, in
 	if ((stat_buf.st_mode & _S_IFREG) == 0)
 		return 0x8000;
 
-	if ( (offset >= 0) && (par3_ctx->file_system & 3) ){
+	if ( (offset >= 0) && (par3_ctx->file_system & 0x10003) ){
 		//printf("offset of File Packet = %I64d\n", offset);
 		return check_file_system_option(par3_ctx, 1, offset, &stat_buf);
 	}
@@ -227,7 +233,13 @@ int verify_input_file(PAR3_CTX *par3_ctx, uint32_t *missing_file_count, uint32_t
 				if (file_p->state & 0xFFFF0000){
 					*bad_file_count += 1;
 					if (par3_ctx->noise_level >= -1){
-						printf("Target: \"%s\" - different.\n", file_p->name);
+						if ((file_p->state & 0xFFFF0000) == 0x10000){
+							printf("Target: \"%s\" - different timestamp.\n", file_p->name);
+						} else if ((file_p->state & 0xFFFF0000) == 0x20000){
+							printf("Target: \"%s\" - different permissions.\n", file_p->name);
+						} else {
+							printf("Target: \"%s\" - different property.\n", file_p->name);
+						}
 					}
 				} else {
 					// While file data is complete, file name may be different case on Windows PC.

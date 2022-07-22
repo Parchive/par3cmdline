@@ -4,6 +4,9 @@
 // UNIX Permissions Packet
 int make_unix_permission_packet(PAR3_CTX *par3_ctx, char *file_name, uint8_t *checksum);
 
+// FAT Permissions Packet
+int make_fat_permission_packet(PAR3_CTX *par3_ctx, char *file_name, uint8_t *checksum);
+
 // For showing file list
 void read_file_system_option(PAR3_CTX *par3_ctx, int packet_type, int64_t offset);
 

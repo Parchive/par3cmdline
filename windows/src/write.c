@@ -103,7 +103,7 @@ int write_index_file(PAR3_CTX *par3_ctx)
 	write_size = par3_ctx->file_system_packet_size;
 	if (write_size > 0){
 		if (fwrite(par3_ctx->file_system_packet, 1, write_size, fp) != write_size){
-			perror("Failed to write File System Specific Packets on Index File");
+			perror("Failed to write File System Packets on Index File");
 			fclose(fp);
 			return RET_FILE_IO_ERROR;
 		}

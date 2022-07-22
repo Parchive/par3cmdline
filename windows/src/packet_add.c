@@ -280,11 +280,13 @@ int add_found_packet(PAR3_CTX *par3_ctx, uint8_t *packet)
 			par3_ctx->matrix_packet_count++;
 		}
 
-	} else if (memcmp(packet_type, "PAR UNX\0", 8) == 0){	// UNIX Permissions Packet
+	// UNIX Permissions Packet or FAT Permissions Packet
+	} else if ( (memcmp(packet_type, "PAR UNX\0", 8) == 0)
+				|| (memcmp(packet_type, "PAR FAT\0", 8) == 0) ){
 		if (par3_ctx->file_system_packet == NULL){
 			par3_ctx->file_system_packet = malloc(packet_size);
 			if (par3_ctx->file_system_packet == NULL){
-				perror("Failed to allocate memory for UNIX Permissions Packet");
+				perror("Failed to allocate memory for File System Packet");
 				return RET_MEMORY_ERROR;
 			}
 			memcpy(par3_ctx->file_system_packet, packet, packet_size);
@@ -297,7 +299,7 @@ int add_found_packet(PAR3_CTX *par3_ctx, uint8_t *packet)
 			// Add this packet after other packets.
 			tmp_p = realloc(par3_ctx->file_system_packet, par3_ctx->file_system_packet_size + packet_size);
 			if (tmp_p == NULL){
-				perror("Failed to re-allocate memory for UNIX Permissions Packet");
+				perror("Failed to re-allocate memory for File System Packet");
 				return RET_MEMORY_ERROR;
 			}
 			par3_ctx->file_system_packet = tmp_p;

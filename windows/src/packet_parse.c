@@ -519,27 +519,29 @@ int parse_vital_packet(PAR3_CTX *par3_ctx)
 	// Read Start Packet
 	if (par3_ctx->start_packet_size > 0){
 		memcpy(&packet_size, par3_ctx->start_packet + 24, 8);
-		if (packet_size < 89){	// The minimum packet size is 89 bytes.
-			printf("Start Packet is too small, %I64u\n", packet_size);
-			return RET_LOGIC_ERROR;
+		len = 48;	// size of packet header
+		if (packet_size >= 89){	// To support old Start Packet for compatibility
+			// This will be removed in future, when PAR3 spec is updated.
+			len += 8;
+			//printf("Start Packet is old, %I64u\n", packet_size);
 		}
-		if (mem_or8(par3_ctx->start_packet + 48 + 8) != 0){	// check parent's InputSetID
-			if (mem_or16(par3_ctx->start_packet + 48 + 8) == 0){
+		if (mem_or8(par3_ctx->start_packet + len) != 0){	// check parent's InputSetID
+			if (mem_or16(par3_ctx->start_packet + len + 8) == 0){	// check parent's Root packet
 				printf("Checksum of the parent's Root Packet is wrong.\n");
 				return RET_LOGIC_ERROR;
 			}
 		}
-		memcpy(&(par3_ctx->block_size), par3_ctx->start_packet + 48 + 32, 8);
-		memcpy(&(par3_ctx->gf_size), par3_ctx->start_packet + 48 + 40, 1);
+		memcpy(&(par3_ctx->block_size), par3_ctx->start_packet + len + 24, 8);
+		memcpy(&(par3_ctx->gf_size), par3_ctx->start_packet + len + 32, 1);
 		if (par3_ctx->gf_size > 2){	// At this time, this supports 8-bit or 16-bit Galois Field only.
 			printf("Size of Galois Field is too large, %u\n", par3_ctx->gf_size);
 			return RET_LOGIC_ERROR;
 		}
 		if ( (par3_ctx->gf_size > 0) && (par3_ctx->gf_size < 4) ){
-			memcpy(&(par3_ctx->galois_poly), par3_ctx->start_packet + 48 + 41, par3_ctx->gf_size);
+			memcpy(&(par3_ctx->galois_poly), par3_ctx->start_packet + len + 33, par3_ctx->gf_size);
 			par3_ctx->galois_poly |= 1 << (par3_ctx->gf_size * 8);
 		}
-		if (packet_size != 48 + 41 + par3_ctx->gf_size){	// check packet size was valid
+		if (packet_size != len + 33 + par3_ctx->gf_size){	// check packet size is valid
 			printf("Start Packet size is wrong, %I64u\n", packet_size);
 			return RET_LOGIC_ERROR;
 		}

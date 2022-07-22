@@ -280,7 +280,7 @@ void show_read_result(PAR3_CTX *par3_ctx, int flag_detail)
 					file_p->hash[12], file_p->hash[13], file_p->hash[14], file_p->hash[15]);
 				printf("\"%s\"\n", file_p->name);
 
-				if (par3_ctx->file_system & 3){	// UNIX Permissions Packet
+				if (par3_ctx->file_system & 0x10003){	// UNIX Permissions Packet or FAT Permissions Packet
 					//printf("offset of File Packet = %I64d\n", file_p->offset);
 					read_file_system_option(par3_ctx, 1, file_p->offset);
 				}
