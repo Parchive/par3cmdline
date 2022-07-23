@@ -147,7 +147,12 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="blake3\blake3.c" />
+    <ClCompile Include="blake3\blake3_avx2.c" />
+    <ClCompile Include="blake3\blake3_avx512.c" />
+    <ClCompile Include="blake3\blake3_dispatch.c" />
     <ClCompile Include="blake3\blake3_portable.c" />
+    <ClCompile Include="blake3\blake3_sse2.c" />
+    <ClCompile Include="blake3\blake3_sse41.c" />
     <ClCompile Include="block_check.c" />
     <ClCompile Include="block_create.c" />
     <ClCompile Include="block_map.c" />

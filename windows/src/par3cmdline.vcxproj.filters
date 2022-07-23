@@ -39,9 +39,6 @@
     <ClCompile Include="blake3\blake3.c">
       <Filter>ソース ファイル\blake3</Filter>
     </ClCompile>
-    <ClCompile Include="blake3\blake3_portable.c">
-      <Filter>ソース ファイル\blake3</Filter>
-    </ClCompile>
     <ClCompile Include="hash.c">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
@@ -128,6 +125,24 @@
     </ClCompile>
     <ClCompile Include="file.c">
       <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="blake3\blake3_avx2.c">
+      <Filter>ソース ファイル\blake3</Filter>
+    </ClCompile>
+    <ClCompile Include="blake3\blake3_avx512.c">
+      <Filter>ソース ファイル\blake3</Filter>
+    </ClCompile>
+    <ClCompile Include="blake3\blake3_dispatch.c">
+      <Filter>ソース ファイル\blake3</Filter>
+    </ClCompile>
+    <ClCompile Include="blake3\blake3_sse2.c">
+      <Filter>ソース ファイル\blake3</Filter>
+    </ClCompile>
+    <ClCompile Include="blake3\blake3_sse41.c">
+      <Filter>ソース ファイル\blake3</Filter>
+    </ClCompile>
+    <ClCompile Include="blake3\blake3_portable.c">
+      <Filter>ソース ファイル\blake3</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
