@@ -169,6 +169,11 @@ INLINE size_t compress_chunks_parallel(const uint8_t *input, size_t input_len,
                                        const uint32_t key[8],
                                        uint64_t chunk_counter, uint8_t flags,
                                        uint8_t *out) {
+#if defined(BLAKE3_TESTING)
+  assert(0 < input_len);
+  assert(input_len <= MAX_SIMD_DEGREE * BLAKE3_CHUNK_LEN);
+#endif
+
   const uint8_t *chunks_array[MAX_SIMD_DEGREE];
   size_t input_position = 0;
   size_t chunks_array_len = 0;
@@ -208,6 +213,11 @@ INLINE size_t compress_parents_parallel(const uint8_t *child_chaining_values,
                                         size_t num_chaining_values,
                                         const uint32_t key[8], uint8_t flags,
                                         uint8_t *out) {
+#if defined(BLAKE3_TESTING)
+  assert(2 <= num_chaining_values);
+  assert(num_chaining_values <= 2 * MAX_SIMD_DEGREE_OR_2);
+#endif
+
   const uint8_t *parents_array[MAX_SIMD_DEGREE_OR_2];
   size_t parents_array_len = 0;
   while (num_chaining_values - (2 * parents_array_len) >= 2) {
@@ -260,7 +270,7 @@ static size_t blake3_compress_subtree_wide(const uint8_t *input,
   // when it is 1. If this implementation adds multi-threading in the future,
   // this gives us the option of multi-threading even the 2-chunk case, which
   // can help performance on smaller platforms.
-  if (input_len <= BLAKE3_CHUNK_LEN) {
+  if (input_len <= blake3_simd_degree() * BLAKE3_CHUNK_LEN) {
     return compress_chunks_parallel(input, input_len, key, chunk_counter, flags,
                                     out);
   }
@@ -279,7 +289,7 @@ static size_t blake3_compress_subtree_wide(const uint8_t *input,
   // account for the special case of returning 2 outputs when the SIMD degree
   // is 1.
   uint8_t cv_array[2 * MAX_SIMD_DEGREE_OR_2 * BLAKE3_OUT_LEN];
-  size_t degree = 1;
+  size_t degree = blake3_simd_degree();
   if (left_input_len > BLAKE3_CHUNK_LEN && degree == 1) {
     // The special case: We always use a degree of at least two, to make
     // sure there are two outputs. Except, as noted above, at the chunk
@@ -323,6 +333,10 @@ static size_t blake3_compress_subtree_wide(const uint8_t *input,
 INLINE void compress_subtree_to_parent_node(
     const uint8_t *input, size_t input_len, const uint32_t key[8],
     uint64_t chunk_counter, uint8_t flags, uint8_t out[2 * BLAKE3_OUT_LEN]) {
+#if defined(BLAKE3_TESTING)
+  assert(input_len > BLAKE3_CHUNK_LEN);
+#endif
+
   uint8_t cv_array[MAX_SIMD_DEGREE_OR_2 * BLAKE3_OUT_LEN];
   size_t num_cvs = blake3_compress_subtree_wide(input, input_len, key,
                                                 chunk_counter, flags, cv_array);
