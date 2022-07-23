@@ -14,6 +14,16 @@ or (at your option) any later version.
 
 
 
+[ BLAKE3 cryptographic hash function ]
+
+the official Rust and C implementations of the BLAKE3 cryptographic hash function
+https://github.com/BLAKE3-team/BLAKE3
+
+This work is released into the public domain with CC0 1.0.
+Alternatively, it is licensed under the Apache License 2.0.
+
+
+
 [ 8-bit and 16-bit Galois Field arithmetic ]
 
 http://web.eecs.utk.edu/~jplank/plank/www/software.html
@@ -46,8 +56,8 @@ All rights reserved.
 [ FFT based Reed-Solomon Codes ]
 
 An Efficient (n, k) Information Dispersal Algorithm for High Code Rate System over Fermat Fields
-https://ieeexplore.ieee.org/document/6362135
 Sian-Jheng Lin, Wei-Ho Chung
+https://ieeexplore.ieee.org/document/6362135
 
 An Efficient (n, k) Information Dispersal Algorithm based on Fermat Number Transforms
 Sian-Jheng Lin, Wei-Ho Chung
