@@ -585,6 +585,7 @@ uint64_t suggest_block_size(PAR3_CTX *par3_ctx)
 	if (par3_ctx->max_file_size < 40)
 		return 40;
 
+	// Let block count to be 1% of block size.
 	// total file size = block size * block count
 	// total file size = block size * block size * 1%
 	// total file size * 100 = block size * block size

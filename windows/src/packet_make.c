@@ -1163,7 +1163,7 @@ int duplicate_common_packet(PAR3_CTX *par3_ctx)
 	par3_ctx->common_packet_count = packet_count;
 
 	if (par3_ctx->noise_level >= 1){
-		printf("Total size of common packets = %zu (count = %zu)\n", packet_size, packet_count);
+		printf("\nTotal size of common packets = %zu (count = %zu)\n", packet_size, packet_count);
 	}
 
 	return 0;

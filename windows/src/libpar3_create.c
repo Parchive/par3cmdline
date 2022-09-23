@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 
 #include "libpar3.h"
 #include "map.h"
@@ -110,9 +111,23 @@ static int calculate_recovery_count(PAR3_CTX *par3_ctx)
 
 	// Test number of blocks
 	if (par3_ctx->ecc_method & 8){	// FFT based Reed-Solomon Codes
+		uint64_t max_count, cohort_count;
+		long double f;
+
 		if (par3_ctx->noise_level >= 0){
 			printf("FFT based Reed-Solomon Codes\n");
 		}
+
+		// Too many interleaving is bad for recovery.
+		// Number of cohorts must be equal or less than root(block count).
+		cohort_count = par3_ctx->interleave + 1;
+		f = (long double)(par3_ctx->block_count);
+		f = sqrtl(f);
+		max_count = (uint64_t)f;
+		//printf("root(%I64u) = %I64u , %f.\n", par3_ctx->block_count, max_count, f);
+		if (cohort_count > max_count)
+			cohort_count = max_count;
+
 		total_count = par3_ctx->block_count + par3_ctx->first_recovery_block + par3_ctx->recovery_block_count;
 		if (total_count < par3_ctx->block_count + par3_ctx->max_recovery_block)
 			total_count = par3_ctx->block_count + par3_ctx->max_recovery_block;
@@ -121,14 +136,20 @@ static int calculate_recovery_count(PAR3_CTX *par3_ctx)
 			return RET_LOGIC_ERROR;
 		}
 		// Leopard-RS library has a restriction; recovery_count <= 32768
-		// It seems to be possible to solve this problem.
-		// But, I don't try at this time.
+		// Though it's possible to solve this problem, I don't try at this time.
 		total_count = par3_ctx->first_recovery_block + par3_ctx->recovery_block_count;
 		if (total_count < par3_ctx->max_recovery_block)
 			total_count = par3_ctx->max_recovery_block;
 		if (total_count > 32768){
 			printf("Recovery block count %I64u are too many.\n", total_count);
 			return RET_LOGIC_ERROR;
+		}
+
+		if (cohort_count > 1){
+			par3_ctx->interleave = (uint32_t)(cohort_count - 1);
+			if (par3_ctx->noise_level >= 0){
+				printf("Number of cohorts = %I64u (Interleaving times = %u)\n", cohort_count, par3_ctx->interleave);
+			}
 		}
 
 	} else {	// Cauchy Reed-Solomon Codes
@@ -149,6 +170,7 @@ static int calculate_recovery_count(PAR3_CTX *par3_ctx)
 		if (par3_ctx->max_recovery_block > 0){
 			printf("Max recovery block count = %I64u\n", par3_ctx->max_recovery_block);
 		}
+		printf("\n");
 	}
 
 	return 0;

@@ -76,7 +76,7 @@ void calculate_digit_max(PAR3_CTX *par3_ctx,
 			if (base_num > 0)
 				max_count++;
 
-		} else {	// Variable (multiply by 1~2)
+		} else {	// Variable (base number * power of 2)
 			max_count = 1;
 			for (num = 1; num < file_count; num++){
 				max_count = max_count * 2 + 1;
@@ -308,7 +308,7 @@ int try_archive_file(PAR3_CTX *par3_ctx)
 						max_count--;
 				}
 
-			} else {	// Variable (multiply by 2)
+			} else {	// Variable (base number * power of 2)
 				each_count = base_num;
 				base_num *= 2;
 				if (each_count > block_count)
@@ -472,7 +472,7 @@ int try_recovery_file(PAR3_CTX *par3_ctx)
 						max_count--;
 				}
 
-			} else {	// Variable (multiply by 2)
+			} else {	// Variable (base number * power of 2)
 				each_count = base_num;
 				base_num *= 2;
 				if (each_count > block_count)

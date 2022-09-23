@@ -59,6 +59,7 @@ static void print_help(void)
 "Options: (verify or repair)\n"
 "  -S<n>    : Searching time limit (milli second)\n"
 "Options: (create)\n"
+"  -b<n>    : Set the Block-Count\n"
 "  -s<n>    : Set the Block-Size (don't use both -b and -s)\n"
 "  -r<n>    : Level of redundancy (%%)\n"
 "  -c<n>    : Recovery Block-Count (don't use both -r and -c)\n"
@@ -69,6 +70,7 @@ static void print_help(void)
 "  -D       : Store Data packets\n"
 "  -d<n>    : Enable deduplication of input blocks\n"
 "  -e<n>    : Set using Error Correction Codes\n"
+"  -i<n>    : Number of interleaving"
 "  -fu<n>   : Use UNIX Permissions Packet\n"
 "  -ff      : Use FAT Permissions Packet\n"
 "  -C<text> : Set comment\n"
@@ -254,11 +256,24 @@ int main(int argc, char *argv[])
 			} else if ( (tmp_p[0] == 'B') && (tmp_p[1] != 0) ){	// Set the base-path manually
 				path_copy(par3_ctx->base_path, tmp_p + 1, _MAX_DIR - 32);
 
+			} else if ( (tmp_p[0] == 'b') && (tmp_p[1] >= '1') && (tmp_p[1] <= '9') ){	// Set the block count
+				if ( (command_operation != 'c') && (command_operation != 't') ){
+					printf("Cannot specify block count unless creating.\n");
+				} else if (par3_ctx->block_count > 0){
+					printf("Cannot specify block count twice.\n");
+				} else if (par3_ctx->block_size > 0){
+					printf("Cannot specify both block count and block size.\n");
+				} else {
+					par3_ctx->block_count = strtoull(tmp_p + 1, NULL, 10);
+				}
+
 			} else if ( (tmp_p[0] == 's') && (tmp_p[1] >= '1') && (tmp_p[1] <= '9') ){	// Set the block size
 				if ( (command_operation != 'c') && (command_operation != 't') ){
 					printf("Cannot specify block size unless creating.\n");
 				} else if (par3_ctx->block_size > 0){
 					printf("Cannot specify block size twice.\n");
+				} else if (par3_ctx->block_count > 0){
+					printf("Cannot specify both block count and block size.\n");
 				} else {
 					par3_ctx->block_size = strtoull(tmp_p + 1, NULL, 10);
 /*
@@ -411,13 +426,28 @@ int main(int argc, char *argv[])
 			} else if ( (tmp_p[0] == 'e') && (tmp_p[1] >= '1') && (tmp_p[1] <= '9') ){	// Error Correction Codes
 				if ( (command_operation != 'c') && (command_operation != 't') ){
 					printf("Cannot specify Error Correction Codes unless creating.\n");
-				} else if (par3_ctx->deduplication != 0){
+				} else if (par3_ctx->ecc_method != 0){
 					printf("Cannot specify Error Correction Codes twice.\n");
 				} else {
 					par3_ctx->ecc_method = strtoul(tmp_p + 1, NULL, 10);
 					if (popcount32(par3_ctx->ecc_method) > 1){
 						printf("Cannot specify multiple Error Correction Codes.\n");
 						par3_ctx->ecc_method = 0;
+					}
+				}
+
+			} else if ( (tmp_p[0] == 'i') && (tmp_p[1] >= '1') && (tmp_p[1] <= '9') ){	// Interleaving
+				if ( (command_operation != 'c') && (command_operation != 't') ){
+					printf("Cannot specify interleaving unless creating.\n");
+				} else if (par3_ctx->interleave != 0){
+					printf("Cannot specify interleaving twice.\n");
+				} else {
+					par3_ctx->interleave = strtoul(tmp_p + 1, NULL, 10);
+					if (par3_ctx->interleave > 1){
+						if (add_creator_text(par3_ctx, tmp_p - 1) != 0){
+							ret = RET_MEMORY_ERROR;
+							goto prepare_return;
+						}
 					}
 				}
 
@@ -554,6 +584,8 @@ int main(int argc, char *argv[])
 			printf("memory_limit = %I64u MB\n", par3_ctx->memory_limit >> 20);
 		if (par3_ctx->search_limit != 0)
 			printf("search_limit = %d ms\n", par3_ctx->search_limit);
+		if (par3_ctx->block_count != 0)
+			printf("Specified block count = %I64u\n", par3_ctx->block_count);
 		if (par3_ctx->block_size != 0)
 			printf("Specified block size = %I64u\n", par3_ctx->block_size);
 		if (par3_ctx->redundancy_size != 0)
@@ -570,6 +602,8 @@ int main(int argc, char *argv[])
 			printf("recovery_file_scheme = %c\n", par3_ctx->recovery_file_scheme);
 		if (par3_ctx->ecc_method != 0)
 			printf("Error Correction Codes = %u\n", par3_ctx->ecc_method);
+		if (par3_ctx->interleave != 0)
+			printf("Specified interleaving times = %u\n", par3_ctx->interleave);
 		if (par3_ctx->file_system != 0)
 			printf("File System Packets = 0x%X\n", par3_ctx->file_system);
 		if (par3_ctx->deduplication != 0)
@@ -644,7 +678,18 @@ int main(int argc, char *argv[])
 			printf("Failed to check file status\n");
 			goto prepare_return;
 		}
-		if (par3_ctx->block_size == 0){
+		if (par3_ctx->block_count > 0){
+			// It's difficult to predict arrangement of blocks.
+			// Calculate "Block size" from "Total data size" dividing "Block count" simply.
+			// The result may be different from the specified block count.
+			par3_ctx->block_size = (par3_ctx->total_file_size + par3_ctx->block_count - 1) / par3_ctx->block_count;
+			// Block size must be multiple of 2 for 16-bit Reed-Solomon Codes.
+			if (par3_ctx->block_size & 1)
+				par3_ctx->block_size += 1;
+			if (par3_ctx->noise_level >= 0){
+				printf("Suggested block size = %I64u\n", par3_ctx->block_size);
+			}
+		} else if (par3_ctx->block_size == 0){
 			par3_ctx->block_size = suggest_block_size(par3_ctx);
 			if (par3_ctx->noise_level >= 0){
 				printf("Suggested block size = %I64u\n", par3_ctx->block_size);
@@ -655,7 +700,9 @@ int main(int argc, char *argv[])
 			//		|| (calculate_block_count(par3_ctx, par3_ctx->block_size) > 128) ){
 				// Block size must be multiple of 2 for 16-bit Reed-Solomon Codes.
 				par3_ctx->block_size += 1;
-				printf("Suggested block size = %I64u\n", par3_ctx->block_size);
+				if (par3_ctx->noise_level >= 0){
+					printf("Suggested block size = %I64u\n", par3_ctx->block_size);
+				}
 			//}
 		}
 		par3_ctx->block_count = calculate_block_count(par3_ctx, par3_ctx->block_size);

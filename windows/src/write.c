@@ -480,7 +480,7 @@ int write_archive_file(PAR3_CTX *par3_ctx)
 						max_count--;
 				}
 
-			} else {	// Variable (multiply by 2)
+			} else {	// Variable (base number * power of 2)
 				each_count = base_num;
 				base_num *= 2;
 				if (each_count > block_count)
@@ -791,7 +791,7 @@ int write_recovery_file(PAR3_CTX *par3_ctx)
 						max_count--;
 				}
 
-			} else {	// Variable (multiply by 2)
+			} else {	// Variable (base number * power of 2)
 				each_count = base_num;
 				base_num *= 2;
 				if (each_count > block_count)
