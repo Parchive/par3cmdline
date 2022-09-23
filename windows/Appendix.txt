@@ -35,6 +35,16 @@ No need to store the number in Start Packet, because it's not refered later.
 
 
 
+#### File Packet
+
+ It will be possible to use other fingerprint hashes as options in future.
+(For example, I may make a new packet type, Hash Packet.)
+If it doesn't use BLAKE3 for the input file, the fourth field is all zeroes.
+Even when this packet doesn't contain BLAKE3 hash for the protected data in the file,
+it can verify files by using checksums for input blocks in External Data Packet.
+
+
+
 ##### UNIX Permissions Packet
 
  I changed the default value for i_mode.
@@ -121,15 +131,36 @@ Stored value | Max number of recovery blocks
   14         | 16384
   15         | 32768
 
+
  It will be different format for High Rate encoder in future.
+Negative value indicates High Rate encoder.
 At this time, it doesn't support High Rate encoding yet.
-  17         | 65536 -     2 = 65534
-  18         | 65536 -     4 = 65532
-  19         | 65536 -     8 = 65528
-  20         | 65536 -    16 = 65520
+
+Stored value | Max number of recovery blocks
+   -1        | 2 - NextPow2(number of input blocks)
+   -2        | 4 - NextPow2(number of input blocks)
+   -3        | 8 - NextPow2(number of input blocks)
 ...
-  29         | 65536 -  8192 = 57344
-  30         | 65536 - 16384 = 49152
+  -15        | 32768 - NextPow2(number of input blocks)
+  -16        | 65536 - NextPow2(number of input blocks)
+
+NextPow2() function returns next power of two at or above given value.
+
+ For example, when there are 100 input blocks,
+NextPow2(number of input blocks) = NextPow2(100) = 128.
+
+Stored value | Max number of recovery blocks
+   -8        | 256 - 128 = 128
+   -9        | 512 - 128 = 384
+
+ For example, when there are 1000 input blocks,
+NextPow2(number of input blocks) = NextPow2(1000) = 1024.
+
+Stored value | Max number of recovery blocks
+  -11        | 2048 - 1024 = 1024
+  -12        | 4096 - 1024 = 3072
+  -13        | 8192 - 1024 = 7168
+
 
 
 The FFT matrix packet has a type value of "PAR FFT\0" (ASCII). The packet's body contains the following:
@@ -140,5 +171,5 @@ The FFT matrix packet has a type value of "PAR FFT\0" (ASCII). The packet's body
 |---------------:|:-----|:------------|
 | 8 | unsigned int | Index of first input block |
 | 8 | unsigned int | Index of last input block plus 1 |
-| 1 | unsigned int | max number of recovery blocks (as power of 2) |
+| 1 | signed int   | max number of blocks (as power of 2) |
 

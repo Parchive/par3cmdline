@@ -7,13 +7,13 @@ The latest PAR3 specification is available at:
 https://github.com/Parchive/par3cmdline/files/8318148/Parity_Volume_Set_Specification_v3.0.md
 
 
- I wrote this in C language for Visual C++ 2019 64-bit compiler.
-You can compile this by Microsoft Visual Studio Community 2019.
-Because this uses much memory, I support 64-bit build only on 64-bit OS.
+ I wrote this in C language for Visual C++ 2022 64-bit compiler.
+You can compile this by Microsoft Visual Studio Community 2022.
+Because this uses much memory, I support only 64-bit build on 64-bit OS.
 
  Because some features of gcc don't work on Windows OS,
 I could not use MinGW (gcc for Windows).
-(Such like UTF-8, file access, or C runtime library.)
+(Such like UTF-8, file access, or GNU C runtime library.)
 
 
  This is for testing usage only.
@@ -63,6 +63,7 @@ Options: (all uses)
 Options: (verify or repair)
   -S<n>    : Searching time limit (milli second)
 Options: (create)
+  -b<n>    : Set the Block-Count
   -s<n>    : Set the Block-Size (don't use both -b and -s)
   -r<n>    : Level of redundancy (%)
   -c<n>    : Recovery Block-Count (don't use both -r and -c)
@@ -226,6 +227,15 @@ it will consume max 4000 seconds. (2000 * 1000 * 2 = 4000,000 ms)
 
 
 
+[ About "-b" option ]
+
+ Though you can specify a preferable number of blocks,
+the result may be different from the specified block count.
+It's difficult to predict arrangement of blocks.
+Number of input files, tail packing, and deduplication will affect.
+
+
+
 [ About "-c" option ]
 
  It's possible to set the First Recovery-Block-Number.
@@ -331,7 +341,5 @@ Example of comment is like below;
 
 -C"something like this"
 -C"multi lines are ok."
-
-
 
 
