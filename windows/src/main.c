@@ -62,7 +62,10 @@ static void print_help(void)
 "  -b<n>    : Set the Block-Count\n"
 "  -s<n>    : Set the Block-Size (don't use both -b and -s)\n"
 "  -r<n>    : Level of redundancy (%%)\n"
+"  -rm<n>   : Maximum redundancy (%%)\n"
 "  -c<n>    : Recovery Block-Count (don't use both -r and -c)\n"
+"  -cf<n>   : First Recovery-Block-Number\n"
+"  -cm<n>   : Maximum Recovery Block-Count\n"
 "  -u       : Uniform recovery file sizes\n"
 "  -l       : Limit size of recovery files (don't use both -u and -l)\n"
 "  -n<n>    : Number of recovery files (don't use both -n and -l)\n"
@@ -303,6 +306,21 @@ int main(int argc, char *argv[])
 					}
 				}
 
+			} else if ( (tmp_p[0] == 'r') && (tmp_p[1] == 'm') && (tmp_p[2] >= '1') && (tmp_p[2] <= '9') ){	// Specify the Max recovery block count
+				if ( (command_operation != 'c') && (command_operation != 't') ){
+					printf("Cannot specify max redundancy unless creating.\n");
+				} else if (par3_ctx->max_redundancy_size > 0){
+					printf("Cannot specify max redundancy twice.\n");
+				} else if (par3_ctx->max_recovery_block > 0){
+					printf("Cannot specify both max redundancy and recovery block count.\n");
+				} else {
+					par3_ctx->max_redundancy_size = strtoul(tmp_p + 2, NULL, 10);
+					if (par3_ctx->max_redundancy_size > 250){
+						printf("Invalid max redundancy option: %u\n", par3_ctx->max_redundancy_size);
+						par3_ctx->max_redundancy_size = 0;	// reset
+					}
+				}
+
 			} else if ( (tmp_p[0] == 'c') && (tmp_p[1] >= '1') && (tmp_p[1] <= '9') ){	// Set the number of recovery blocks to create
 				if ( (command_operation != 'c') && (command_operation != 't') ){
 					printf("Cannot specify recovery block count unless creating.\n");
@@ -336,11 +354,11 @@ int main(int argc, char *argv[])
 */
 				}
 
-			} else if ( (tmp_p[0] == 'c') && (tmp_p[1] == 'm') && (tmp_p[2] >= '0') && (tmp_p[2] <= '9') ){	// Specify the Max block recovery count
+			} else if ( (tmp_p[0] == 'c') && (tmp_p[1] == 'm') && (tmp_p[2] >= '1') && (tmp_p[2] <= '9') ){	// Specify the Max recovery block count
 				if ( (command_operation != 'c') && (command_operation != 't') ){
-					printf("Cannot specify max block count unless creating.\n");
+					printf("Cannot specify max recovery block count unless creating.\n");
 				} else if (par3_ctx->max_recovery_block > 0){
-					printf("Cannot specify max block twice.\n");
+					printf("Cannot specify max recovery block count twice.\n");
 				} else {
 					par3_ctx->max_recovery_block = strtoull(tmp_p + 2, NULL, 10);
 				}
@@ -443,7 +461,7 @@ int main(int argc, char *argv[])
 					printf("Cannot specify interleaving twice.\n");
 				} else {
 					par3_ctx->interleave = strtoul(tmp_p + 1, NULL, 10);
-					if (par3_ctx->interleave > 1){
+					if (par3_ctx->interleave > 0){
 						if (add_creator_text(par3_ctx, tmp_p - 1) != 0){
 							ret = RET_MEMORY_ERROR;
 							goto prepare_return;
@@ -590,6 +608,8 @@ int main(int argc, char *argv[])
 			printf("Specified block size = %I64u\n", par3_ctx->block_size);
 		if (par3_ctx->redundancy_size != 0)
 			printf("redundancy_size = %u\n", par3_ctx->redundancy_size);
+		if (par3_ctx->max_redundancy_size != 0)
+			printf("max_redundancy_size = %u\n", par3_ctx->max_redundancy_size);
 		if (par3_ctx->recovery_block_count != 0)
 			printf("recovery_block_count = %I64u\n", par3_ctx->recovery_block_count);
 		if (par3_ctx->first_recovery_block != 0)
@@ -602,8 +622,13 @@ int main(int argc, char *argv[])
 			printf("recovery_file_scheme = %c\n", par3_ctx->recovery_file_scheme);
 		if (par3_ctx->ecc_method != 0)
 			printf("Error Correction Codes = %u\n", par3_ctx->ecc_method);
-		if (par3_ctx->interleave != 0)
-			printf("Specified interleaving times = %u\n", par3_ctx->interleave);
+		if (par3_ctx->interleave != 0){
+			if (par3_ctx->ecc_method == 8){	// FFT based Reed-Solomon Codes
+				printf("Specified interleaving times = %u\n", par3_ctx->interleave);
+			} else {	// Disabled at other Error Correction Codes.
+				par3_ctx->interleave = 0;
+			}
+		}
 		if (par3_ctx->file_system != 0)
 			printf("File System Packets = 0x%X\n", par3_ctx->file_system);
 		if (par3_ctx->deduplication != 0)

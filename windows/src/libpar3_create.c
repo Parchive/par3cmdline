@@ -97,6 +97,8 @@ static int calculate_recovery_count(PAR3_CTX *par3_ctx)
 	if (par3_ctx->block_count == 0){
 		par3_ctx->redundancy_size = 0;
 		par3_ctx->recovery_block_count = 0;
+		par3_ctx->max_recovery_block = 0;
+		par3_ctx->interleave = 0;
 		return 0;	// There is no input block.
 	}
 	if ( (par3_ctx->recovery_block_count == 0) && (par3_ctx->redundancy_size == 0) )
@@ -105,13 +107,20 @@ static int calculate_recovery_count(PAR3_CTX *par3_ctx)
 	// When number of recovery blocks was not specified, set by redundancy.
 	if ( (par3_ctx->recovery_block_count == 0) && (par3_ctx->redundancy_size > 0) ){
 		// If redundancy_size is in range (0 ~ 250), it's a percent rate value.
-		// When there is remainder at division, round up the quotient.
-		par3_ctx->recovery_block_count = (par3_ctx->block_count * par3_ctx->redundancy_size + 99) / 100;
+		if (par3_ctx->redundancy_size <= 250){
+			// When there is remainder at division, round up the quotient.
+			par3_ctx->recovery_block_count = (par3_ctx->block_count * par3_ctx->redundancy_size + 99) / 100;
+		}
+	}
+	if ( (par3_ctx->max_recovery_block == 0) && (par3_ctx->max_redundancy_size > 0) ){
+		if (par3_ctx->max_redundancy_size <= 250){
+			par3_ctx->max_recovery_block = (par3_ctx->block_count * par3_ctx->max_redundancy_size + 99) / 100;
+		}
 	}
 
 	// Test number of blocks
 	if (par3_ctx->ecc_method & 8){	// FFT based Reed-Solomon Codes
-		uint64_t max_count, cohort_count;
+		uint64_t max_count, cohort_count, i;
 		long double f;
 
 		if (par3_ctx->noise_level >= 0){
@@ -119,19 +128,62 @@ static int calculate_recovery_count(PAR3_CTX *par3_ctx)
 		}
 
 		// Too many interleaving is bad for recovery.
-		// Number of cohorts must be equal or less than root(block count).
-		cohort_count = par3_ctx->interleave + 1;
+		// Number of cohorts must be equal or less than square root(block count).
+		cohort_count = par3_ctx->interleave + 1; // Minimum value is 1.
 		f = (long double)(par3_ctx->block_count);
 		f = sqrtl(f);
 		max_count = (uint64_t)f;
 		//printf("root(%I64u) = %I64u , %f.\n", par3_ctx->block_count, max_count, f);
 		if (cohort_count > max_count)
 			cohort_count = max_count;
+		if (cohort_count > 1){
+			par3_ctx->interleave = (uint32_t)(cohort_count - 1);
+			if (par3_ctx->noise_level >= 0){
+				printf("Number of cohorts = %I64u (Interleaving times = %u)\n", cohort_count, par3_ctx->interleave);
+			}
+			if (par3_ctx->noise_level >= 1){
+				i = (par3_ctx->block_count + cohort_count - 1) / cohort_count;	// round up
+				printf("Block count per cohort = %I64u\n", i);
+			}
+		}
 
+		// Number of recovery blocks will be multiple of number of cohorts.
+		i = par3_ctx->recovery_block_count % cohort_count;
+		if (i > 0){
+			if (par3_ctx->noise_level >= 1){
+				printf("Recovery block count is increased from %I64u to %I64u\n", par3_ctx->recovery_block_count, par3_ctx->recovery_block_count + cohort_count - i);
+			}
+			par3_ctx->recovery_block_count += cohort_count - i;	// add to the remainder
+			if (par3_ctx->noise_level >= 1){
+				i = (par3_ctx->recovery_block_count + cohort_count - 1) / cohort_count;	// round up
+				printf("Recovery block count per cohort = %I64u\n", i);
+			}
+		}
+		if (par3_ctx->max_recovery_block > 0){
+			if (par3_ctx->max_recovery_block < par3_ctx->recovery_block_count)
+				par3_ctx->max_recovery_block = par3_ctx->recovery_block_count;
+			i = par3_ctx->max_recovery_block % cohort_count;
+			if (i > 0){
+				if (par3_ctx->noise_level >= 1){
+					printf("Max recovery block count is increased from %I64u to %I64u\n", par3_ctx->max_recovery_block, par3_ctx->max_recovery_block + cohort_count - i);
+				}
+				par3_ctx->max_recovery_block += cohort_count - i;	// add to the remainder
+			}
+		}
+		// First recovery block will be lower.
+		i = par3_ctx->first_recovery_block % cohort_count;
+		if (i > 0){
+			if (par3_ctx->noise_level >= 1){
+				printf("First recovery block is decreased from %I64u to %I64u\n", par3_ctx->first_recovery_block, par3_ctx->first_recovery_block - i);
+			}
+			par3_ctx->first_recovery_block -= i;	// erase the remainder
+		}
+
+		// Check total number of blocks
 		total_count = par3_ctx->block_count + par3_ctx->first_recovery_block + par3_ctx->recovery_block_count;
 		if (total_count < par3_ctx->block_count + par3_ctx->max_recovery_block)
 			total_count = par3_ctx->block_count + par3_ctx->max_recovery_block;
-		if (total_count > 65536){
+		if (total_count > 65536 * cohort_count){
 			printf("Total block count %I64u are too many.\n", total_count);
 			return RET_LOGIC_ERROR;
 		}
@@ -140,22 +192,21 @@ static int calculate_recovery_count(PAR3_CTX *par3_ctx)
 		total_count = par3_ctx->first_recovery_block + par3_ctx->recovery_block_count;
 		if (total_count < par3_ctx->max_recovery_block)
 			total_count = par3_ctx->max_recovery_block;
-		if (total_count > 32768){
+		if (total_count > 32768 * cohort_count){
 			printf("Recovery block count %I64u are too many.\n", total_count);
 			return RET_LOGIC_ERROR;
-		}
-
-		if (cohort_count > 1){
-			par3_ctx->interleave = (uint32_t)(cohort_count - 1);
-			if (par3_ctx->noise_level >= 0){
-				printf("Number of cohorts = %I64u (Interleaving times = %u)\n", cohort_count, par3_ctx->interleave);
-			}
 		}
 
 	} else {	// Cauchy Reed-Solomon Codes
 		if (par3_ctx->noise_level >= 0){
 			printf("Cauchy Reed-Solomon Codes\n");
 		}
+
+		// When max recovery block count is set, it must be equal or larger than creating recovery blocks.
+		if ((par3_ctx->max_recovery_block > 0) && (par3_ctx->max_recovery_block < par3_ctx->recovery_block_count))
+			par3_ctx->max_recovery_block = par3_ctx->recovery_block_count;
+
+		// Check total number of blocks
 		total_count = par3_ctx->block_count + par3_ctx->first_recovery_block + par3_ctx->recovery_block_count;
 		if (total_count < par3_ctx->block_count + par3_ctx->max_recovery_block)
 			total_count = par3_ctx->block_count + par3_ctx->max_recovery_block;
