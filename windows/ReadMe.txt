@@ -66,6 +66,7 @@ Options: (create)
   -b<n>    : Set the Block-Count
   -s<n>    : Set the Block-Size (don't use both -b and -s)
   -r<n>    : Level of redundancy (%)
+  -rm<n>   : Maximum redundancy (%)
   -c<n>    : Recovery Block-Count (don't use both -r and -c)
   -cf<n>   : First Recovery-Block-Number
   -cm<n>   : Maximum Recovery Block-Count
