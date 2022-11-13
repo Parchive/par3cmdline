@@ -279,16 +279,6 @@ int main(int argc, char *argv[])
 					printf("Cannot specify both block count and block size.\n");
 				} else {
 					par3_ctx->block_size = strtoull(tmp_p + 1, NULL, 10);
-/*
-					// This is for debug.
-					// No need to save this value, because block size is stored in Start Packet.
-					if (par3_ctx->block_size > 0){
-						if (add_creator_text(par3_ctx, tmp_p - 1) != 0){
-							ret = RET_MEMORY_ERROR;
-							goto prepare_return;
-						}
-					}
-*/
 				}
 
 			} else if ( (tmp_p[0] == 'r') && (tmp_p[1] >= '0') && (tmp_p[1] <= '9') ){	// Set the amount of redundancy required
@@ -387,12 +377,6 @@ int main(int argc, char *argv[])
 					printf("Cannot specify limited size and number of files at the same time.\n");
 				} else {
 					par3_ctx->recovery_file_scheme = 'l';
-/*
-					if (add_creator_text(par3_ctx, tmp_p - 1) != 0){
-						ret = RET_MEMORY_ERROR;
-						goto prepare_return;
-					}
-*/
 				}
 
 			} else if ( (tmp_p[0] == 'n') && (tmp_p[1] >= '1') && (tmp_p[1] <= '9') ){	// Specify the number of recovery files
@@ -404,14 +388,6 @@ int main(int argc, char *argv[])
 					printf("Cannot specify limited size and number of files at the same time.\n");
 				} else {
 					par3_ctx->recovery_file_count = strtoul(tmp_p + 1, NULL, 10);
-/*
-					if (par3_ctx->recovery_file_count > 0){
-						if (add_creator_text(par3_ctx, tmp_p - 1) != 0){
-							ret = RET_MEMORY_ERROR;
-							goto prepare_return;
-						}
-					}
-*/
 				}
 
 			} else if (strcmp(tmp_p, "R") == 0){	// Enable recursive search
@@ -461,12 +437,14 @@ int main(int argc, char *argv[])
 					printf("Cannot specify interleaving twice.\n");
 				} else {
 					par3_ctx->interleave = strtoul(tmp_p + 1, NULL, 10);
+/*
 					if (par3_ctx->interleave > 0){
 						if (add_creator_text(par3_ctx, tmp_p - 1) != 0){
 							ret = RET_MEMORY_ERROR;
 							goto prepare_return;
 						}
 					}
+*/
 				}
 
 			} else if ( (tmp_p[0] == 'f') && (tmp_p[1] == 'u')

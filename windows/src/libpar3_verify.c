@@ -48,7 +48,8 @@ int par3_verify(PAR3_CTX *par3_ctx)
 	uint32_t missing_dir_count, bad_dir_count;
 	uint32_t missing_file_count, damaged_file_count, misnamed_file_count, bad_file_count;
 	uint32_t possible_count;
-	uint64_t block_count, block_available, recovery_block_available;
+	uint64_t block_count, block_available;
+	uint64_t recovery_block_available, recovery_block_lack;
 
 	ret = read_packet(par3_ctx);
 	if (ret != 0)
@@ -169,7 +170,16 @@ int par3_verify(PAR3_CTX *par3_ctx)
 
 	// Aggregate recovery blocks of each Matrix Packet
 	recovery_block_available = aggregate_recovery_block(par3_ctx);
-	if (block_available + recovery_block_available >= block_count){
+	if (par3_ctx->interleave == 0){
+		if (block_available + recovery_block_available >= block_count){
+			recovery_block_lack = 0;
+		} else {
+			recovery_block_lack = block_count - block_available - recovery_block_available;
+		}
+	} else {
+		recovery_block_lack = aggregate_block_cohort(par3_ctx, NULL);
+	}
+	if (recovery_block_lack == 0){
 		if (par3_ctx->noise_level >= -1){
 			printf("Repair is possible.\n");
 		}
@@ -193,7 +203,7 @@ int par3_verify(PAR3_CTX *par3_ctx)
 			} else {
 				printf("Repair is not possible.\n");
 			}
-			printf("You need %I64u more recovery blocks to be able to repair.\n", block_count - block_available - recovery_block_available);
+			printf("You need %I64u more recovery blocks to be able to repair.\n", recovery_block_lack);
 		}
 		return RET_REPAIR_NOT_POSSIBLE;
 	}
@@ -204,8 +214,9 @@ int par3_repair(PAR3_CTX *par3_ctx, char *temp_path)
 	int ret;
 	uint32_t missing_dir_count, bad_dir_count;
 	uint32_t missing_file_count, damaged_file_count, misnamed_file_count, bad_file_count;
-	uint32_t possible_count;
-	uint64_t block_count, block_available, recovery_block_available;
+	uint32_t possible_count, lost_count_cohort;
+	uint64_t block_count, block_available;
+	uint64_t recovery_block_available, recovery_block_lack;
 
 	ret = read_packet(par3_ctx);
 	if (ret != 0)
@@ -326,7 +337,17 @@ int par3_repair(PAR3_CTX *par3_ctx, char *temp_path)
 
 	// Aggregate recovery blocks of each Matrix Packet
 	recovery_block_available = aggregate_recovery_block(par3_ctx);
-	if (block_available + recovery_block_available >= block_count){
+	if (par3_ctx->interleave == 0){
+		if (block_available + recovery_block_available >= block_count){
+			recovery_block_lack = 0;
+		} else {
+			recovery_block_lack = block_count - block_available - recovery_block_available;
+		}
+		lost_count_cohort = (uint32_t)(block_count - block_available);
+	} else {
+		recovery_block_lack = aggregate_block_cohort(par3_ctx, &lost_count_cohort);
+	}
+	if (recovery_block_lack == 0){
 		if (par3_ctx->noise_level >= -1){
 			printf("Repair is possible.\n");
 		}
@@ -349,7 +370,7 @@ int par3_repair(PAR3_CTX *par3_ctx, char *temp_path)
 			} else {
 				printf("Repair is not possible.\n");
 			}
-			printf("You need %I64u more recovery blocks to be able to repair.\n", block_count - block_available - recovery_block_available);
+			printf("You need %I64u more recovery blocks to be able to repair.\n", recovery_block_lack);
 		}
 		if (missing_dir_count + bad_dir_count + possible_count == 0){
 			// When repair is impossible at all, end here.
@@ -384,10 +405,10 @@ int par3_repair(PAR3_CTX *par3_ctx, char *temp_path)
 				return ret;
 
 		// When recovery blocks are enough, recover lost input blocks.
-		} else if (block_available + recovery_block_available >= block_count){
+		} else if (recovery_block_lack == 0){
 
 			// Make list of index for lost input blocks and using recovery blocks.
-			ret =  make_block_list(par3_ctx, block_count - block_available);
+			ret =  make_block_list(par3_ctx, block_count - block_available, lost_count_cohort);
 			if (ret != 0)
 				return ret;
 
@@ -412,7 +433,12 @@ int par3_repair(PAR3_CTX *par3_ctx, char *temp_path)
 
 			} else {
 				// Recover lost input blocks by spliting every block.
-				ret = recover_lost_block_split(par3_ctx, temp_path, block_count - block_available);
+				if ( (par3_ctx->ecc_method & 8) && (par3_ctx->interleave > 0) ){
+					// Interleaving is adapted only for FFT based Reed-Solomon Codes.
+					ret = recover_lost_block_cohort(par3_ctx, temp_path, block_count - block_available);
+				} else {
+					ret = recover_lost_block_split(par3_ctx, temp_path, block_count - block_available);
+				}
 				if (ret != 0)
 					return ret;
 			}

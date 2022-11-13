@@ -353,11 +353,32 @@ int make_matrix_packet(PAR3_CTX *par3_ctx)
 		if (par3_ctx->max_recovery_block < par3_ctx->first_recovery_block + par3_ctx->recovery_block_count)
 			par3_ctx->max_recovery_block = par3_ctx->first_recovery_block + par3_ctx->recovery_block_count;
 		// Store max count as power. Because the value range is 1 ~ 32768, log2 range is 0 ~ 15.
-		tmp_p[0] = roundup_log2(par3_ctx->max_recovery_block);
+		if (par3_ctx->interleave == 0){
+			tmp_p[0] = roundup_log2(par3_ctx->max_recovery_block);
+		} else {	// When interleaving, max count is divided by number of cohorts.
+			tmp_p[0] = roundup_log2(par3_ctx->max_recovery_block / (par3_ctx->interleave + 1));
+		}
 		tmp_p += 1;
-		// Store number of cohort ?
-		// Test behavior and speed at first.
-		packet_size = 65;
+		// Store number of interleaving blocks
+		// In normal usage, it will be less than 2 bytes.
+		// 32,768 blocks * 256 cohorts = max 8,388,608 blocks
+		// 32,768 blocks * 65,536 cohorts = max 2,147,483,648 blocks
+		// So, it won't use 2 bytes mostly. It won't use 4 bytes really.
+		if (par3_ctx->interleave == 0){	// None (0 bytes)
+			packet_size = 65;
+		} else if (par3_ctx->interleave < 256){	// 1 byte = 1 ~ 255
+			memcpy(tmp_p, &(par3_ctx->interleave), 1);
+			tmp_p += 1;
+			packet_size = 66;
+		} else if (par3_ctx->interleave < 65536){	// 2 bytes = 256 ~ 65535
+			memcpy(tmp_p, &(par3_ctx->interleave), 2);
+			tmp_p += 2;
+			packet_size = 67;
+		} else {	// 4 bytes = 65536 ~
+			memcpy(tmp_p, &(par3_ctx->interleave), 4);
+			tmp_p += 4;
+			packet_size = 69;
+		}
 		make_packet_header(par3_ctx->matrix_packet, packet_size, par3_ctx->set_id, "PAR FFT\0", 1);
 
 	} else {

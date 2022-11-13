@@ -509,3 +509,88 @@ int try_recovery_file(PAR3_CTX *par3_ctx)
 	return 0;
 }
 
+// Erase created PAR3 files, when error occured.
+void remove_recovery_file(PAR3_CTX *par3_ctx)
+{
+	char filename[_MAX_PATH], recovery_file_scheme;
+	int digit_num1, digit_num2;
+	uint32_t file_count;
+	uint64_t block_count, base_num, first_num;
+	uint64_t each_start, each_count, max_count;
+	size_t len;
+
+/*
+	// Do you remove Index file, too ?
+	if (remove(par3_ctx->par_filename) != 0){
+		if (errno != ENOENT)
+			return;	// Failed to remove Index file
+	}
+*/
+
+	block_count = par3_ctx->recovery_block_count;
+	recovery_file_scheme = par3_ctx->recovery_file_scheme;
+	file_count = par3_ctx->recovery_file_count;
+	first_num = par3_ctx->first_recovery_block;
+
+	// Remove the last ".par3" from base PAR3 filename.
+	strcpy(filename, par3_ctx->par_filename);
+	len = strlen(filename);
+	if (strcmp(filename + len - 5, ".par3") == 0){
+		len -= 5;
+		filename[len] = 0;
+		//printf("len = %zu, base name = %s\n", len, filename);
+	}
+
+	// Calculate block count and digits max.
+	calculate_digit_max(par3_ctx, block_count, first_num, &base_num, &max_count, &digit_num1, &digit_num2);
+
+	// Remove each PAR3 file.
+	each_start = first_num;
+	while (block_count > 0){
+		if (file_count > 0){
+			if (recovery_file_scheme == 'u'){	// Uniform
+				each_count = max_count;
+				if (base_num > 0){
+					base_num--;
+					if (base_num == 0)
+						max_count--;
+				}
+
+			} else {	// Variable (base number * power of 2)
+				each_count = base_num;
+				base_num *= 2;
+				if (each_count > block_count)
+					each_count = block_count;
+			}
+
+		} else {
+			if (recovery_file_scheme == 'u'){	// Uniform
+				each_count = block_count;
+
+			} else if (recovery_file_scheme == 'l'){	// Limit size
+				each_count = base_num;
+				base_num *= 2;
+				if (each_count > max_count)
+					each_count = max_count;
+				if (each_count > block_count)
+					each_count = block_count;
+
+			} else {	// Power of 2
+				each_count = base_num;
+				base_num *= 2;
+				if (each_count > block_count)
+					each_count = block_count;
+			}
+		}
+
+		sprintf(filename + len, ".vol%0*I64u+%0*I64u.par3", digit_num1, each_start, digit_num2, each_count);
+		if (remove(filename) != 0){
+			if (errno != ENOENT)
+				return;	// Failed to remove PAR3 file
+		}
+
+		each_start += each_count;
+		block_count -= each_count;
+	}
+}
+

@@ -144,7 +144,9 @@ typedef struct {
 							//           4 = LDPC (no support yet)
 							//           8 = FFT based Reed-Solomon Codes
 							//      0x8000 = Keep all recovery blocks or lost blocks on memory
-	uint32_t interleave;	// Number of interleaving
+
+	uint32_t interleave;	// Number of interleaving (Number of cohorts = this value + 1)
+	uint32_t *lost_list;	// List for lost blocks and recovery blocks for every cohorts
 
 	int *recv_id_list;		// List for index of using recovery blocks
 	void *matrix;

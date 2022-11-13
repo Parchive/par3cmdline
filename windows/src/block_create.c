@@ -302,7 +302,7 @@ int create_recovery_block_split(PAR3_CTX *par3_ctx)
 	clock_t clock_now;
 
 	// For Leopard-RS library
-	unsigned int work_count;
+	uint32_t work_count;
 	uint8_t **original_data = NULL, **work_data = NULL;
 
 	block_size = par3_ctx->block_size;
@@ -326,8 +326,8 @@ int create_recovery_block_split(PAR3_CTX *par3_ctx)
 			printf("Failed to initialize Leopard-RS library (%d)\n", ret);
 			return RET_LOGIC_ERROR;
 		}
-		work_count = leo_encode_work_count((unsigned int)block_count,
-							(unsigned int)(first_recovery_block + recovery_block_count));
+		work_count = leo_encode_work_count((uint32_t)block_count,
+							(uint32_t)(first_recovery_block + recovery_block_count));
 		//printf("Leopard-RS: work_count = %u\n", work_count);
 		// Leopard-RS requires multiple of 64 bytes for SIMD.
 		region_size = (block_size + 4 + 63) & ~63;
@@ -341,6 +341,7 @@ int create_recovery_block_split(PAR3_CTX *par3_ctx)
 
 	// for test split
 	//par3_ctx->memory_limit = (alloc_size + 1) / 2;
+	//par3_ctx->memory_limit = (alloc_size + 2) / 3;
 
 	// Limited memory usage
 	if ( (par3_ctx->memory_limit > 0) && (alloc_size > par3_ctx->memory_limit) ){
@@ -601,7 +602,7 @@ int create_recovery_block_split(PAR3_CTX *par3_ctx)
 
 		} else if (par3_ctx->ecc_method & 8){	// FFT based Reed-Solomon Codes
 			ret = leo_encode(region_size,
-							(unsigned int)block_count, (unsigned int)(first_recovery_block + recovery_block_count),
+							(uint32_t)block_count, (uint32_t)(first_recovery_block + recovery_block_count),
 							work_count, original_data, work_data);
 			if (ret != 0){
 				printf("Failed to call Leopard-RS library (%d)\n", ret);
@@ -653,7 +654,7 @@ int create_recovery_block_split(PAR3_CTX *par3_ctx)
 
 			// Write partial recovery block
 			if ( (fp == NULL) || (file_name != name_prev) ){
-				if (fp != NULL){	// Close previous input file.
+				if (fp != NULL){	// Close previous recovery file.
 					fclose(fp);
 					fp = NULL;
 				}
@@ -725,7 +726,7 @@ fclose(fp2);
 
 		// Read packet data and write checksum
 		if ( (fp == NULL) || (file_name != name_prev) ){
-			if (fp != NULL){	// Close previous input file.
+			if (fp != NULL){	// Close previous recovery file.
 				fclose(fp);
 				fp = NULL;
 			}
@@ -776,6 +777,509 @@ fclose(fp2);
 	}
 
 	if (par3_ctx->noise_level >= 0){
+		//printf("\nprogress = %I64u / %I64u\n", progress_step, progress_total);
+		clock_now = clock() - clock_now;
+		printf("done in %.1f seconds.\n", (double)clock_now / CLOCKS_PER_SEC);
+		printf("\n");
+	}
+
+	// Release some allocated memory
+	free(buf_p);
+	par3_ctx->work_buf = NULL;
+	free(position_list);
+	par3_ctx->position_list = NULL;
+	if (par3_ctx->matrix){
+		free(par3_ctx->matrix);
+		par3_ctx->matrix = NULL;
+	}
+
+	return 0;
+}
+
+// At this time, interleaving is adapted only for FFT based Reed-Solomon Codes.
+// When there are multiple cohorts, it calculates recovery blocks in each cohort.
+// This keeps one cohort's all input blocks and recovery blocks partially by spliting every block.
+// GF tables and recovery blocks were allocated already.
+int create_recovery_block_cohort(PAR3_CTX *par3_ctx)
+{
+	char *name_prev, *file_name;
+	uint8_t *block_data, *buf_p;
+	uint8_t gf_size;
+	int ret, galois_poly;
+	int progress_old, progress_now;
+	uint32_t split_count;
+	uint32_t file_index, file_prev;
+	uint32_t cohort_count, cohort_index;
+	size_t io_size;
+	int64_t slice_index, file_offset;
+	uint64_t crc, block_index;
+	uint64_t block_size, block_count, recovery_block_count;
+	uint64_t block_count2, recovery_block_count2, first_recovery_block2;
+	uint64_t alloc_size, region_size, split_size;
+	uint64_t data_size, part_size, split_offset;
+	uint64_t tail_offset, tail_gap;
+	uint64_t progress_total, progress_step;
+	PAR3_FILE_CTX *file_list;
+	PAR3_SLICE_CTX *slice_list;
+	PAR3_BLOCK_CTX *block_list;
+	PAR3_POS_CTX *position_list;
+	FILE *fp;
+	time_t time_old, time_now;
+	clock_t clock_now;
+
+	// For Leopard-RS library
+	uint32_t work_count;
+	uint8_t **original_data = NULL, **work_data = NULL;
+
+	block_size = par3_ctx->block_size;
+	block_count = par3_ctx->block_count;
+	recovery_block_count = par3_ctx->recovery_block_count;
+	gf_size = par3_ctx->gf_size;
+	galois_poly = par3_ctx->galois_poly;
+	file_list = par3_ctx->input_file_list;
+	slice_list = par3_ctx->slice_list;
+	block_list = par3_ctx->block_list;
+	position_list = par3_ctx->position_list;
+
+	if (recovery_block_count == 0)
+		return RET_LOGIC_ERROR;
+
+	// Set count for each cohort
+	cohort_count = (uint32_t)(par3_ctx->interleave) + 1;	// Minimum value is 2.
+	block_count2 = (block_count + cohort_count - 1) / cohort_count;	// round up
+	recovery_block_count2 = recovery_block_count / cohort_count;
+	first_recovery_block2 = par3_ctx->first_recovery_block / cohort_count;
+	printf("cohort_count = %u, block_count2 = %I64u\n", cohort_count, block_count2);
+	printf("recovery_block_count2 = %I64u, first_recovery_block2 = %I64u\n", recovery_block_count2, first_recovery_block2);
+
+	// Set required memory size at first
+	ret = leo_init();	// Initialize Leopard-RS library.
+	if (ret != 0){
+		printf("Failed to initialize Leopard-RS library (%d)\n", ret);
+		return RET_LOGIC_ERROR;
+	}
+	work_count = leo_encode_work_count((uint32_t)block_count2,
+						(uint32_t)(first_recovery_block2 + recovery_block_count2));
+	printf("Leopard-RS: work_count = %u\n", work_count);
+	// Leopard-RS requires multiple of 64 bytes for SIMD.
+	region_size = (block_size + 4 + 63) & ~63;
+	alloc_size = region_size * (block_count2 + work_count);
+
+	// for test split
+	//par3_ctx->memory_limit = (alloc_size + 1) / 2;
+	//par3_ctx->memory_limit = (alloc_size + 2) / 3;
+
+	// Limited memory usage
+	if ( (par3_ctx->memory_limit > 0) && (alloc_size > par3_ctx->memory_limit) ){
+		split_count = (uint32_t)((alloc_size + par3_ctx->memory_limit - 1) / par3_ctx->memory_limit);
+		split_size = (block_size + split_count - 1) / split_count;	// This is splitted block size to fit in limited memory.
+		if (gf_size == 2){
+			// aligned to 2 bytes for 16-bit Galois Field
+			split_size = (split_size + 1) & ~1;
+		}
+		if (split_size > block_size)
+			split_size = block_size;
+		split_count = (uint32_t)((block_size + split_size - 1) / split_size);
+		if (par3_ctx->noise_level >= 1){
+			printf("\nSplit block to %u pieces of %I64u bytes.\n", split_count, split_size);
+		}
+	} else {
+		split_count = 1;
+		split_size = block_size;
+	}
+
+	// Allocate memory to keep all splitted blocks.
+	// Leopard-RS requires alignment of 64 bytes.
+	region_size = (split_size + 4 + 63) & ~63;
+	alloc_size = region_size * (block_count2 + work_count);	// work_count is larger than recovery_block_count.
+	// Though Leopard-RS doesn't require memory alignment for SIMD, align to 32 bytes may be faster.
+	printf("split_size = %I64u, region_size = %I64u, alloc_size = %I64u\n", split_size, region_size, alloc_size);
+	block_data = malloc(alloc_size);
+	if (block_data == NULL){
+		perror("Failed to allocate memory for block data");
+		return RET_MEMORY_ERROR;
+	}
+	par3_ctx->block_data = block_data;
+
+	// List of pointer
+	original_data = malloc(sizeof(block_data) * (block_count2 + work_count));
+	if (original_data == NULL){
+		perror("Failed to allocate memory for Leopard-RS");
+		return RET_MEMORY_ERROR;
+	}
+	buf_p = block_data;
+	for (block_index = 0; block_index < block_count2; block_index++){
+		original_data[block_index] = buf_p;
+		buf_p += region_size;
+	}
+	work_data = original_data + block_count2;
+	// Change order of recovery data to skip until first_recovery_block.
+	for (block_index = first_recovery_block2; block_index < first_recovery_block2 + recovery_block_count2; block_index++){
+		work_data[block_index] = buf_p;
+		buf_p += region_size;
+	}
+	for (block_index = 0; block_index < first_recovery_block2; block_index++){
+		work_data[block_index] = buf_p;
+		buf_p += region_size;
+	}
+	for (block_index = first_recovery_block2 + recovery_block_count2; block_index < work_count; block_index++){
+		work_data[block_index] = buf_p;
+		buf_p += region_size;
+	}
+	par3_ctx->matrix = original_data;	// Release this later
+
+	if (par3_ctx->noise_level >= 0){
+		printf("\nComputing recovery blocks:\n");
+		progress_total = (block_count2 * recovery_block_count + block_count + recovery_block_count) * split_count;
+		progress_step = 0;
+		progress_old = 0;
+		time_old = time(NULL);
+		clock_now = clock();
+	}
+
+	name_prev = NULL;
+	fp = NULL;
+	// Process each cohort
+	for (cohort_index = 0; cohort_index < cohort_count; cohort_index++){
+		for (split_offset = 0; split_offset < block_size; split_offset += split_size){
+			printf("cohort_index = %u, split_offset = %I64u\n", cohort_index, split_offset);
+			buf_p = block_data;	// Starting position of input blocks
+			file_prev = 0xFFFFFFFF;
+
+			// Read all input blocks belong to the cohort on memory
+			for (block_index = cohort_index; block_index < block_count; block_index += cohort_count){
+				// Read each input block from input files.
+				data_size = block_list[block_index].size;
+				part_size = data_size - split_offset;
+				if (part_size > split_size)
+					part_size = split_size;
+
+				if (block_list[block_index].state & 1){	// including full size data
+					slice_index = block_list[block_index].slice;
+					while (slice_index != -1){
+						if (slice_list[slice_index].size == block_size)
+							break;
+						slice_index = slice_list[slice_index].next;
+					}
+					if (slice_index == -1){	// When there is no valid slice.
+						printf("Mapping information for block[%I64u] is wrong.\n", block_index);
+						if (fp != NULL)
+							fclose(fp);
+						return RET_LOGIC_ERROR;
+					}
+
+					// Read a part of slice from a file.
+					file_index = slice_list[slice_index].file;
+					file_offset = slice_list[slice_index].offset + split_offset;
+					io_size = part_size;
+					if (par3_ctx->noise_level >= 2){
+						printf("Reading %zu bytes of slice[%I64d] for input block[%I64u]\n", io_size, slice_index, block_index);
+					}
+					if ( (fp == NULL) || (file_index != file_prev) ){
+						if (fp != NULL){	// Close previous input file.
+							fclose(fp);
+							fp = NULL;
+						}
+						fp = fopen(file_list[file_index].name, "rb");
+						if (fp == NULL){
+							perror("Failed to open Input File");
+							return RET_FILE_IO_ERROR;
+						}
+						file_prev = file_index;
+					}
+					if (_fseeki64(fp, file_offset, SEEK_SET) != 0){
+						perror("Failed to seek Input File");
+						fclose(fp);
+						return RET_FILE_IO_ERROR;
+					}
+					if (fread(buf_p, 1, io_size, fp) != io_size){
+						perror("Failed to read slice on Input File");
+						fclose(fp);
+						return RET_FILE_IO_ERROR;
+					}
+
+				} else if (data_size > split_offset){	// tail data only (one tail or packed tails)
+					if (par3_ctx->noise_level >= 2){
+						printf("Reading %I64u bytes for input block[%I64u]\n", part_size, block_index);
+					}
+					tail_offset = split_offset;
+					while (tail_offset < split_offset + part_size){	// Read tails until data end.
+						slice_index = block_list[block_index].slice;
+						while (slice_index != -1){
+							//printf("block = %I64u, size = %zu, offset = %zu, slice = %I64d\n", block_index, data_size, tail_offset, slice_index);
+							// Even when chunk tails are overlaped, it will find tail slice of next position.
+							if ( (slice_list[slice_index].tail_offset + slice_list[slice_index].size > tail_offset)
+									&& (slice_list[slice_index].tail_offset <= tail_offset) ){
+								break;
+							}
+							slice_index = slice_list[slice_index].next;
+						}
+						if (slice_index == -1){	// When there is no valid slice.
+							printf("Mapping information for block[%I64u] is wrong.\n", block_index);
+							if (fp != NULL)
+								fclose(fp);
+							return RET_LOGIC_ERROR;
+						}
+
+						// Read one slice from a file.
+						tail_gap = tail_offset - slice_list[slice_index].tail_offset;	// This tail slice may start before tail_offset.
+						//printf("tail_gap for slice[%I64d] = %zu.\n", slice_index, tail_gap);
+						file_index = slice_list[slice_index].file;
+						file_offset = slice_list[slice_index].offset + tail_gap;
+						io_size = slice_list[slice_index].size - tail_gap;
+						if ( (fp == NULL) || (file_index != file_prev) ){
+							if (fp != NULL){	// Close previous input file.
+								fclose(fp);
+								fp = NULL;
+							}
+							fp = fopen(file_list[file_index].name, "rb");
+							if (fp == NULL){
+								perror("Failed to open Input File");
+								return RET_FILE_IO_ERROR;
+							}
+							file_prev = file_index;
+						}
+						if (_fseeki64(fp, file_offset, SEEK_SET) != 0){
+							perror("Failed to seek Input File");
+							fclose(fp);
+							return RET_FILE_IO_ERROR;
+						}
+						if (fread(buf_p + tail_offset - split_offset, 1, io_size, fp) != io_size){
+							perror("Failed to read tail slice on Input File");
+							fclose(fp);
+							return RET_FILE_IO_ERROR;
+						}
+						tail_offset += io_size;
+					}
+
+				} else {	// Zero fill partial input block
+					memset(buf_p, 0, region_size);
+				}
+
+				// Calculate checksum of block to confirm that input file was not changed.
+				if (split_offset == 0){
+					crc = 0;
+				} else {
+					memcpy(&crc, block_list[block_index].hash, 8);	// Use previous CRC value
+				}
+				if (data_size > split_offset){	// When there is slice data to process.
+					memset(buf_p + part_size, 0, region_size - part_size);	// Zero fill rest bytes
+					crc = crc64(buf_p, part_size, crc);
+
+					// Calculate parity bytes in the region
+					if (gf_size == 2){
+						leo_region_create_parity(buf_p, region_size);
+					} else {
+						region_create_parity(buf_p, region_size);
+					}
+				}
+				if (split_offset + split_size >= block_size){	// At the last
+					if (crc != block_list[block_index].crc){
+						printf("Checksum of block[%I64u] is different.\n", block_index);
+						fclose(fp);
+						return RET_LOGIC_ERROR;
+					}
+				} else {
+					memcpy(block_list[block_index].hash, &crc, 8);	// Save this CRC value
+				}
+
+				// Print progress percent
+				if ( (par3_ctx->noise_level >= 0) && (par3_ctx->noise_level <= 1) ){
+					progress_step++;
+					time_now = time(NULL);
+					if (time_now != time_old){
+						time_old = time_now;
+						progress_now = (int)((progress_step * 1000) / progress_total);
+						if (progress_now != progress_old){
+							progress_old = progress_now;
+							printf("%d.%d%%\r", progress_now / 10, progress_now % 10);	// 0.0% ~ 100.0%
+						}
+					}
+				}
+
+				buf_p += region_size;	// Goto next partial block
+			}
+			if (fp != NULL){
+				if (fclose(fp) != 0){
+					perror("Failed to close Input File");
+					return RET_FILE_IO_ERROR;
+				}
+				fp = NULL;
+			}
+
+			// When the last input block doesn't exist in this cohort, zero fill it.
+			if (block_index < block_count2 * cohort_count){
+				//printf("zero fill %I64u, block_count2 * cohort_count = %I64u\n", block_index, block_count2 * cohort_count);
+				memset(buf_p, 0, region_size);
+			}
+
+			// Create all recovery blocks on memory
+			ret = leo_encode(region_size,
+							(uint32_t)block_count2, (uint32_t)(first_recovery_block2 + recovery_block_count2),
+							work_count, original_data, work_data);
+			if (ret != 0){
+				printf("Failed to call Leopard-RS library (%d)\n", ret);
+				return RET_LOGIC_ERROR;
+			}
+
+			if ( (par3_ctx->noise_level >= 0) && (par3_ctx->noise_level <= 1) ){
+				progress_step += block_count2 * recovery_block_count2;
+				time_old = time(NULL);
+			}
+
+			// Write all recovery blocks on recovery files
+			part_size = block_size - split_offset;
+			if (part_size > split_size)
+				part_size = split_size;
+			io_size = part_size;
+			buf_p = block_data + region_size * block_count2;	// Starting position of recovery blocks
+			for (block_index = cohort_index; block_index < recovery_block_count; block_index += cohort_count){
+				// Check parity of recovery block to confirm that calculation was correct.
+				if (gf_size == 2){
+					ret = leo_region_check_parity(buf_p, region_size);
+				} else {
+					ret = region_check_parity(buf_p, region_size);
+				}
+				if (ret != 0){
+					printf("Parity of recovery block[%I64u] is different.\n", block_index);
+					if (fp != NULL)
+						fclose(fp);
+					return RET_LOGIC_ERROR;
+				}
+
+				// Position of Recovery Data Packet in recovery file
+				file_name = position_list[block_index].name;
+				file_offset = position_list[block_index].offset + 88 + split_offset;
+
+				// Calculate CRC of packet data to check error later.
+				position_list[block_index].crc = crc64(buf_p, part_size, position_list[block_index].crc);
+
+				// Write partial recovery block
+				if ( (fp == NULL) || (file_name != name_prev) ){
+					if (fp != NULL){	// Close previous recovery file.
+						fclose(fp);
+						fp = NULL;
+					}
+					fp = fopen(file_name, "r+b");	// Over-write on existing file
+					if (fp == NULL){
+						perror("Failed to open Recovery File");
+						return RET_FILE_IO_ERROR;
+					}
+					name_prev = file_name;
+				}
+				if (_fseeki64(fp, file_offset, SEEK_SET) != 0){
+					perror("Failed to seek Recovery File");
+					fclose(fp);
+					return RET_FILE_IO_ERROR;
+				}
+				if (fwrite(buf_p, 1, part_size, fp) != part_size){
+					perror("Failed to write Recovery Block on Recovery File");
+					fclose(fp);
+					return RET_FILE_IO_ERROR;
+				}
+
+				// Print progress percent
+				if ( (par3_ctx->noise_level >= 0) && (par3_ctx->noise_level <= 1) ){
+					progress_step++;
+					time_now = time(NULL);
+					if (time_now != time_old){
+						time_old = time_now;
+						progress_now = (int)((progress_step * 1000) / progress_total);
+						if (progress_now != progress_old){
+							progress_old = progress_now;
+							printf("%d.%d%%\r", progress_now / 10, progress_now % 10);	// 0.0% ~ 100.0%
+						}
+					}
+				}
+
+				buf_p += region_size;
+			}
+		}
+	}
+/*
+{	// for debug
+FILE *fp2;
+buf_p = block_data + region_size * block_count2;	// Starting position of recovery blocks
+
+fp2 = fopen("test.bin", "wb");
+fwrite(buf_p, 1, region_size * recovery_block_count2, fp2);
+fclose(fp2);
+}
+*/
+
+	free(block_data);
+	par3_ctx->block_data = NULL;
+
+	// Allocate memory to read one Recovery Data Packet.
+	alloc_size = 80 + block_size;
+	buf_p = malloc(alloc_size);
+	if (buf_p == NULL){
+		perror("Failed to allocate memory for Recovery Data Packet");
+		return RET_MEMORY_ERROR;
+	}
+	par3_ctx->work_buf = buf_p;
+
+	// Calculate checksum of every Recovery Data Packet
+	io_size = 64 + block_size;	// packet header after checksum and packet body
+	for (block_index = 0; block_index < recovery_block_count; block_index++){
+		// Position of Recovery Data Packet in recovery file
+		file_name = position_list[block_index].name;
+		file_offset = position_list[block_index].offset + 8;	// Offset of checksum
+
+		// Read packet data and write checksum
+		if ( (fp == NULL) || (file_name != name_prev) ){
+			if (fp != NULL){	// Close previous recovery file.
+				fclose(fp);
+				fp = NULL;
+			}
+			fp = fopen(file_name, "r+b");	// Over-write on existing file
+			if (fp == NULL){
+				perror("Failed to open Recovery File");
+				return RET_FILE_IO_ERROR;
+			}
+			name_prev = file_name;
+		}
+		if (_fseeki64(fp, file_offset + 16, SEEK_SET) != 0){
+			perror("Failed to seek Recovery File");
+			fclose(fp);
+			return RET_FILE_IO_ERROR;
+		}
+		if (fread(buf_p + 16, 1, io_size, fp) != io_size){
+			perror("Failed to read Recovery Data Packet");
+			fclose(fp);
+			return RET_FILE_IO_ERROR;
+		}
+
+		// Compare CRC of written packet data to confirm integrity.
+		crc = crc64(buf_p + 16, io_size, 0);
+		if (crc != position_list[block_index].crc){
+			printf("Packet data of recovery block[%I64u] is different.\n", block_index);
+			fclose(fp);
+			return RET_LOGIC_ERROR;
+		}
+
+		// Calculate checksum of this packet
+		blake3(buf_p + 16, io_size, buf_p);
+
+		// Write checksum
+		if (_fseeki64(fp, file_offset, SEEK_SET) != 0){
+			perror("Failed to seek Recovery File");
+			fclose(fp);
+			return RET_FILE_IO_ERROR;
+		}
+		if (fwrite(buf_p, 1, 16, fp) != 16){
+			perror("Failed to write checksum of Recovery Data Packet");
+			fclose(fp);
+			return RET_FILE_IO_ERROR;
+		}
+	}
+	if (fclose(fp) != 0){
+		perror("Failed to close Recovery File");
+		return RET_FILE_IO_ERROR;
+	}
+
+	if (par3_ctx->noise_level >= 0){
+		//printf("\nprogress = %I64u / %I64u\n", progress_step, progress_total);
 		clock_now = clock() - clock_now;
 		printf("done in %.1f seconds.\n", (double)clock_now / CLOCKS_PER_SEC);
 		printf("\n");

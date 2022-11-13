@@ -1142,5 +1142,9 @@ void par3_release(PAR3_CTX *par3_ctx)
 		free(par3_ctx->matrix);
 		par3_ctx->matrix = NULL;
 	}
+	if (par3_ctx->lost_list){
+		free(par3_ctx->lost_list);
+		par3_ctx->lost_list = NULL;
+	}
 }
 

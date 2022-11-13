@@ -319,7 +319,7 @@ uint64_t aggregate_recovery_block(PAR3_CTX *par3_ctx)
 	uint8_t packet_checksum[16];
 	size_t offset, total_size;
 	uint64_t item_index, packet_size, packet_count;
-	uint64_t find_count, find_count_max, hint_num;
+	uint64_t find_count, find_count_max;
 	PAR3_PKT_CTX *packet_list;
 
 	if (par3_ctx->matrix_packet_count == 0)
@@ -342,6 +342,8 @@ uint64_t aggregate_recovery_block(PAR3_CTX *par3_ctx)
 		// At this time, this supports only one Error Correction Codes at a time.
 
 		if (memcmp(packet_type, "PAR CAU\0", 8) == 0){	// Cauchy Matrix Packet
+			uint64_t hint_num;
+
 			// Search Recovery Data packet for this Matrix Packet
 			find_count = 0;
 			for (item_index = 0; item_index < packet_count; item_index++){
@@ -366,6 +368,10 @@ uint64_t aggregate_recovery_block(PAR3_CTX *par3_ctx)
 			}
 
 		} else if (memcmp(packet_type, "PAR FFT\0", 8) == 0){	// FFT Matrix Packet
+			int8_t shift_num;
+			uint32_t extra_num;
+			uint64_t max_num;
+
 			// Search Recovery Data packet for this Matrix Packet
 			find_count = 0;
 			for (item_index = 0; item_index < packet_count; item_index++){
@@ -374,19 +380,43 @@ uint64_t aggregate_recovery_block(PAR3_CTX *par3_ctx)
 				}
 			}
 			// max number of recovery blocks
-			hint_num = buf[offset + 64];
-			hint_num = (uint64_t)1 << hint_num;
+			shift_num = buf[offset + 64];	// convert to signed integer
+			if ( (shift_num >= 0) && (shift_num <= 15) ){
+				max_num = (uint64_t)1 << shift_num;
+			} else {
+				max_num = 32768;
+			}
+			// number of interleaving blocks
+			extra_num = 0;
+			if (packet_size > 65){
+				if (packet_size == 66){	// 1 byte
+					memcpy(&extra_num, buf + offset + 65, 1);
+				} else if (packet_size == 67){	// 2 bytes
+					memcpy(&extra_num, buf + offset + 65, 2);
+				} else if (packet_size == 69){	// 4 bytes
+					memcpy(&extra_num, buf + offset + 65, 4);
+				}
+				max_num *= extra_num + 1;	// When interleaving, max count is multiplied by number of cohorts.
+			}
 			if (par3_ctx->noise_level >= 0){
-				if (find_count * 2 > hint_num){
+				if (find_count * 2 > max_num){
 					printf("You have %I64u recovery blocks available for FFT based Reed-Solomon Codes.\n", find_count);
 				} else {
-					printf("You have %I64u / %I64u recovery blocks available for FFT based Reed-Solomon Codes.\n", find_count, hint_num);
+					printf("You have %I64u / %I64u recovery blocks available for FFT based Reed-Solomon Codes.\n", find_count, max_num);
+				}
+			}
+			if (par3_ctx->noise_level >= 1){
+				if (extra_num > 0){
+					printf("Number of cohorts = %u (Interleaving = %u)\n", extra_num + 1, extra_num);
+					printf("Input block count per cohort = %I64u\n", (par3_ctx->block_count + extra_num) / (extra_num + 1));
+					printf("Max recovery block count per cohort = %I64u\n", max_num / (extra_num + 1));
 				}
 			}
 			if (find_count > find_count_max){
 				find_count_max = find_count;
 				par3_ctx->ecc_method = 8;
-				par3_ctx->max_recovery_block = hint_num;
+				par3_ctx->interleave = extra_num;
+				par3_ctx->max_recovery_block = max_num;
 				par3_ctx->matrix_packet_offset = offset;
 			}
 
@@ -470,10 +500,10 @@ uint32_t check_possible_restore(PAR3_CTX *par3_ctx)
 }
 
 // Make list of index for lost input blocks and using recovery blocks.
-int make_block_list(PAR3_CTX *par3_ctx, uint64_t lost_count)
+int make_block_list(PAR3_CTX *par3_ctx, uint64_t lost_count, uint32_t lost_count_cohort)
 {
 	uint8_t *packet_checksum;
-	int *lost_id, *recv_id;
+	int *recv_id;
 	uint64_t count, index, id;
 	PAR3_BLOCK_CTX *block_list;
 	PAR3_PKT_CTX *packet_list;
@@ -481,6 +511,14 @@ int make_block_list(PAR3_CTX *par3_ctx, uint64_t lost_count)
 	if (par3_ctx->ecc_method & 1){	// Cauchy Reed-Solomon Codes
 		// Make list of index (lost input blocks and using recovery blocks)
 		count = lost_count * 2;
+	} else if (par3_ctx->ecc_method & 8){	// FFT based Reed-Solomon Codes
+		if (par3_ctx->interleave == 0){
+			// Make list of index (using recovery blocks and position)
+			count = lost_count * 2;
+		} else {
+			// Make list of index (position only)
+			count = lost_count_cohort;
+		}
 	} else {
 		// Make list of index (using recovery blocks)
 		count = lost_count;
@@ -491,6 +529,9 @@ int make_block_list(PAR3_CTX *par3_ctx, uint64_t lost_count)
 		return RET_MEMORY_ERROR;
 	}
 	par3_ctx->recv_id_list = recv_id;
+
+	if (par3_ctx->interleave > 0)
+		return 0;
 
 	// Get checksum of using Matrix Packet
 	packet_checksum = par3_ctx->matrix_packet + par3_ctx->matrix_packet_offset + 8;
@@ -515,7 +556,7 @@ int make_block_list(PAR3_CTX *par3_ctx, uint64_t lost_count)
 	}
 
 	if (par3_ctx->ecc_method & 1){	// Cauchy Reed-Solomon Codes
-		lost_id = recv_id + lost_count;
+		int *lost_id = recv_id + lost_count;
 
 		// Set index of lost input blocks
 		block_list = par3_ctx->block_list;
@@ -536,5 +577,98 @@ int make_block_list(PAR3_CTX *par3_ctx, uint64_t lost_count)
 	}
 
 	return 0;
+}
+
+// Aggregate input blocks and recovery blocks of each cohort, and return lacking count;
+uint64_t aggregate_block_cohort(PAR3_CTX *par3_ctx, uint32_t *lost_count_cohort)
+{
+	uint8_t *packet_checksum;
+	uint32_t cohort_count, cohort_index;
+	uint32_t lack_count, lack_count_max, lack_count_min;
+	uint32_t lost_count_max, lost_count_min;
+	uint32_t recv_count_max, recv_count_min;
+	uint32_t *lost_list, *recv_list;
+	uint64_t count, index, id, lack_count_total;
+	PAR3_BLOCK_CTX *block_list;
+	PAR3_PKT_CTX *packet_list;
+
+	cohort_count = par3_ctx->interleave + 1;
+
+	// Allocate memory and zero fill
+	lost_list = (uint32_t *) calloc(cohort_count * 2, sizeof(uint32_t));
+	recv_list = lost_list + cohort_count;
+	par3_ctx->lost_list = lost_list;	// Store here to refer and release later
+
+	// Get checksum of using Matrix Packet
+	packet_checksum = par3_ctx->matrix_packet + par3_ctx->matrix_packet_offset + 8;
+
+	// Check index of using recovery blocks
+	packet_list = par3_ctx->recv_packet_list;
+	count = par3_ctx->recv_packet_count;
+	for (index = 0; index < count; index++){
+		// Search only Recovery Data Packets belong to using Matrix Packet
+		if (memcmp(packet_list[index].matrix, packet_checksum, 16) == 0){
+			id = packet_list[index].index;
+			//printf("recv_packet[%I64u] = %I64u, ", index, id);
+			id %= cohort_count;	// modulo
+			recv_list[id] += 1;
+			//printf("recv_list[%I64u] = %I64u\n", id, recv_list[id]);
+		}
+	}
+
+	// Check index of lost input blocks
+	block_list = par3_ctx->block_list;
+	count = par3_ctx->block_count;
+	for (index = 0; index < count; index++){
+		if ((block_list[index].state & (4 | 16)) == 0){
+			id = index % cohort_count;
+			lost_list[id] += 1;
+			//printf("lost block[%I64u] : lost_list[%I64u] = %u\n", index, id, lost_list[id]);
+		}
+	}
+
+	// Check each cohort
+	lack_count_total = 0;
+	lack_count_max = 0;
+	lack_count_min = UINT_MAX;
+	lost_count_max = 0;
+	lost_count_min = UINT_MAX;
+	recv_count_max = 0;
+	recv_count_min = UINT_MAX;
+	for (cohort_index = 0; cohort_index < cohort_count; cohort_index++){
+		if (lost_list[cohort_index] > recv_list[cohort_index]){
+			// If number of lost blocks is larger than number of recovery blocks, sum the value.
+			lack_count = lost_list[cohort_index] - recv_list[cohort_index];
+			lack_count_total += lack_count;
+			if (lack_count_max < lack_count)
+				lack_count_max = lack_count;
+			if (lack_count_min > lack_count)
+				lack_count_min = lack_count;
+		} else {
+			lack_count_min = 0;	// This cohort is locally repairable.
+		}
+		if (lost_count_max < lost_list[cohort_index])
+			lost_count_max = lost_list[cohort_index];
+		if (lost_count_min > lost_list[cohort_index])
+			lost_count_min = lost_list[cohort_index];
+		if (recv_count_max < recv_list[cohort_index])
+			recv_count_max = recv_list[cohort_index];
+		if (recv_count_min > recv_list[cohort_index])
+			recv_count_min = recv_list[cohort_index];
+	}
+	// Use these values at repair
+	if (lost_count_cohort != NULL)
+		*lost_count_cohort = lost_count_max;
+	if (par3_ctx->noise_level >= 1){
+		// Show min & max numbers of recovery blocks and lost input blocks among cohorts.
+		printf("Recovery block count among cohorts  = %u ~ %u\n", recv_count_min, recv_count_max);
+		printf("Lost block count among cohorts      = %u ~ %u\n", lost_count_min, lost_count_max);
+		if (lack_count_total > 0){
+			// Show numbers of required recovery blocks among cohorts.
+			printf("Required block count among cohorts  = %u ~ %u\n", lack_count_min, lack_count_max);
+		}
+	}
+
+	return lack_count_total;
 }
 
