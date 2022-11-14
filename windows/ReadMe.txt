@@ -325,7 +325,7 @@ This may be useless for random data like compressed file.
 
  To support many blocks at FFT based Reed-Solomon Codes,
 I test interleaving method.
-This isn't implemented yet.
+Though I implemented the basic mechanism, it's still under construction.
 Note, the value is ignored at Cauchy Reed-Solomon Codes.
 
 

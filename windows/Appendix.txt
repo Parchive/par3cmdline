@@ -206,7 +206,7 @@ When there is only one cohort (no interleaving), this field doesn't exist.
 ##### How to interleave blocks
 
 I explain system of interleaving here.
-The interleaver split input blocks into multiple cohorts.
+The interleaver splits input blocks into multiple cohorts.
 Number of interleaved blocks is step between cohorts.
 
 For example, there are 10 input blocks:
