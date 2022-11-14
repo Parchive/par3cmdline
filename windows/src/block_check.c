@@ -513,10 +513,10 @@ int make_block_list(PAR3_CTX *par3_ctx, uint64_t lost_count, uint32_t lost_count
 		count = lost_count * 2;
 	} else if (par3_ctx->ecc_method & 8){	// FFT based Reed-Solomon Codes
 		if (par3_ctx->interleave == 0){
-			// Make list of index (using recovery blocks and position)
-			count = lost_count * 2;
+			// Make list of index (using recovery blocks)
+			count = lost_count;
 		} else {
-			// Make list of index (position only)
+			// Make list of index (position)
 			count = lost_count_cohort;
 		}
 	} else {

@@ -435,7 +435,7 @@ int par3_repair(PAR3_CTX *par3_ctx, char *temp_path)
 				// Recover lost input blocks by spliting every block.
 				if ( (par3_ctx->ecc_method & 8) && (par3_ctx->interleave > 0) ){
 					// Interleaving is adapted only for FFT based Reed-Solomon Codes.
-					ret = recover_lost_block_cohort(par3_ctx, temp_path, block_count - block_available);
+					ret = recover_lost_block_cohort(par3_ctx, temp_path);
 				} else {
 					ret = recover_lost_block_split(par3_ctx, temp_path, block_count - block_available);
 				}

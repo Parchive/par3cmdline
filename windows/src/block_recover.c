@@ -570,7 +570,7 @@ int recover_lost_block_split(PAR3_CTX *par3_ctx, char *temp_path, uint64_t lost_
 	uint8_t buf_tail[40];
 	uint8_t *block_data, *buf_p;
 	uint8_t gf_size;
-	int galois_poly, *recv_id, *lost_id;
+	int galois_poly, *recv_id;
 	int ret;
 	int progress_old, progress_now;
 	uint32_t split_count;
@@ -608,7 +608,6 @@ int recover_lost_block_split(PAR3_CTX *par3_ctx, char *temp_path, uint64_t lost_
 	gf_table = par3_ctx->galois_table;
 	matrix = par3_ctx->matrix;
 	recv_id = par3_ctx->recv_id_list;
-	lost_id = recv_id + lost_count;
 	block_list = par3_ctx->block_list;
 	slice_list = par3_ctx->slice_list;
 	chunk_list = par3_ctx->chunk_list;
@@ -685,29 +684,24 @@ int recover_lost_block_split(PAR3_CTX *par3_ctx, char *temp_path, uint64_t lost_
 			perror("Failed to allocate memory for Leopard-RS");
 			return RET_MEMORY_ERROR;
 		}
+		recovery_data = original_data + block_count;
+		for (block_index = 0; block_index < max_recovery_block; block_index++){
+			// At first, clear position of recovery block.
+			recovery_data[block_index] = NULL;
+		}
 		buf_p = block_data;
 		lost_index = 0;
 		for (block_index = 0; block_index < block_count; block_index++){
 			if ((block_list[block_index].state & (4 | 16)) == 0){	// lost input block
 				original_data[block_index] = NULL;
-				// Using recovery blocks will be store in place of lost input blocks.
-				lost_id[lost_index] = (int)block_index;
+				// Using recovery blocks will be stored in place of lost input blocks.
+				recovery_data[ recv_id[lost_index] ] = buf_p;
 				lost_index++;
 			} else {
 				original_data[block_index] = buf_p;
 			}
 			buf_p += region_size;
 		}
-		recovery_data = original_data + block_count;
-		for (block_index = 0; block_index < max_recovery_block; block_index++){
-			// At first, clear position of recovery block.
-			recovery_data[block_index] = NULL;
-		}
-		for (lost_index = 0; lost_index < lost_count; lost_index++){
-			// Set position of lost input block = address of using recovery block
-			recovery_data[lost_index] = block_data + region_size * lost_id[lost_index];
-		}
-		buf_p = block_data + region_size * block_count;
 		work_data = recovery_data + max_recovery_block;
 		for (block_index = 0; block_index < work_count; block_index++){
 			work_data[block_index] = buf_p;
@@ -906,7 +900,7 @@ int recover_lost_block_split(PAR3_CTX *par3_ctx, char *temp_path, uint64_t lost_
 		for (lost_index = 0; lost_index < lost_count; lost_index++){
 			block_index = recv_id[lost_index];	// Index of the recovery block
 			if (par3_ctx->ecc_method & 8){	// FFT based Reed-Solomon Codes
-				buf_p = block_data + region_size * lost_id[lost_index];	// Address of the recovery block
+				buf_p = recovery_data[block_index];	// Address of the recovery block
 			}
 
 			// Search packet for the recovery block
@@ -1003,9 +997,6 @@ if (par3_ctx->ecc_method & 8){	// FFT based Reed-Solomon Codes
 	}
 	for (block_index = 0; block_index < max_recovery_block; block_index++){
 		printf("recovery_data[%2I64u] = %p\n", block_index, recovery_data[block_index]);
-	}
-	for (block_index = 0; block_index < work_count; block_index++){
-		printf("work_data[%2I64u] = %p\n", block_index, work_data[block_index]);
 	}
 }
 */
@@ -1236,7 +1227,7 @@ if (par3_ctx->ecc_method & 8){	// FFT based Reed-Solomon Codes
 // At this time, interleaving is adapted only for FFT based Reed-Solomon Codes.
 // When there are multiple cohorts, it recovers lost blocks in each cohort.
 // This keeps one cohort's all input blocks and recovery blocks partially by spliting every block.
-int recover_lost_block_cohort(PAR3_CTX *par3_ctx, char *temp_path, uint64_t lost_count)
+int recover_lost_block_cohort(PAR3_CTX *par3_ctx, char *temp_path)
 {
 	void *gf_table, *matrix;
 	char *name_prev, *file_name;
@@ -1276,8 +1267,6 @@ int recover_lost_block_cohort(PAR3_CTX *par3_ctx, char *temp_path, uint64_t lost
 	// For Leopard-RS library
 	uint32_t work_count;
 	uint8_t **original_data = NULL, **recovery_data = NULL, **work_data = NULL;
-
-	printf("\n lost_count = %I64u\n", lost_count);
 
 	file_count = par3_ctx->input_file_count;
 	block_size = par3_ctx->block_size;
@@ -1411,11 +1400,13 @@ int recover_lost_block_cohort(PAR3_CTX *par3_ctx, char *temp_path, uint64_t lost
 	// Process each cohort
 	for (cohort_index = 0; cohort_index < cohort_count; cohort_index++){
 		if (lost_list[cohort_index] > recv_list[cohort_index]){	// Cannot recover blocks in this cohort.
-			//printf("cohort[%u] : lost_count = %u, recovery_block_count = %u\n", cohort_index, lost_list[cohort_index], recv_list[cohort_index]);
+			//printf("cohort[%u] : lost = %u, recovery = %u\n", cohort_index, lost_list[cohort_index], recv_list[cohort_index]);
 			continue;
 		}
 		if (lost_list[cohort_index] == 0){	// No need to recover blocks in this cohort.
-			printf("cohort_index = %u : no lost\n", cohort_index);
+			if (par3_ctx->noise_level >= 1){
+				printf("cohort[%u] : no lost\n", cohort_index);
+			}
 
 			// Restore missing or damaged files by copying all input blocks
 			buf_p = block_data;
@@ -1521,8 +1512,11 @@ int recover_lost_block_cohort(PAR3_CTX *par3_ctx, char *temp_path, uint64_t lost
 			continue;
 		}
 
+		if (par3_ctx->noise_level >= 1){
+			printf("cohort[%u] : lost = %u, recovery = %u\n", cohort_index, lost_list[cohort_index], recv_list[cohort_index]);
+		}
 		for (split_offset = 0; split_offset < block_size; split_offset += split_size){
-			printf("cohort_index = %u, split_offset = %I64u\n", cohort_index, split_offset);
+			//printf("cohort_index = %u, split_offset = %I64u\n", cohort_index, split_offset);
 			buf_p = block_data;	// Starting position of input blocks
 			lost_index = 0;
 
@@ -1651,7 +1645,7 @@ int recover_lost_block_cohort(PAR3_CTX *par3_ctx, char *temp_path, uint64_t lost
 						memset(buf_p, 0, region_size);
 					} else {	// Set index of this lost block
 						original_data[block_index / cohort_count] = NULL;	// Erase address
-						// Using recovery blocks will be store in place of lost input blocks.
+						// Using recovery blocks will be stored in place of lost input blocks.
 						lost_id[lost_index] = (uint32_t)(block_index / cohort_count);
 						lost_index++;
 					}
