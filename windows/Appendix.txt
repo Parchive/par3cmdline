@@ -201,3 +201,81 @@ When there is only one cohort (no interleaving), this field doesn't exist.
 |    257 ~ 65536   |  256 ~ 65535 |     2 bytes   |
 |  65537 ~         | 65536 ~      |     4 bytes   |
 
+
+
+##### How to interleave blocks
+
+I explain system of interleaving here.
+The interleaver split input blocks into multiple cohorts.
+Number of interleaved blocks is step between cohorts.
+
+For example, there are 10 input blocks:
+[0][1][2][3][4][5][6][7][8][9]
+
+When it interleaves 1 block, it split blocks into 2 cohorts.
+The calculation is "index modulo 2".
+Because "3 mod 2 = 1", block[3] goes into cohort[1].
+Because "6 mod 2 = 0", block[6] goes into cohort[0].
+Then, each cohort has 5 input blocks:
+cohort[0] : [0][2][4][6][8]
+cohort[1] : [1][3][5][7][9]
+
+When it interleaves 2 blocks, it split blocks into 3 cohorts.
+The calculation is "index modulo 3".
+Because "2 mod 3 = 2", block[2] goes into cohort[2].
+Because "7 mod 3 = 1", block[7] goes into cohort[1].
+Then, each cohort has 3 ~ 4 input blocks:
+cohort[0] : [0][3][6][9]
+cohort[1] : [1][4][7]
+cohort[2] : [2][5][8]
+
+To be simple calculation, every cohort should have same number of blocks.
+When number of blocks is less than others, it gets a dummy block with all zero bytes.
+Thus, each cohort contains the same number of (input and dummy) blocks:
+cohort[0] : [0][3][6][9]
+cohort[1] : [1][4][7][ ]
+cohort[2] : [2][5][8][ ]
+
+When it interleaves 3 blocks, it split blocks into 4 cohorts.
+The calculation is "index modulo 4".
+By adding dummy blocks, each cohort has 3 blocks:
+cohort[0] : [0][4][8]
+cohort[1] : [1][5][9]
+cohort[2] : [2][6][ ]
+cohort[3] : [3][7][ ]
+
+
+
+##### How to create recovery blocks for interleaving
+
+As I expaln above, each cohort has same number of (input and dummy) blocks.
+To be simple calculation, every cohort should create same number of recovery blocks.
+Therefore, number of creating recovery blocks will be multiple of number of cohorts.
+
+For example, I create 50% (or over) redundancy for 10 input blocks.
+Without interleaving, 5 recovery blocks are made from 10 input blocks:
+input [0][1][2][3][4][5][6][7][8][9] -> recovery [0][1][2][3][4]
+
+When it interleaves 1 block, there are 2 cohorts with 5 blocks each.
+In each cohort, 3 recovery blocks are made from 5 input blocks.
+To distinguish recovery blocks of different cohorts, they have global index.
+The index of recovery block is same order as input blocks.
+In total, 6 recovery blocks are made from 10 input blocks:
+cohort[0] : input [0][2][4][6][8] -> recovery [0][2][4]
+cohort[1] : input [1][3][5][7][9] -> recovery [1][3][5]
+
+When it interleaves 2 blocks, there are 3 cohorts with 4 blocks each.
+In each cohort, 2 recovery blocks are made from 4 (input and dummy) blocks.
+In total, 6 recovery blocks are made from 10 input blocks:
+cohort[0] : input [0][3][6][9] -> recovery [0][3]
+cohort[1] : input [1][4][7][ ] -> recovery [1][4]
+cohort[2] : input [2][5][8][ ] -> recovery [2][5]
+
+When it interleaves 3 blocks, there are 4 cohorts with 3 blocks each.
+In each cohort, 2 recovery blocks are made from 3 (input and dummy) blocks.
+In total, 8 recovery blocks are made from 10 input blocks:
+cohort[0] : input [0][4][8] -> recovery [0][4]
+cohort[1] : input [1][5][9] -> recovery [1][5]
+cohort[2] : input [2][6][ ] -> recovery [2][6]
+cohort[3] : input [3][7][ ] -> recovery [3][7]
+
