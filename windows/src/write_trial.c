@@ -183,7 +183,9 @@ void calculate_digit_max(PAR3_CTX *par3_ctx,
 static void try_data_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t each_start, uint64_t each_count)
 {
 	uint8_t *common_packet;
+	uint32_t cohort_count, write_count;
 	uint64_t file_size, num;
+	uint64_t block_count, block_index, block_max;
 	size_t write_size, write_size2;
 	size_t packet_count, packet_to, packet_from;
 	size_t common_packet_size, packet_size, packet_offset;
@@ -192,6 +194,12 @@ static void try_data_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t each_st
 	block_list = par3_ctx->block_list;
 	common_packet = par3_ctx->common_packet;
 	common_packet_size = par3_ctx->common_packet_size;
+
+	// Set count for each cohort
+	if (par3_ctx->interleave > 0){
+		block_count = par3_ctx->block_count;
+		cohort_count = par3_ctx->interleave + 1;
+	}
 
 	// How many repetition of common packet.
 	packet_count = 0;	// reduce 1, because put 1st copy at first.
@@ -214,10 +222,28 @@ static void try_data_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t each_st
 	packet_offset = 0;
 	for (num = each_start; num < each_start + each_count; num++){
 		// data size in the block
-		write_size = block_list[num].size;
+		if (par3_ctx->interleave == 0){
+			write_size = block_list[num].size;
+			write_count = 1;
+		} else {	// Write multiple blocks at interleaving
+			write_size = 0;
+			write_count = cohort_count;
+			block_index = num * cohort_count;	// Starting index of the block
+			block_max = block_index + cohort_count;	// How many blocks in the volume
+			if (block_max > block_count){
+				block_max = block_count;
+				write_count = (uint32_t)(block_max - block_index);
+			}
+			//printf("block_index = %I64u, block_max = %I64u\n", block_index, block_max);
+			while (block_index < block_max){
+				write_size += block_list[block_index].size;
+				block_index++;
+			}
+		}
+		//printf("write_size = %zu, write_count = %u\n", write_size, write_count);
 
 		// Write packet header and data on file.
-		file_size += 48 + 8;
+		file_size += (48 + 8) * write_count;
 		file_size += write_size;
 
 		// How many common packets to write here.
@@ -279,6 +305,11 @@ int try_archive_file(PAR3_CTX *par3_ctx)
 		return 0;
 	recovery_file_scheme = par3_ctx->recovery_file_scheme;
 	file_count = par3_ctx->recovery_file_count;
+
+	// Set count for each cohort
+	if (par3_ctx->interleave > 0){
+		block_count = (block_count + par3_ctx->interleave) / (par3_ctx->interleave + 1);	// round up
+	}
 
 	// Remove the last ".par3" from base PAR3 filename.
 	strcpy(filename, par3_ctx->par_filename);

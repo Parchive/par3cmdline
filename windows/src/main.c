@@ -239,44 +239,68 @@ int main(int argc, char *argv[])
 			} else if (strcmp(tmp_p, "qq") == 0){
 				par3_ctx->noise_level -= 2;
 
-			} else if ( (tmp_p[0] == 'm') && (tmp_p[1] >= '1') && (tmp_p[1] <= '9') ){	// Set the memory limit
+			} else if ( (tmp_p[0] == 'm') && (tmp_p[1] >= '0') && (tmp_p[1] <= '9') ){	// Set the memory limit
 				if (par3_ctx->memory_limit > 0){
 					printf("Cannot specify memory limit twice.\n");
+					ret = RET_INVALID_COMMAND;
+					goto prepare_return;
 				} else {
 					par3_ctx->memory_limit = strtoull(tmp_p + 1, NULL, 10);
 					par3_ctx->memory_limit *= 1048576;	// MB
 				}
 
-			} else if ( (tmp_p[0] == 'S') && (tmp_p[1] >= '1') && (tmp_p[1] <= '9') ){	// Set searching time limit
+			} else if ( (tmp_p[0] == 'S') && (tmp_p[1] >= '0') && (tmp_p[1] <= '9') ){	// Set searching time limit
 				if ( (command_operation != 'v') && (command_operation != 'r') ){
 					printf("Cannot specify searching time limit unless reparing or verifying.\n");
+					ret = RET_INVALID_COMMAND;
+					goto prepare_return;
 				} else if (par3_ctx->search_limit > 0){
 					printf("Cannot specify searching time limit twice.\n");
+					ret = RET_INVALID_COMMAND;
+					goto prepare_return;
 				} else {
 					par3_ctx->search_limit = strtoul(tmp_p + 1, NULL, 10);
 				}
 
 			} else if ( (tmp_p[0] == 'B') && (tmp_p[1] != 0) ){	// Set the base-path manually
-				path_copy(par3_ctx->base_path, tmp_p + 1, _MAX_DIR - 32);
+				if (par3_ctx->base_path[0] != 0){
+					printf("Cannot specify base-path twice.\n");
+					ret = RET_INVALID_COMMAND;
+					goto prepare_return;
+				} else {
+					path_copy(par3_ctx->base_path, tmp_p + 1, _MAX_DIR - 32);
+				}
 
-			} else if ( (tmp_p[0] == 'b') && (tmp_p[1] >= '1') && (tmp_p[1] <= '9') ){	// Set the block count
+			} else if ( (tmp_p[0] == 'b') && (tmp_p[1] >= '0') && (tmp_p[1] <= '9') ){	// Set the block count
 				if ( (command_operation != 'c') && (command_operation != 't') ){
 					printf("Cannot specify block count unless creating.\n");
+					ret = RET_INVALID_COMMAND;
+					goto prepare_return;
 				} else if (par3_ctx->block_count > 0){
 					printf("Cannot specify block count twice.\n");
+					ret = RET_INVALID_COMMAND;
+					goto prepare_return;
 				} else if (par3_ctx->block_size > 0){
 					printf("Cannot specify both block count and block size.\n");
+					ret = RET_INVALID_COMMAND;
+					goto prepare_return;
 				} else {
 					par3_ctx->block_count = strtoull(tmp_p + 1, NULL, 10);
 				}
 
-			} else if ( (tmp_p[0] == 's') && (tmp_p[1] >= '1') && (tmp_p[1] <= '9') ){	// Set the block size
+			} else if ( (tmp_p[0] == 's') && (tmp_p[1] >= '0') && (tmp_p[1] <= '9') ){	// Set the block size
 				if ( (command_operation != 'c') && (command_operation != 't') ){
 					printf("Cannot specify block size unless creating.\n");
+					ret = RET_INVALID_COMMAND;
+					goto prepare_return;
 				} else if (par3_ctx->block_size > 0){
 					printf("Cannot specify block size twice.\n");
+					ret = RET_INVALID_COMMAND;
+					goto prepare_return;
 				} else if (par3_ctx->block_count > 0){
 					printf("Cannot specify both block count and block size.\n");
+					ret = RET_INVALID_COMMAND;
+					goto prepare_return;
 				} else {
 					par3_ctx->block_size = strtoull(tmp_p + 1, NULL, 10);
 				}
@@ -284,10 +308,16 @@ int main(int argc, char *argv[])
 			} else if ( (tmp_p[0] == 'r') && (tmp_p[1] >= '0') && (tmp_p[1] <= '9') ){	// Set the amount of redundancy required
 				if ( (command_operation != 'c') && (command_operation != 't') ){
 					printf("Cannot specify redundancy unless creating.\n");
+					ret = RET_INVALID_COMMAND;
+					goto prepare_return;
 				} else if (par3_ctx->redundancy_size > 0){
 					printf("Cannot specify redundancy twice.\n");
+					ret = RET_INVALID_COMMAND;
+					goto prepare_return;
 				} else if (par3_ctx->recovery_block_count > 0){
 					printf("Cannot specify both redundancy and recovery block count.\n");
+					ret = RET_INVALID_COMMAND;
+					goto prepare_return;
 				} else {
 					par3_ctx->redundancy_size = strtoul(tmp_p + 1, NULL, 10);
 					if (par3_ctx->redundancy_size > 250){
@@ -296,13 +326,19 @@ int main(int argc, char *argv[])
 					}
 				}
 
-			} else if ( (tmp_p[0] == 'r') && (tmp_p[1] == 'm') && (tmp_p[2] >= '1') && (tmp_p[2] <= '9') ){	// Specify the Max recovery block count
+			} else if ( (tmp_p[0] == 'r') && (tmp_p[1] == 'm') && (tmp_p[2] >= '0') && (tmp_p[2] <= '9') ){	// Specify the Max recovery block count
 				if ( (command_operation != 'c') && (command_operation != 't') ){
 					printf("Cannot specify max redundancy unless creating.\n");
+					ret = RET_INVALID_COMMAND;
+					goto prepare_return;
 				} else if (par3_ctx->max_redundancy_size > 0){
 					printf("Cannot specify max redundancy twice.\n");
+					ret = RET_INVALID_COMMAND;
+					goto prepare_return;
 				} else if (par3_ctx->max_recovery_block > 0){
 					printf("Cannot specify both max redundancy and recovery block count.\n");
+					ret = RET_INVALID_COMMAND;
+					goto prepare_return;
 				} else {
 					par3_ctx->max_redundancy_size = strtoul(tmp_p + 2, NULL, 10);
 					if (par3_ctx->max_redundancy_size > 250){
@@ -311,13 +347,19 @@ int main(int argc, char *argv[])
 					}
 				}
 
-			} else if ( (tmp_p[0] == 'c') && (tmp_p[1] >= '1') && (tmp_p[1] <= '9') ){	// Set the number of recovery blocks to create
+			} else if ( (tmp_p[0] == 'c') && (tmp_p[1] >= '0') && (tmp_p[1] <= '9') ){	// Set the number of recovery blocks to create
 				if ( (command_operation != 'c') && (command_operation != 't') ){
 					printf("Cannot specify recovery block count unless creating.\n");
+					ret = RET_INVALID_COMMAND;
+					goto prepare_return;
 				} else if (par3_ctx->recovery_block_count > 0){
 					printf("Cannot specify recovery block count twice.\n");
+					ret = RET_INVALID_COMMAND;
+					goto prepare_return;
 				} else if (par3_ctx->redundancy_size > 0){
 					printf("Cannot specify both recovery block count and redundancy.\n");
+					ret = RET_INVALID_COMMAND;
+					goto prepare_return;
 				} else {
 					par3_ctx->recovery_block_count = strtoull(tmp_p + 1, NULL, 10);
 				}
@@ -330,8 +372,12 @@ int main(int argc, char *argv[])
 			} else if ( (tmp_p[0] == 'c') && (tmp_p[1] == 'f') && (tmp_p[2] >= '0') && (tmp_p[2] <= '9') ){	// Specify the First block recovery number
 				if ( (command_operation != 'c') && (command_operation != 't') ){
 					printf("Cannot specify first block number unless creating.\n");
+					ret = RET_INVALID_COMMAND;
+					goto prepare_return;
 				} else if (par3_ctx->first_recovery_block > 0){
 					printf("Cannot specify first block twice.\n");
+					ret = RET_INVALID_COMMAND;
+					goto prepare_return;
 				} else {
 					par3_ctx->first_recovery_block = strtoull(tmp_p + 2, NULL, 10);
 /*
@@ -344,11 +390,15 @@ int main(int argc, char *argv[])
 */
 				}
 
-			} else if ( (tmp_p[0] == 'c') && (tmp_p[1] == 'm') && (tmp_p[2] >= '1') && (tmp_p[2] <= '9') ){	// Specify the Max recovery block count
+			} else if ( (tmp_p[0] == 'c') && (tmp_p[1] == 'm') && (tmp_p[2] >= '0') && (tmp_p[2] <= '9') ){	// Specify the Max recovery block count
 				if ( (command_operation != 'c') && (command_operation != 't') ){
 					printf("Cannot specify max recovery block count unless creating.\n");
+					ret = RET_INVALID_COMMAND;
+					goto prepare_return;
 				} else if (par3_ctx->max_recovery_block > 0){
 					printf("Cannot specify max recovery block count twice.\n");
+					ret = RET_INVALID_COMMAND;
+					goto prepare_return;
 				} else {
 					par3_ctx->max_recovery_block = strtoull(tmp_p + 2, NULL, 10);
 				}
@@ -356,8 +406,12 @@ int main(int argc, char *argv[])
 			} else if (strcmp(tmp_p, "u") == 0){	// Specify uniformly sized recovery files
 				if ( (command_operation != 'c') && (command_operation != 't') ){
 					printf("Cannot specify uniform files unless creating.\n");
+					ret = RET_INVALID_COMMAND;
+					goto prepare_return;
 				} else if (par3_ctx->recovery_file_scheme != 0){
 					printf("Cannot specify two recovery file size schemes.\n");
+					ret = RET_INVALID_COMMAND;
+					goto prepare_return;
 				} else {
 					par3_ctx->recovery_file_scheme = 'u';
 /*
@@ -371,21 +425,33 @@ int main(int argc, char *argv[])
 			} else if (strcmp(tmp_p, "l") == 0){	// Limit the size of the recovery files
 				if ( (command_operation != 'c') && (command_operation != 't') ){
 					printf("Cannot specify limit files unless creating.\n");
+					ret = RET_INVALID_COMMAND;
+					goto prepare_return;
 				} else if (par3_ctx->recovery_file_scheme != 0){
 					printf("Cannot specify two recovery file size schemes.\n");
+					ret = RET_INVALID_COMMAND;
+					goto prepare_return;
 				} else if (par3_ctx->recovery_file_count > 0){
 					printf("Cannot specify limited size and number of files at the same time.\n");
+					ret = RET_INVALID_COMMAND;
+					goto prepare_return;
 				} else {
 					par3_ctx->recovery_file_scheme = 'l';
 				}
 
-			} else if ( (tmp_p[0] == 'n') && (tmp_p[1] >= '1') && (tmp_p[1] <= '9') ){	// Specify the number of recovery files
+			} else if ( (tmp_p[0] == 'n') && (tmp_p[1] >= '0') && (tmp_p[1] <= '9') ){	// Specify the number of recovery files
 				if ( (command_operation != 'c') && (command_operation != 't') ){
 					printf("Cannot specify recovery file count unless creating.\n");
+					ret = RET_INVALID_COMMAND;
+					goto prepare_return;
 				} else if (par3_ctx->recovery_file_count > 0){
 					printf("Cannot specify recovery file count twice.\n");
+					ret = RET_INVALID_COMMAND;
+					goto prepare_return;
 				} else if (par3_ctx->recovery_file_scheme == 'l'){
 					printf("Cannot specify limited size and number of files at the same time.\n");
+					ret = RET_INVALID_COMMAND;
+					goto prepare_return;
 				} else {
 					par3_ctx->recovery_file_count = strtoul(tmp_p + 1, NULL, 10);
 				}
@@ -393,6 +459,8 @@ int main(int argc, char *argv[])
 			} else if (strcmp(tmp_p, "R") == 0){	// Enable recursive search
 				if ( (command_operation != 'c') && (command_operation != 't') ){
 					printf("Cannot specify Recursive unless creating.\n");
+					ret = RET_INVALID_COMMAND;
+					goto prepare_return;
 				} else {
 					command_recursive = 'R';
 				}
@@ -400,15 +468,21 @@ int main(int argc, char *argv[])
 			} else if (strcmp(tmp_p, "D") == 0){	// Store Data packets
 				if ( (command_operation != 'c') && (command_operation != 't') ){
 					printf("Cannot specify Data packet unless creating.\n");
+					ret = RET_INVALID_COMMAND;
+					goto prepare_return;
 				} else {
 					par3_ctx->data_packet = 'D';
 				}
 
-			} else if ( (tmp_p[0] == 'd') && (tmp_p[1] >= '1') && (tmp_p[1] <= '2') ){	// Enable deduplication
+			} else if ( (tmp_p[0] == 'd') && (tmp_p[1] >= '0') && (tmp_p[1] <= '2') ){	// Enable deduplication
 				if ( (command_operation != 'c') && (command_operation != 't') ){
 					printf("Cannot specify deduplication unless creating.\n");
+					ret = RET_INVALID_COMMAND;
+					goto prepare_return;
 				} else if (par3_ctx->deduplication != 0){
 					printf("Cannot specify deduplication twice.\n");
+					ret = RET_INVALID_COMMAND;
+					goto prepare_return;
 				} else {
 					par3_ctx->deduplication = tmp_p[1];
 					if (add_creator_text(par3_ctx, tmp_p - 1) != 0){
@@ -417,11 +491,15 @@ int main(int argc, char *argv[])
 					}
 				}
 
-			} else if ( (tmp_p[0] == 'e') && (tmp_p[1] >= '1') && (tmp_p[1] <= '9') ){	// Error Correction Codes
+			} else if ( (tmp_p[0] == 'e') && (tmp_p[1] >= '0') && (tmp_p[1] <= '9') ){	// Error Correction Codes
 				if ( (command_operation != 'c') && (command_operation != 't') ){
 					printf("Cannot specify Error Correction Codes unless creating.\n");
+					ret = RET_INVALID_COMMAND;
+					goto prepare_return;
 				} else if (par3_ctx->ecc_method != 0){
 					printf("Cannot specify Error Correction Codes twice.\n");
+					ret = RET_INVALID_COMMAND;
+					goto prepare_return;
 				} else {
 					par3_ctx->ecc_method = strtoul(tmp_p + 1, NULL, 10);
 					if (popcount32(par3_ctx->ecc_method) > 1){
@@ -430,11 +508,15 @@ int main(int argc, char *argv[])
 					}
 				}
 
-			} else if ( (tmp_p[0] == 'i') && (tmp_p[1] >= '1') && (tmp_p[1] <= '9') ){	// Interleaving
+			} else if ( (tmp_p[0] == 'i') && (tmp_p[1] >= '0') && (tmp_p[1] <= '9') ){	// Interleaving
 				if ( (command_operation != 'c') && (command_operation != 't') ){
 					printf("Cannot specify interleaving unless creating.\n");
+					ret = RET_INVALID_COMMAND;
+					goto prepare_return;
 				} else if (par3_ctx->interleave != 0){
 					printf("Cannot specify interleaving twice.\n");
+					ret = RET_INVALID_COMMAND;
+					goto prepare_return;
 				} else {
 					par3_ctx->interleave = strtoul(tmp_p + 1, NULL, 10);
 /*
@@ -448,9 +530,11 @@ int main(int argc, char *argv[])
 				}
 
 			} else if ( (tmp_p[0] == 'f') && (tmp_p[1] == 'u')
-					&& ( (tmp_p[2] == 0) || ( (tmp_p[2] >= '1') && (tmp_p[2] <= '9') ) ) ){	// UNIX Permissions Packet
+					&& ( (tmp_p[2] == 0) || ( (tmp_p[2] >= '0') && (tmp_p[2] <= '9') ) ) ){	// UNIX Permissions Packet
 				if ((par3_ctx->file_system & 7) != 0){
 					printf("Cannot specify UNIX Permissions Packet twice.\n");
+					ret = RET_INVALID_COMMAND;
+					goto prepare_return;
 				} else {
 					if (tmp_p[2] == 0){
 						ret = 7;	// 1 = mtime, 2 = i_mode, 4 = directory
@@ -469,6 +553,8 @@ int main(int argc, char *argv[])
 			} else if (strcmp(tmp_p, "ff") == 0){	// FAT Permissions Packet
 				if ((par3_ctx->file_system & 0x10000) != 0){
 					printf("Cannot specify FAT Permissions Packet twice.\n");
+					ret = RET_INVALID_COMMAND;
+					goto prepare_return;
 				} else {
 					par3_ctx->file_system |= 0x10000;
 					if ( (command_operation == 'c') || (command_operation == 't') ){	// Only creating time
@@ -486,10 +572,16 @@ int main(int argc, char *argv[])
 				}
 
 			} else if ( (strcmp(tmp_p, "abs") == 0) || (strcmp(tmp_p, "ABS") == 0) ){	// Enable absolute path
-				if (tmp_p[0] == 'A'){
-					par3_ctx->absolute_path = 'A';
+				if (par3_ctx->absolute_path != 0){
+					printf("Cannot enable absolute path twice.\n");
+					ret = RET_INVALID_COMMAND;
+					goto prepare_return;
 				} else {
-					par3_ctx->absolute_path = 'a';
+					if (tmp_p[0] == 'A'){
+						par3_ctx->absolute_path = 'A';
+					} else {
+						par3_ctx->absolute_path = 'a';
+					}
 				}
 
 			} else {

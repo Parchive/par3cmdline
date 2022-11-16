@@ -941,8 +941,15 @@ int create_recovery_block_cohort(PAR3_CTX *par3_ctx)
 	fp = NULL;
 	// Process each cohort
 	for (cohort_index = 0; cohort_index < cohort_count; cohort_index++){
+		if (par3_ctx->noise_level >= 1){
+			split_count = 0;
+			split_offset = block_count % cohort_count;
+			if ( (split_offset > 0) && (cohort_index >= split_offset) )
+				split_count++;
+			printf("cohort[%u] : dummy = %u, recovery = %I64u\n", cohort_index, split_count, recovery_block_count2);
+		}
 		for (split_offset = 0; split_offset < block_size; split_offset += split_size){
-			printf("cohort_index = %u, split_offset = %I64u\n", cohort_index, split_offset);
+			//printf("cohort_index = %u, split_offset = %I64u\n", cohort_index, split_offset);
 			buf_p = block_data;	// Starting position of input blocks
 			file_prev = 0xFFFFFFFF;
 
@@ -1279,7 +1286,7 @@ fclose(fp2);
 	}
 
 	if (par3_ctx->noise_level >= 0){
-		//printf("\nprogress = %I64u / %I64u\n", progress_step, progress_total);
+		printf("\nprogress = %I64u / %I64u\n", progress_step, progress_total);
 		clock_now = clock() - clock_now;
 		printf("done in %.1f seconds.\n", (double)clock_now / CLOCKS_PER_SEC);
 		printf("\n");
