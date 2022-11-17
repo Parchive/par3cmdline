@@ -14,7 +14,7 @@ int substitute_input_block(PAR3_CTX *par3_ctx);
 int find_identical_block(PAR3_CTX *par3_ctx);
 uint64_t aggregate_input_block(PAR3_CTX *par3_ctx);
 uint64_t aggregate_recovery_block(PAR3_CTX *par3_ctx);
-uint64_t aggregate_block_cohort(PAR3_CTX *par3_ctx, uint32_t *lost_count_cohort);
+uint64_t aggregate_block_cohort(PAR3_CTX *par3_ctx, uint32_t *lost_count_cohort, uint32_t *lack_count_cohort);
 uint32_t check_possible_restore(PAR3_CTX *par3_ctx);
 
 

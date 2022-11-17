@@ -47,7 +47,7 @@ int par3_verify(PAR3_CTX *par3_ctx)
 	int ret;
 	uint32_t missing_dir_count, bad_dir_count;
 	uint32_t missing_file_count, damaged_file_count, misnamed_file_count, bad_file_count;
-	uint32_t possible_count;
+	uint32_t possible_count, lack_count_cohort;
 	uint64_t block_count, block_available;
 	uint64_t recovery_block_available, recovery_block_lack;
 
@@ -177,7 +177,7 @@ int par3_verify(PAR3_CTX *par3_ctx)
 			recovery_block_lack = block_count - block_available - recovery_block_available;
 		}
 	} else {
-		recovery_block_lack = aggregate_block_cohort(par3_ctx, NULL);
+		recovery_block_lack = aggregate_block_cohort(par3_ctx, NULL, &lack_count_cohort);
 	}
 	if (recovery_block_lack == 0){
 		if (par3_ctx->noise_level >= -1){
@@ -203,7 +203,11 @@ int par3_verify(PAR3_CTX *par3_ctx)
 			} else {
 				printf("Repair is not possible.\n");
 			}
-			printf("You need %I64u more recovery blocks to be able to repair.\n", recovery_block_lack);
+			if (par3_ctx->interleave == 0){
+				printf("You need %I64u more recovery blocks to be able to repair.\n", recovery_block_lack);
+			} else {
+				printf("You need %I64u more recovery blocks (%u volumes) to be able to repair.\n", recovery_block_lack, lack_count_cohort);
+			}
 		}
 		return RET_REPAIR_NOT_POSSIBLE;
 	}
@@ -214,7 +218,7 @@ int par3_repair(PAR3_CTX *par3_ctx, char *temp_path)
 	int ret;
 	uint32_t missing_dir_count, bad_dir_count;
 	uint32_t missing_file_count, damaged_file_count, misnamed_file_count, bad_file_count;
-	uint32_t possible_count, lost_count_cohort;
+	uint32_t possible_count, lost_count_cohort, lack_count_cohort;
 	uint64_t block_count, block_available;
 	uint64_t recovery_block_available, recovery_block_lack;
 
@@ -345,7 +349,7 @@ int par3_repair(PAR3_CTX *par3_ctx, char *temp_path)
 		}
 		lost_count_cohort = (uint32_t)(block_count - block_available);
 	} else {
-		recovery_block_lack = aggregate_block_cohort(par3_ctx, &lost_count_cohort);
+		recovery_block_lack = aggregate_block_cohort(par3_ctx, &lost_count_cohort, &lack_count_cohort);
 	}
 	if (recovery_block_lack == 0){
 		if (par3_ctx->noise_level >= -1){
@@ -370,7 +374,11 @@ int par3_repair(PAR3_CTX *par3_ctx, char *temp_path)
 			} else {
 				printf("Repair is not possible.\n");
 			}
-			printf("You need %I64u more recovery blocks to be able to repair.\n", recovery_block_lack);
+			if (par3_ctx->interleave == 0){
+				printf("You need %I64u more recovery blocks to be able to repair.\n", recovery_block_lack);
+			} else {
+				printf("You need %I64u more recovery blocks (%u volumes) to be able to repair.\n", recovery_block_lack, lack_count_cohort);
+			}
 		}
 		if (missing_dir_count + bad_dir_count + possible_count == 0){
 			// When repair is impossible at all, end here.

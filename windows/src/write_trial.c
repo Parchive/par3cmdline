@@ -306,11 +306,6 @@ int try_archive_file(PAR3_CTX *par3_ctx)
 	recovery_file_scheme = par3_ctx->recovery_file_scheme;
 	file_count = par3_ctx->recovery_file_count;
 
-	// Set count for each cohort
-	if (par3_ctx->interleave > 0){
-		block_count = (block_count + par3_ctx->interleave) / (par3_ctx->interleave + 1);	// round up
-	}
-
 	// Remove the last ".par3" from base PAR3 filename.
 	strcpy(filename, par3_ctx->par_filename);
 	len = strlen(filename);
@@ -318,6 +313,11 @@ int try_archive_file(PAR3_CTX *par3_ctx)
 		len -= 5;
 		filename[len] = 0;
 		//printf("len = %zu, base name = %s\n", len, filename);
+	}
+
+	// Set count for each cohort
+	if (par3_ctx->interleave > 0){
+		block_count = (block_count + par3_ctx->interleave) / (par3_ctx->interleave + 1);	// round up
 	}
 
 	// Calculate block count and digits max.
@@ -380,6 +380,7 @@ int try_archive_file(PAR3_CTX *par3_ctx)
 static void try_recovery_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t each_start, uint64_t each_count)
 {
 	uint8_t *common_packet;
+	uint32_t cohort_count;
 	uint64_t file_size, block_size, num;
 	size_t write_size, write_size2;
 	size_t packet_count, packet_to, packet_from;
@@ -388,6 +389,7 @@ static void try_recovery_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t eac
 	block_size = par3_ctx->block_size;
 	common_packet = par3_ctx->common_packet;
 	common_packet_size = par3_ctx->common_packet_size;
+	cohort_count = par3_ctx->interleave + 1;
 
 	// How many repetition of common packet.
 	packet_count = 0;	// reduce 1, because put 1st copy at first.
@@ -411,8 +413,8 @@ static void try_recovery_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t eac
 	for (num = each_start; num < each_start + each_count; num++){
 		// Write packet header and dummy data on file.
 		// It will write recovery block later.
-		file_size += 48 + 40;
-		file_size += block_size;
+		file_size += (48 + 40) * cohort_count;
+		file_size += block_size * cohort_count;
 
 		// How many common packets to write here.
 		write_size = 0;
@@ -482,6 +484,11 @@ int try_recovery_file(PAR3_CTX *par3_ctx)
 		len -= 5;
 		filename[len] = 0;
 		//printf("len = %zu, base name = %s\n", len, filename);
+	}
+
+	// Set count for each cohort
+	if (par3_ctx->interleave > 0){
+		block_count = (block_count + par3_ctx->interleave) / (par3_ctx->interleave + 1);	// round up
 	}
 
 	// Calculate block count and digits max.
@@ -570,6 +577,11 @@ void remove_recovery_file(PAR3_CTX *par3_ctx)
 		len -= 5;
 		filename[len] = 0;
 		//printf("len = %zu, base name = %s\n", len, filename);
+	}
+
+	// Set count for each cohort
+	if (par3_ctx->interleave > 0){
+		block_count = (block_count + par3_ctx->interleave) / (par3_ctx->interleave + 1);	// round up
 	}
 
 	// Calculate block count and digits max.

@@ -354,10 +354,11 @@ uint64_t aggregate_recovery_block(PAR3_CTX *par3_ctx)
 			// hint for number of recovery blocks
 			memcpy(&hint_num, buf + offset + 64, 8);
 			if (par3_ctx->noise_level >= 0){
-				if (hint_num == 0){
-					printf("You have %I64u recovery blocks available for Cauchy Reed-Solomon Codes.\n", find_count);
-				} else {
-					printf("You have %I64u / %I64u recovery blocks available for Cauchy Reed-Solomon Codes.\n", find_count, hint_num);
+				printf("You have %I64u recovery blocks available for Cauchy Reed-Solomon Codes.\n", find_count);
+			}
+			if (par3_ctx->noise_level >= 1){
+				if (hint_num > 0){
+					printf("Number of recovery blocks would be %I64u\n", hint_num);
 				}
 			}
 			if (find_count > find_count_max){
@@ -399,13 +400,10 @@ uint64_t aggregate_recovery_block(PAR3_CTX *par3_ctx)
 				max_num *= extra_num + 1;	// When interleaving, max count is multiplied by number of cohorts.
 			}
 			if (par3_ctx->noise_level >= 0){
-				if (find_count * 2 > max_num){
-					printf("You have %I64u recovery blocks available for FFT based Reed-Solomon Codes.\n", find_count);
-				} else {
-					printf("You have %I64u / %I64u recovery blocks available for FFT based Reed-Solomon Codes.\n", find_count, max_num);
-				}
+				printf("You have %I64u recovery blocks available for FFT based Reed-Solomon Codes.\n", find_count);
 			}
 			if (par3_ctx->noise_level >= 1){
+				printf("Max recovery block count = %I64u\n", max_num);
 				if (extra_num > 0){
 					printf("Number of cohorts = %u (Interleaving = %u)\n", extra_num + 1, extra_num);
 					printf("Input block count per cohort = %I64u\n", (par3_ctx->block_count + extra_num) / (extra_num + 1));
@@ -580,7 +578,7 @@ int make_block_list(PAR3_CTX *par3_ctx, uint64_t lost_count, uint32_t lost_count
 }
 
 // Aggregate input blocks and recovery blocks of each cohort, and return lacking count;
-uint64_t aggregate_block_cohort(PAR3_CTX *par3_ctx, uint32_t *lost_count_cohort)
+uint64_t aggregate_block_cohort(PAR3_CTX *par3_ctx, uint32_t *lost_count_cohort, uint32_t *lack_count_cohort)
 {
 	uint8_t *packet_checksum;
 	uint32_t cohort_count, cohort_index;
@@ -659,6 +657,8 @@ uint64_t aggregate_block_cohort(PAR3_CTX *par3_ctx, uint32_t *lost_count_cohort)
 	// Use these values at repair
 	if (lost_count_cohort != NULL)
 		*lost_count_cohort = lost_count_max;
+	if (lack_count_cohort != NULL)
+		*lack_count_cohort = lack_count_max;
 	if (par3_ctx->noise_level >= 1){
 		// Show min & max numbers of recovery blocks and lost input blocks among cohorts.
 		printf("Recovery block count among cohorts  = %u ~ %u\n", recv_count_min, recv_count_max);

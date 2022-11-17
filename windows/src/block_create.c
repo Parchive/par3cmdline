@@ -777,7 +777,8 @@ fclose(fp2);
 	}
 
 	if (par3_ctx->noise_level >= 0){
-		//printf("\nprogress = %I64u / %I64u\n", progress_step, progress_total);
+		if (progress_step < progress_total)
+			printf("Didn't finish progress. %I64u / %I64u\n", progress_step, progress_total);
 		clock_now = clock() - clock_now;
 		printf("done in %.1f seconds.\n", (double)clock_now / CLOCKS_PER_SEC);
 		printf("\n");
@@ -1286,7 +1287,8 @@ fclose(fp2);
 	}
 
 	if (par3_ctx->noise_level >= 0){
-		printf("\nprogress = %I64u / %I64u\n", progress_step, progress_total);
+		if (progress_step < progress_total)
+			printf("Didn't finish progress. %I64u / %I64u\n", progress_step, progress_total);
 		clock_now = clock() - clock_now;
 		printf("done in %.1f seconds.\n", (double)clock_now / CLOCKS_PER_SEC);
 		printf("\n");

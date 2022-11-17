@@ -1208,7 +1208,8 @@ if (par3_ctx->ecc_method & 8){	// FFT based Reed-Solomon Codes
 	}
 
 	if (par3_ctx->noise_level >= 0){
-		//printf("\nprogress = %I64u / %I64u\n", progress_step, progress_total);
+		if (progress_step < progress_total)
+			printf("Didn't finish progress. %I64u / %I64u\n", progress_step, progress_total);
 		clock_now = clock() - clock_now;
 		printf("done in %.1f seconds.\n", (double)clock_now / CLOCKS_PER_SEC);
 	}
@@ -1291,9 +1292,9 @@ int recover_lost_block_cohort(PAR3_CTX *par3_ctx, char *temp_path)
 	lost_list = par3_ctx->lost_list;	// This was set at aggregate_block_cohort().
 	recv_list = lost_list + cohort_count;
 	printf("cohort_count = %u, block_count2 = %I64u, max_recovery_block2 = %I64u\n", cohort_count, block_count2, max_recovery_block2);
-	for (cohort_index = 0; cohort_index < cohort_count; cohort_index++){
-		printf("lost_count2 = %u, recovery_block_count2 = %u\n", lost_list[cohort_index], recv_list[cohort_index]);
-	}
+	//for (cohort_index = 0; cohort_index < cohort_count; cohort_index++){
+	//	printf("lost_count2 = %u, recovery_block_count2 = %u\n", lost_list[cohort_index], recv_list[cohort_index]);
+	//}
 
 	// Set required memory size at first
 	ret = leo_init();	// Initialize Leopard-RS library.
@@ -2024,7 +2025,8 @@ printf("\n recover ok, progress = %I64u / %I64u\n", progress_step, progress_tota
 	}
 
 	if (par3_ctx->noise_level >= 0){
-		printf("\nprogress = %I64u / %I64u\n", progress_step, progress_total);
+		if (progress_step < progress_total)
+			printf("Didn't finish progress. %I64u / %I64u\n", progress_step, progress_total);
 		clock_now = clock() - clock_now;
 		printf("done in %.1f seconds.\n", (double)clock_now / CLOCKS_PER_SEC);
 	}
