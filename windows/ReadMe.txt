@@ -25,6 +25,7 @@ some options or behavior or output text may be different.
 There is basic feature only.
 Some commands and options are useless.
 There may be some mistake or failure.
+If it looks like freeze, push Ctrl+C key to cancel the task.
 
  It can create Index File and Archive Files.
 Index File includes all types of packets without duplication.
@@ -38,7 +39,6 @@ I test FFT based Reed-Solomon Codes by Leopard-RS library.
 
 It doesn't use maultiple Recovery Codes at once.
 It doesn't support "PAR inside" feature yet.
-
 
 
 
