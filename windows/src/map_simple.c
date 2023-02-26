@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #include "blake3/blake3.h"
 #include "libpar3.h"
@@ -16,16 +17,20 @@
 int map_input_block_simple(PAR3_CTX *par3_ctx)
 {
 	uint8_t *work_buf, buf_tail[40];
+	int progress_old, progress_now;
 	uint32_t num, num_pack;
 	uint32_t input_file_count, chunk_index;
 	uint64_t block_size, tail_size, file_offset, tail_offset;
 	uint64_t block_count, block_index, slice_index, index;
+	uint64_t progress_total, progress_step;
 	PAR3_FILE_CTX *file_p;
 	PAR3_CHUNK_CTX *chunk_p;
 	PAR3_SLICE_CTX *slice_p, *slice_list;
 	PAR3_BLOCK_CTX *block_p, *block_list;
 	FILE *fp;
 	blake3_hasher hasher;
+	time_t time_old, time_now;
+	clock_t clock_now;
 
 	// Copy variables from context to local.
 	input_file_count = par3_ctx->input_file_count;
@@ -69,6 +74,15 @@ int map_input_block_simple(PAR3_CTX *par3_ctx)
 	}
 	par3_ctx->work_buf = work_buf;
 
+	if (par3_ctx->noise_level >= 0){
+		printf("Computing hash:\n");
+		progress_total = par3_ctx->total_file_size;
+		progress_step = 0;
+		progress_old = 0;
+		time_old = time(NULL);
+		clock_now = clock();
+	}
+
 	// Read data of input files on memory
 	num_pack = 0;
 	chunk_index = 0;
@@ -106,6 +120,20 @@ int map_input_block_simple(PAR3_CTX *par3_ctx)
 				perror("Failed to read full size chunk on input file");
 				fclose(fp);
 				return RET_FILE_IO_ERROR;
+			}
+
+			// Print progress percent
+			if ( (par3_ctx->noise_level >= 0) && (par3_ctx->noise_level <= 1) ){
+				progress_step += block_size;
+				time_now = time(NULL);
+				if (time_now != time_old){
+					time_old = time_now;
+					progress_now = (int)((progress_step * 1000) / progress_total);
+					if (progress_now != progress_old){
+						progress_old = progress_now;
+						printf("%d.%d%%\r", progress_now / 10, progress_now % 10);	// 0.0% ~ 100.0%
+					}
+				}
 			}
 
 			// calculate CRC-64 of the first 16 KB
@@ -152,6 +180,20 @@ int map_input_block_simple(PAR3_CTX *par3_ctx)
 				perror("Failed to read tail chunk on input file");
 				fclose(fp);
 				return RET_FILE_IO_ERROR;
+			}
+
+			// Print progress percent
+			if ( (par3_ctx->noise_level >= 0) && (par3_ctx->noise_level <= 1) ){
+				progress_step += tail_size;
+				time_now = time(NULL);
+				if (time_now != time_old){
+					time_old = time_now;
+					progress_now = (int)((progress_step * 1000) / progress_total);
+					if (progress_now != progress_old){
+						progress_old = progress_now;
+						printf("%d.%d%%\r", progress_now / 10, progress_now % 10);	// 0.0% ~ 100.0%
+					}
+				}
 			}
 
 			// calculate checksum of chunk tail
@@ -244,6 +286,20 @@ int map_input_block_simple(PAR3_CTX *par3_ctx)
 						chunk_index, num, file_offset, tail_size);
 			}
 
+			// Print progress percent
+			if ( (par3_ctx->noise_level >= 0) && (par3_ctx->noise_level <= 1) ){
+				progress_step += tail_size;
+				time_now = time(NULL);
+				if (time_now != time_old){
+					time_old = time_now;
+					progress_now = (int)((progress_step * 1000) / progress_total);
+					if (progress_now != progress_old){
+						progress_old = progress_now;
+						printf("%d.%d%%\r", progress_now / 10, progress_now % 10);	// 0.0% ~ 100.0%
+					}
+				}
+			}
+
 			// calculate CRC-64 of the first 16 KB
 			if (file_offset + tail_size < 16384){
 				file_p->crc = crc64(buf_tail, (size_t)tail_size, file_p->crc);
@@ -273,6 +329,14 @@ int map_input_block_simple(PAR3_CTX *par3_ctx)
 	// Release temporary buffer.
 	free(work_buf);
 	par3_ctx->work_buf = NULL;
+
+	if (par3_ctx->noise_level >= 0){
+		if (progress_step < progress_total)
+			printf("Didn't finish progress. %I64u / %I64u\n", progress_step, progress_total);
+		clock_now = clock() - clock_now;
+		printf("done in %.1f seconds.\n", (double)clock_now / CLOCKS_PER_SEC);
+		printf("\n");
+	}
 
 	// Re-allocate memory for actual number of chunk description
 	if (par3_ctx->noise_level >= 0){
