@@ -113,7 +113,7 @@ The FFT matrix packet has a type value of "PAR FFT\0" (ASCII). The packet's body
 |        8       | unsigned int | Index of first input block           |
 |        8       | unsigned int | Index of last input block plus 1     |
 |        1       | signed int   | Max number of blocks (as power of 2) |
-| 0, 1, 2, or 4  | unsigned int | Number of interleaving blocks        |
+|0, 1, 2, 4, or 8| unsigned int | Number of interleaving blocks        |
 
 
  The recovery data is computed for a range of input blocks.
@@ -161,7 +161,7 @@ The value is like below;
 
  It will be different format for High Rate encoder in future.
 Negative value indicates High Rate encoder.
-At this time, it doesn't support High Rate encoding yet.
+At this time, par3cmdline doesn't support High Rate encoding yet.
 
 |Stored value | Max number of recovery blocks
 |    -1       | 2 - NextPow2(number of input blocks)
@@ -190,16 +190,17 @@ NextPow2(number of input blocks) = NextPow2(1000) = 1024.
 
 
  The fourth field is for number of interleaving blocks.
-Number of cohorts is the number of interleaving plus one.
-The value is stored as little endian in 0, 1, 2, or 4 bytes.
+Number of cohorts becomes the number of interleaving plus one.
+The value is stored as little endian in 0, 1, 2, 4, or 8 bytes.
 If upper bytes are all zeros, it uses unsigned integer of less bytes.
 When there is only one cohort (no interleaving), this field doesn't exist.
 
-|Number of cohorts | Interleaving | Stored length |
-|        1         |      0       |      None     |
-|      2 ~ 256     |    1 ~ 255   |     1 byte    |
-|    257 ~ 65536   |  256 ~ 65535 |     2 bytes   |
-|  65537 ~         | 65536 ~      |     4 bytes   |
+|Number of cohorts |Number of interleaving| Stored length |
+|        1         |         0            |      None     |
+|      2 ~ 256     |       1 ~ 255        |     1 byte    |
+|    257 ~ 65536   |     256 ~ 65535      |     2 bytes   |
+|65537 ~ 4294967296|   65536 ~ 4294967295 |     4 bytes   |
+|   4294967297 ~   |     4294967296 ~     |     8 bytes   |
 
 
 
