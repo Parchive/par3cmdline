@@ -516,3 +516,20 @@ int roundup_log2(uint64_t x)
 	return n;
 }
 
+// Return next power of two at or above given value.
+uint64_t next_pow2(uint64_t x)
+{
+	uint64_t y = 1;	// 2 power 0
+
+	if (x == 0)
+		return 0;	// Special case
+	if (x >= 0x8000000000000000)
+		return 0x8000000000000000;	// Aboid over flow
+
+	while (y < x){
+		y = y << 1;
+	}
+
+	return y;
+}
+

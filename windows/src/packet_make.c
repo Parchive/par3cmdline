@@ -217,15 +217,22 @@ int make_start_packet(PAR3_CTX *par3_ctx, int flag_trial)
 
 	} else if (par3_ctx->ecc_method & 8){	// FFT based Reed-Solomon Codes
 		// This value is used in Leopard-RS library.
-		if ( (par3_ctx->block_count > 128)
-				|| (par3_ctx->block_count + par3_ctx->first_recovery_block + par3_ctx->recovery_block_count > 256)
-				|| (par3_ctx->block_count + par3_ctx->max_recovery_block > 256) ){
+		uint64_t possible_count = par3_ctx->first_recovery_block + par3_ctx->recovery_block_count;
+		if (possible_count < par3_ctx->max_recovery_block)
+			possible_count = par3_ctx->max_recovery_block;
+		//printf("next_pow2(%I64u) = %I64u\n", possible_count, next_pow2(possible_count));
+		possible_count = next_pow2(possible_count);
+		//printf("next_pow2(%I64u) = %I64u\n", possible_count + par3_ctx->block_count, next_pow2(possible_count + par3_ctx->block_count));
+		possible_count = next_pow2(possible_count + par3_ctx->block_count);
+		if ((par3_ctx->first_recovery_block + par3_ctx->recovery_block_count == 1) || (par3_ctx->max_recovery_block == 1)){
+			par3_ctx->gf_size = 0;	// XOR sum
+		} else if (possible_count > 256){	// LEO_HAS_FF16
 			par3_ctx->galois_poly = 0x1002D;
 			par3_ctx->gf_size = 2;
 			tmp_p[0] = 2;
 			tmp_p[1] = 0x2D;
 			tmp_p[2] = 0x00;
-		} else if (par3_ctx->block_count > 0){
+		} else if (par3_ctx->block_count > 0){	// LEO_HAS_FF8
 			par3_ctx->galois_poly = 0x11D;
 			par3_ctx->gf_size = 1;
 			tmp_p[0] = 1;
@@ -364,6 +371,7 @@ int make_matrix_packet(PAR3_CTX *par3_ctx)
 		// 32,768 blocks * 256 cohorts = max 8,388,608 blocks
 		// 32,768 blocks * 65,536 cohorts = max 2,147,483,648 blocks
 		// So, it won't use 2 bytes mostly. It won't use 4 bytes really.
+		// Then, it doesn't support 8 bytes at this time.
 		if (par3_ctx->interleave == 0){	// None (0 bytes)
 			packet_size = 65;
 		} else if (par3_ctx->interleave < 256){	// 1 byte = 1 ~ 255
@@ -374,12 +382,13 @@ int make_matrix_packet(PAR3_CTX *par3_ctx)
 			memcpy(tmp_p, &(par3_ctx->interleave), 2);
 			tmp_p += 2;
 			packet_size = 67;
-		} else {	// 4 bytes = 65536 ~
+		} else {	// 4 bytes = 65536 ~ 4294967295
 			memcpy(tmp_p, &(par3_ctx->interleave), 4);
 			tmp_p += 4;
 			packet_size = 69;
 		}
 		make_packet_header(par3_ctx->matrix_packet, packet_size, par3_ctx->set_id, "PAR FFT\0", 1);
+		//printf("max_recovery_block = %I64u, interleave = %u\n", par3_ctx->max_recovery_block, par3_ctx->interleave);
 
 	} else {
 		printf("The specified Error Correction Codes (%u) isn't implemented yet.\n", par3_ctx->ecc_method);

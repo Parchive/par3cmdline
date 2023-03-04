@@ -18,4 +18,5 @@ int mem_or16(unsigned char buf[16]);
 
 int popcount32(uint32_t x);
 int roundup_log2(uint64_t x);
+uint64_t next_pow2(uint64_t x);
 

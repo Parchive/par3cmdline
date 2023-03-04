@@ -396,6 +396,7 @@ uint64_t aggregate_recovery_block(PAR3_CTX *par3_ctx)
 					memcpy(&extra_num, buf + offset + 65, 2);
 				} else if (packet_size == 69){	// 4 bytes
 					memcpy(&extra_num, buf + offset + 65, 4);
+				// } else if (packet_size == 73){	// 8 bytes isn't supported at this time.
 				}
 				max_num *= extra_num + 1;	// When interleaving, max count is multiplied by number of cohorts.
 			}
