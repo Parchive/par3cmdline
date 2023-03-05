@@ -389,15 +389,8 @@ uint64_t aggregate_recovery_block(PAR3_CTX *par3_ctx)
 			}
 			// number of interleaving blocks
 			extra_num = 0;
-			if (packet_size > 65){
-				if (packet_size == 66){	// 1 byte
-					memcpy(&extra_num, buf + offset + 65, 1);
-				} else if (packet_size == 67){	// 2 bytes
-					memcpy(&extra_num, buf + offset + 65, 2);
-				} else if (packet_size == 69){	// 4 bytes
-					memcpy(&extra_num, buf + offset + 65, 4);
-				// } else if (packet_size == 73){	// 8 bytes isn't supported at this time.
-				}
+			if ((packet_size > 65) && (packet_size <= 69)){	// Read 1 ~ 4 bytes of the last field
+				memcpy(&extra_num, buf + offset + 65, packet_size - 65);
 				max_num *= extra_num + 1;	// When interleaving, max count is multiplied by number of cohorts.
 			}
 			if (par3_ctx->noise_level >= 0){

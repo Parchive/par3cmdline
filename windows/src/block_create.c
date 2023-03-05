@@ -850,8 +850,8 @@ int create_recovery_block_cohort(PAR3_CTX *par3_ctx)
 	block_count2 = (block_count + cohort_count - 1) / cohort_count;	// round up
 	recovery_block_count2 = recovery_block_count / cohort_count;
 	first_recovery_block2 = par3_ctx->first_recovery_block / cohort_count;
-	printf("cohort_count = %u, block_count2 = %I64u\n", cohort_count, block_count2);
-	printf("recovery_block_count2 = %I64u, first_recovery_block2 = %I64u\n", recovery_block_count2, first_recovery_block2);
+	//printf("cohort_count = %u, block_count2 = %I64u\n", cohort_count, block_count2);
+	//printf("recovery_block_count2 = %I64u, first_recovery_block2 = %I64u\n", recovery_block_count2, first_recovery_block2);
 
 	// Set required memory size at first
 	ret = leo_init();	// Initialize Leopard-RS library.
@@ -861,7 +861,7 @@ int create_recovery_block_cohort(PAR3_CTX *par3_ctx)
 	}
 	work_count = leo_encode_work_count((uint32_t)block_count2,
 						(uint32_t)(first_recovery_block2 + recovery_block_count2));
-	printf("Leopard-RS: work_count = %u\n", work_count);
+	//printf("Leopard-RS: work_count = %u\n", work_count);
 	// Leopard-RS requires multiple of 64 bytes for SIMD.
 	region_size = (block_size + 4 + 63) & ~63;
 	alloc_size = region_size * (block_count2 + work_count);
@@ -894,7 +894,7 @@ int create_recovery_block_cohort(PAR3_CTX *par3_ctx)
 	region_size = (split_size + 4 + 63) & ~63;
 	alloc_size = region_size * (block_count2 + work_count);	// work_count is larger than recovery_block_count.
 	// Though Leopard-RS doesn't require memory alignment for SIMD, align to 32 bytes may be faster.
-	printf("split_size = %I64u, region_size = %I64u, alloc_size = %I64u\n", split_size, region_size, alloc_size);
+	//printf("split_size = %I64u, region_size = %I64u, alloc_size = %I64u\n", split_size, region_size, alloc_size);
 	block_data = malloc(alloc_size);
 	if (block_data == NULL){
 		perror("Failed to allocate memory for block data");

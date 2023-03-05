@@ -1291,7 +1291,7 @@ int recover_lost_block_cohort(PAR3_CTX *par3_ctx, char *temp_path)
 	max_recovery_block2 = par3_ctx->max_recovery_block / cohort_count;
 	lost_list = par3_ctx->lost_list;	// This was set at aggregate_block_cohort().
 	recv_list = lost_list + cohort_count;
-	printf("cohort_count = %u, block_count2 = %I64u, max_recovery_block2 = %I64u\n", cohort_count, block_count2, max_recovery_block2);
+	//printf("cohort_count = %u, block_count2 = %I64u, max_recovery_block2 = %I64u\n", cohort_count, block_count2, max_recovery_block2);
 	//for (cohort_index = 0; cohort_index < cohort_count; cohort_index++){
 	//	printf("lost_count2 = %u, recovery_block_count2 = %u\n", lost_list[cohort_index], recv_list[cohort_index]);
 	//}
@@ -1303,7 +1303,7 @@ int recover_lost_block_cohort(PAR3_CTX *par3_ctx, char *temp_path)
 		return RET_LOGIC_ERROR;
 	}
 	work_count = leo_decode_work_count((uint32_t)block_count2, (uint32_t)max_recovery_block2);
-	printf("Leopard-RS: work_count = %u\n", work_count);
+	//printf("Leopard-RS: work_count = %u\n", work_count);
 	// Leopard-RS requires multiple of 64 bytes for SIMD.
 	region_size = (block_size + 4 + 63) & ~63;
 	alloc_size = region_size * (block_count2 + work_count);
@@ -1340,7 +1340,7 @@ int recover_lost_block_cohort(PAR3_CTX *par3_ctx, char *temp_path)
 	alloc_size = region_size * (block_count2 + work_count);
 	if (alloc_size < block_size)
 		alloc_size = block_size;	// This buffer size must be enough large to copy a slice.
-	printf("split_size = %I64u, region_size = %I64u, alloc_size = %I64u\n", split_size, region_size, alloc_size);
+	//printf("split_size = %I64u, region_size = %I64u, alloc_size = %I64u\n", split_size, region_size, alloc_size);
 	block_data = malloc(alloc_size);
 	if (block_data == NULL){
 		perror("Failed to allocate memory for block data");

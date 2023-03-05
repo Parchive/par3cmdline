@@ -549,8 +549,10 @@ int parse_vital_packet(PAR3_CTX *par3_ctx)
 	if (par3_ctx->noise_level >= 0){
 		printf("\n");
 		printf("Block size = %I64u\n", par3_ctx->block_size);
-		printf("Galois field size = %u\n", par3_ctx->gf_size);
-		printf("Galois field generator = 0x%X\n", par3_ctx->galois_poly);
+		if (par3_ctx->noise_level >= 1){
+			printf("Galois field size = %u\n", par3_ctx->gf_size);
+			printf("Galois field generator = 0x%X\n", par3_ctx->galois_poly);
+		}
 	}
 
 	// Read Root Packet

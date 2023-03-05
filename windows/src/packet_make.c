@@ -217,41 +217,50 @@ int make_start_packet(PAR3_CTX *par3_ctx, int flag_trial)
 
 	} else if (par3_ctx->ecc_method & 8){	// FFT based Reed-Solomon Codes
 		// This value is used in Leopard-RS library.
-		uint64_t possible_count = par3_ctx->first_recovery_block + par3_ctx->recovery_block_count;
-		if (possible_count < par3_ctx->max_recovery_block)
-			possible_count = par3_ctx->max_recovery_block;
-		//printf("next_pow2(%I64u) = %I64u\n", possible_count, next_pow2(possible_count));
-		possible_count = next_pow2(possible_count);
-		//printf("next_pow2(%I64u) = %I64u\n", possible_count + par3_ctx->block_count, next_pow2(possible_count + par3_ctx->block_count));
-		possible_count = next_pow2(possible_count + par3_ctx->block_count);
 		if ((par3_ctx->first_recovery_block + par3_ctx->recovery_block_count == 1) || (par3_ctx->max_recovery_block == 1)){
 			par3_ctx->gf_size = 0;	// XOR sum
-		} else if (possible_count > 256){	// LEO_HAS_FF16
-			par3_ctx->galois_poly = 0x1002D;
-			par3_ctx->gf_size = 2;
-			tmp_p[0] = 2;
-			tmp_p[1] = 0x2D;
-			tmp_p[2] = 0x00;
-		} else if (par3_ctx->block_count > 0){	// LEO_HAS_FF8
-			par3_ctx->galois_poly = 0x11D;
-			par3_ctx->gf_size = 1;
-			tmp_p[0] = 1;
-			tmp_p[1] = 0x1D;
+		} else if (par3_ctx->block_count > 0){
+			uint64_t possible_count, m, n;
+			possible_count = par3_ctx->first_recovery_block + par3_ctx->recovery_block_count;
+			if (possible_count < par3_ctx->max_recovery_block)
+				possible_count = par3_ctx->max_recovery_block;
+			// Number of recovery blocks per cohort
+			if (par3_ctx->interleave > 0)
+				possible_count = (possible_count + par3_ctx->interleave) / (par3_ctx->interleave + 1);
+			m = next_pow2(possible_count);
+			//printf("m = next_pow2(%I64u) = %I64u\n", possible_count, m);
+			possible_count = par3_ctx->block_count;
+			// Number of input blocks per cohort
+			if (par3_ctx->interleave > 0)
+				possible_count = (possible_count + par3_ctx->interleave) / (par3_ctx->interleave + 1);
+			n = next_pow2(m + possible_count);
+			//printf("n = next_pow2(%I64u + %I64u) = %I64u\n", m, possible_count, n);
+			if (n <= 256){	// LEO_HAS_FF8
+				par3_ctx->galois_poly = 0x11D;
+				par3_ctx->gf_size = 1;
+				tmp_p[0] = 1;
+				tmp_p[1] = 0x1D;
+			} else {	// LEO_HAS_FF16
+				par3_ctx->galois_poly = 0x1002D;
+				par3_ctx->gf_size = 2;
+				tmp_p[0] = 2;
+				tmp_p[1] = 0x2D;
+				tmp_p[2] = 0x00;
+			}
 		}
 	}
 	if (par3_ctx->gf_size == 0){	// When there is no input blocks, no need to set Galois Field.
 		par3_ctx->galois_poly = 0;
 		tmp_p[0] = 0;
+	} else {
+		if (par3_ctx->noise_level >= 1){
+			printf("Galois field size = %u\n", par3_ctx->gf_size);
+			printf("Galois field generator = 0x%X\n", par3_ctx->galois_poly);
+		}
 	}
 	packet_size += par3_ctx->gf_size;
 	par3_ctx->start_packet_size = packet_size;
 	par3_ctx->start_packet_count = 1;
-/*
-	if (par3_ctx->noise_level >= 1){
-		printf("Galois field size = %u\n", par3_ctx->gf_size);
-		printf("Galois field generator = 0x%X\n", par3_ctx->galois_poly);
-	}
-*/
 
 	if (flag_trial == 0){	// Trial mode doesn't calculate InputSetID.
 		// generate InputSetID
@@ -370,8 +379,8 @@ int make_matrix_packet(PAR3_CTX *par3_ctx)
 		// In normal usage, it will be less than 2 bytes.
 		// 32,768 blocks * 256 cohorts = max 8,388,608 blocks
 		// 32,768 blocks * 65,536 cohorts = max 2,147,483,648 blocks
-		// So, it won't use 2 bytes mostly. It won't use 4 bytes really.
-		// Then, it doesn't support 8 bytes at this time.
+		// So, it won't use 2 bytes mostly. It won't use 3 or 4 bytes really.
+		// Then, par3cmdline doesn't support 5 or more bytes at this time.
 		if (par3_ctx->interleave == 0){	// None (0 bytes)
 			packet_size = 65;
 		} else if (par3_ctx->interleave < 256){	// 1 byte = 1 ~ 255
@@ -382,7 +391,11 @@ int make_matrix_packet(PAR3_CTX *par3_ctx)
 			memcpy(tmp_p, &(par3_ctx->interleave), 2);
 			tmp_p += 2;
 			packet_size = 67;
-		} else {	// 4 bytes = 65536 ~ 4294967295
+		} else if (par3_ctx->interleave < 16777216){	// 3 bytes = 65536 ~ 16777215
+			memcpy(tmp_p, &(par3_ctx->interleave), 3);
+			tmp_p += 3;
+			packet_size = 68;
+		} else {	// 4 bytes = 16777216 ~ 4294967295
 			memcpy(tmp_p, &(par3_ctx->interleave), 4);
 			tmp_p += 4;
 			packet_size = 69;
