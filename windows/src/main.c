@@ -677,7 +677,7 @@ int main(int argc, char *argv[])
 		if (par3_ctx->block_size != 0)
 			printf("Specified block size = %I64u\n", par3_ctx->block_size);
 		if (par3_ctx->redundancy_size != 0)
-			printf("redundancy_size = %u\n", par3_ctx->redundancy_size);
+			printf("Specified redundancy = %u\n", par3_ctx->redundancy_size);
 		if (par3_ctx->max_redundancy_size != 0)
 			printf("max_redundancy_size = %u\n", par3_ctx->max_redundancy_size);
 		if (par3_ctx->recovery_block_count != 0)
@@ -687,9 +687,15 @@ int main(int argc, char *argv[])
 		if (par3_ctx->max_recovery_block != 0)
 			printf("max_recovery_block = %I64u\n", par3_ctx->max_recovery_block);
 		if (par3_ctx->recovery_file_count != 0)
-			printf("recovery_file_count = %u\n", par3_ctx->recovery_file_count);
-		if (par3_ctx->recovery_file_scheme != 0)
-			printf("recovery_file_scheme = %c\n", par3_ctx->recovery_file_scheme);
+			printf("Specified number of recovery files = %u\n", par3_ctx->recovery_file_count);
+		if (par3_ctx->recovery_file_scheme != 0){
+			//printf("recovery_file_scheme = %c\n", par3_ctx->recovery_file_scheme);
+			if (par3_ctx->recovery_file_scheme == 'u'){
+				printf("Recovery file sizes = uniform\n");
+			} else if (par3_ctx->recovery_file_scheme == 'l'){
+				printf("Recovery file sizes = limited\n");
+			}
+		}
 		if (par3_ctx->ecc_method != 0)
 			printf("Error Correction Codes = %u\n", par3_ctx->ecc_method);
 		if (par3_ctx->interleave != 0){

@@ -465,7 +465,6 @@ int write_archive_file(PAR3_CTX *par3_ctx)
 	if (block_count == 0)
 		return 0;
 	recovery_file_scheme = par3_ctx->recovery_file_scheme;
-	file_count = par3_ctx->recovery_file_count;
 
 	// Allocate memory to read one input block and parity.
 	region_size = (par3_ctx->block_size + 4 + 3) & ~3;
@@ -490,7 +489,7 @@ int write_archive_file(PAR3_CTX *par3_ctx)
 	}
 
 	// Calculate block count and digits max.
-	calculate_digit_max(par3_ctx, block_count, 0, &base_num, &max_count, &digit_num1, &digit_num2);
+	file_count = calculate_digit_max(par3_ctx, 56, block_count, 0, &base_num, &max_count, &digit_num1, &digit_num2);
 	if (len + 11 + digit_num1 + digit_num2 >= _MAX_PATH){	// .part#+#.par3
 		printf("PAR3 filename will be too long.\n");
 		return RET_FILE_IO_ERROR;
@@ -795,7 +794,6 @@ int write_recovery_file(PAR3_CTX *par3_ctx)
 	if (block_count == 0)
 		return 0;
 	recovery_file_scheme = par3_ctx->recovery_file_scheme;
-	file_count = par3_ctx->recovery_file_count;
 	first_num = par3_ctx->first_recovery_block;
 
 	// Remove the last ".par3" from base PAR3 filename.
@@ -822,7 +820,7 @@ int write_recovery_file(PAR3_CTX *par3_ctx)
 	}
 
 	// Calculate block count and digits max.
-	calculate_digit_max(par3_ctx, block_count, first_num, &base_num, &max_count, &digit_num1, &digit_num2);
+	file_count = calculate_digit_max(par3_ctx, 88, block_count, first_num, &base_num, &max_count, &digit_num1, &digit_num2);
 	if (len + 10 + digit_num1 + digit_num2 >= _MAX_PATH){	// .vol#+#.par3
 		printf("PAR3 filename will be too long.\n");
 		return RET_FILE_IO_ERROR;

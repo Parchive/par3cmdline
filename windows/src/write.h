@@ -1,6 +1,6 @@
 
-void calculate_digit_max(PAR3_CTX *par3_ctx,
-		uint64_t block_count, uint64_t first_num,
+uint32_t calculate_digit_max(PAR3_CTX *par3_ctx,
+		uint64_t header_size, uint64_t block_count, uint64_t first_num,
 		uint64_t *p_base_num, uint64_t *p_max_count,
 		int *p_digit_num1, int *p_digit_num2);
 
