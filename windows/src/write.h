@@ -1,4 +1,7 @@
 
+void show_sizing_scheme(PAR3_CTX *par3_ctx,
+		uint32_t file_count, uint64_t base_num, uint64_t max_count);
+
 uint32_t calculate_digit_max(PAR3_CTX *par3_ctx,
 		uint64_t header_size, uint64_t block_count, uint64_t first_num,
 		uint64_t *p_base_num, uint64_t *p_max_count,

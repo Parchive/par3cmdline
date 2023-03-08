@@ -413,7 +413,7 @@ int main(int argc, char *argv[])
 					ret = RET_INVALID_COMMAND;
 					goto prepare_return;
 				} else {
-					par3_ctx->recovery_file_scheme = 'u';
+					par3_ctx->recovery_file_scheme = -1;
 /*
 					if (add_creator_text(par3_ctx, tmp_p - 1) != 0){
 						ret = RET_MEMORY_ERROR;
@@ -422,7 +422,7 @@ int main(int argc, char *argv[])
 */
 				}
 
-			} else if (strcmp(tmp_p, "l") == 0){	// Limit the size of the recovery files
+			} else if ( (tmp_p[0] == 'l') && ( (tmp_p[1] == 0) || ( (tmp_p[1] >= '0') && (tmp_p[1] <= '9') ) ) ){	// Limit the size of the recovery files
 				if ( (command_operation != 'c') && (command_operation != 't') ){
 					printf("Cannot specify limit files unless creating.\n");
 					ret = RET_INVALID_COMMAND;
@@ -436,7 +436,13 @@ int main(int argc, char *argv[])
 					ret = RET_INVALID_COMMAND;
 					goto prepare_return;
 				} else {
-					par3_ctx->recovery_file_scheme = 'l';
+					if (tmp_p[1] == 0){
+						par3_ctx->recovery_file_scheme = -2;
+					} else {
+						int64_t limit_size = strtoll(tmp_p + 1, NULL, 10);
+						if (limit_size > 0)
+							par3_ctx->recovery_file_scheme = limit_size;
+					}
 				}
 
 			} else if ( (tmp_p[0] == 'n') && (tmp_p[1] >= '0') && (tmp_p[1] <= '9') ){	// Specify the number of recovery files
@@ -448,7 +454,7 @@ int main(int argc, char *argv[])
 					printf("Cannot specify recovery file count twice.\n");
 					ret = RET_INVALID_COMMAND;
 					goto prepare_return;
-				} else if (par3_ctx->recovery_file_scheme == 'l'){
+				} else if ( (par3_ctx->recovery_file_scheme == -2) || (par3_ctx->recovery_file_scheme > 0) ){
 					printf("Cannot specify limited size and number of files at the same time.\n");
 					ret = RET_INVALID_COMMAND;
 					goto prepare_return;
@@ -689,11 +695,12 @@ int main(int argc, char *argv[])
 		if (par3_ctx->recovery_file_count != 0)
 			printf("Specified number of recovery files = %u\n", par3_ctx->recovery_file_count);
 		if (par3_ctx->recovery_file_scheme != 0){
-			//printf("recovery_file_scheme = %c\n", par3_ctx->recovery_file_scheme);
-			if (par3_ctx->recovery_file_scheme == 'u'){
-				printf("Recovery file sizes = uniform\n");
-			} else if (par3_ctx->recovery_file_scheme == 'l'){
-				printf("Recovery file sizes = limited\n");
+			if (par3_ctx->recovery_file_scheme == -1){
+				printf("Recovery file sizing = uniform\n");
+			} else if (par3_ctx->recovery_file_scheme == -2){
+				printf("Recovery file sizing = limit\n");
+			} else if (par3_ctx->recovery_file_scheme > 0){
+				printf("Recovery file sizing = limit to %I64d\n", par3_ctx->recovery_file_scheme);
 			}
 		}
 		if (par3_ctx->ecc_method != 0)

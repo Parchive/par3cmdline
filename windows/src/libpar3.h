@@ -111,7 +111,7 @@ typedef struct {
 typedef struct {
 	// Command-line options
 	int noise_level;
-	char recovery_file_scheme;
+	int64_t recovery_file_scheme;	// -1= Uniform, -2= Limit, 1~= Limit size
 	char deduplication;
 	char data_packet;
 	char absolute_path;

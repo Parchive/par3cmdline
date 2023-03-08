@@ -454,10 +454,11 @@ static int write_data_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t each_s
 // Write PAR3 files with Data packets (input blocks)
 int write_archive_file(PAR3_CTX *par3_ctx)
 {
-	char filename[_MAX_PATH], recovery_file_scheme;
+	char filename[_MAX_PATH];
 	int digit_num1, digit_num2;
 	uint32_t file_count;
 	size_t len, region_size;
+	int64_t recovery_file_scheme;
 	uint64_t block_count, base_num;
 	uint64_t each_start, each_count, max_count;
 
@@ -465,6 +466,8 @@ int write_archive_file(PAR3_CTX *par3_ctx)
 	if (block_count == 0)
 		return 0;
 	recovery_file_scheme = par3_ctx->recovery_file_scheme;
+	if (recovery_file_scheme == -2)
+		recovery_file_scheme = par3_ctx->max_file_size;
 
 	// Allocate memory to read one input block and parity.
 	region_size = (par3_ctx->block_size + 4 + 3) & ~3;
@@ -495,11 +498,15 @@ int write_archive_file(PAR3_CTX *par3_ctx)
 		return RET_FILE_IO_ERROR;
 	}
 
+	if (par3_ctx->noise_level >= 1){
+		show_sizing_scheme(par3_ctx, file_count, base_num, max_count);
+	}
+
 	// Write each PAR3 file.
 	each_start = 0;
 	while (block_count > 0){
 		if (file_count > 0){
-			if (recovery_file_scheme == 'u'){	// Uniform
+			if (recovery_file_scheme == -1){	// Uniform
 				each_count = max_count;
 				if (base_num > 0){
 					base_num--;
@@ -515,14 +522,16 @@ int write_archive_file(PAR3_CTX *par3_ctx)
 			}
 
 		} else {
-			if (recovery_file_scheme == 'u'){	// Uniform
+			if (recovery_file_scheme == -1){	// Uniform
 				each_count = block_count;
 
-			} else if (recovery_file_scheme == 'l'){	// Limit size
+			} else if (recovery_file_scheme > 0){	// Limit size
 				each_count = base_num;
-				base_num *= 2;
-				if (each_count > max_count)
+				if (each_count > max_count){
 					each_count = max_count;
+				} else {
+					base_num *= 2;
+				}
 				if (each_count > block_count)
 					each_count = block_count;
 
@@ -783,9 +792,10 @@ static int write_recovery_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t ea
 // Write PAR3 files with Recovery Data packets (recovery blocks are not written yet)
 int write_recovery_file(PAR3_CTX *par3_ctx)
 {
-	char filename[_MAX_PATH], recovery_file_scheme;
+	char filename[_MAX_PATH];
 	int digit_num1, digit_num2;
 	uint32_t file_count;
+	int64_t recovery_file_scheme;
 	uint64_t block_count, base_num, first_num;
 	uint64_t each_start, each_count, max_count;
 	size_t len;
@@ -794,6 +804,8 @@ int write_recovery_file(PAR3_CTX *par3_ctx)
 	if (block_count == 0)
 		return 0;
 	recovery_file_scheme = par3_ctx->recovery_file_scheme;
+	if (recovery_file_scheme == -2)
+		recovery_file_scheme = par3_ctx->max_file_size;
 	first_num = par3_ctx->first_recovery_block;
 
 	// Remove the last ".par3" from base PAR3 filename.
@@ -826,11 +838,15 @@ int write_recovery_file(PAR3_CTX *par3_ctx)
 		return RET_FILE_IO_ERROR;
 	}
 
+	if (par3_ctx->noise_level >= 1){
+		show_sizing_scheme(par3_ctx, file_count, base_num, max_count);
+	}
+
 	// Write each PAR3 file.
 	each_start = first_num;
 	while (block_count > 0){
 		if (file_count > 0){
-			if (recovery_file_scheme == 'u'){	// Uniform
+			if (recovery_file_scheme == -1){	// Uniform
 				each_count = max_count;
 				if (base_num > 0){
 					base_num--;
@@ -846,14 +862,16 @@ int write_recovery_file(PAR3_CTX *par3_ctx)
 			}
 
 		} else {
-			if (recovery_file_scheme == 'u'){	// Uniform
+			if (recovery_file_scheme == -1){	// Uniform
 				each_count = block_count;
 
-			} else if (recovery_file_scheme == 'l'){	// Limit size
+			} else if (recovery_file_scheme > 0){	// Limit size
 				each_count = base_num;
-				base_num *= 2;
-				if (each_count > max_count)
+				if (each_count > max_count){
 					each_count = max_count;
+				} else {
+					base_num *= 2;
+				}
 				if (each_count > block_count)
 					each_count = block_count;
 

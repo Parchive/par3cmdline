@@ -50,6 +50,60 @@ void try_index_file(PAR3_CTX *par3_ctx)
 }
 
 
+// Print sizing scheme
+void show_sizing_scheme(PAR3_CTX *par3_ctx,
+		uint32_t file_count, uint64_t base_num, uint64_t max_count)
+{
+	uint32_t cohort_count = par3_ctx->interleave + 1;
+	int64_t recovery_file_scheme = par3_ctx->recovery_file_scheme;
+	if (recovery_file_scheme == -2)
+		recovery_file_scheme = par3_ctx->max_file_size;
+
+	if (file_count > 0){
+		if (recovery_file_scheme == -1){	// Uniform
+			if (cohort_count > 1){
+				if (base_num > 0){
+					printf("Put (%I64u ~ %I64u) * %u blocks each on %u files.\n", max_count - 1, max_count, cohort_count, file_count);
+				} else {
+					printf("Put %I64u * %u blocks each on %u files.\n", max_count, cohort_count, file_count);
+				}
+			} else {
+				if (base_num > 0){
+					printf("Put %I64u ~ %I64u blocks each on %u files.\n", max_count - 1, max_count, file_count);
+				} else {
+					printf("Put %I64u blocks each on %u files.\n", max_count, file_count);
+				}
+			}
+		} else {	// Variable (base number * power of 2)
+			if (cohort_count > 1){
+				printf("Put (%I64u ~ %I64u) * %u blocks each on %u files.\n", base_num, max_count, cohort_count, file_count);
+			} else {
+				printf("Put %I64u ~ %I64u blocks each on %u files.\n", base_num, max_count, file_count);
+			}
+		}
+	} else {
+		if (recovery_file_scheme == -1){	// Uniform
+			if (cohort_count > 1){
+				printf("Put %I64u * %u blocks on a single file.\n", max_count, cohort_count);
+			} else {
+				printf("Put %I64u blocks on a single file.\n", max_count);
+			}
+		} else if (recovery_file_scheme > 0){	// Limit size
+			if (cohort_count > 1){
+				printf("Put (power of 2) * %u blocks on files incrementaly, until %I64u * %u blocks each.\n", cohort_count, max_count, cohort_count);
+			} else {
+				printf("Put (power of 2) blocks on files incrementaly, until %I64u blocks each.\n", max_count);
+			}
+		} else {	// Power of 2
+			if (cohort_count > 1){
+				printf("Put (power of 2) * %u blocks on files incrementaly.\n", cohort_count);
+			} else {
+				printf("Put (power of 2) blocks on files incrementaly.\n");
+			}
+		}
+	}
+}
+
 // Try to calculate sum of all packets in a file.
 uint64_t try_total_packet_size(PAR3_CTX *par3_ctx,
 		uint64_t packet_size, uint64_t packet_count)
@@ -81,20 +135,22 @@ uint32_t calculate_digit_max(PAR3_CTX *par3_ctx,
 		uint64_t *p_base_num, uint64_t *p_max_count,
 		int *p_digit_num1, int *p_digit_num2)
 {
-	char recovery_file_scheme;
 	int digit_num1, digit_num2;
 	uint32_t file_count;
+	int64_t recovery_file_scheme;
 	uint64_t num, base_num;
 	uint64_t each_start, each_count, max_count;
 
 	recovery_file_scheme = par3_ctx->recovery_file_scheme;
+	if (recovery_file_scheme == -2)
+		recovery_file_scheme = par3_ctx->max_file_size;
 
 	// Check max number of digits.
 	file_count = par3_ctx->recovery_file_count;
 	if (file_count > block_count)
 		file_count = (uint32_t)block_count;	// Number of files cannot exceed number of blocks.
 	if (file_count > 0){	// When writing archive file, number of input block files will be same as recovery block files.
-		if (recovery_file_scheme == 'u'){	// Uniform
+		if (recovery_file_scheme == -1){	// Uniform
 			max_count = block_count / file_count;
 			base_num = block_count % file_count;
 			each_start = block_count - max_count;
@@ -135,13 +191,13 @@ uint32_t calculate_digit_max(PAR3_CTX *par3_ctx,
 		}
 
 	} else {	// Set number of files automatically.
-		if (recovery_file_scheme == 'u'){	// Uniform
+		if (recovery_file_scheme == -1){	// Uniform
 			// Put all blocks on a single file.
 			base_num = 0;
 			max_count = block_count;
 			each_start = 0;
 
-		} else if (recovery_file_scheme == 'l'){	// Limit size
+		} else if (recovery_file_scheme > 0){	// Limit size
 			uint64_t packet_size, total_size;
 			uint64_t limit_size, min_count, upper_count, next_count;
 
@@ -150,7 +206,7 @@ uint32_t calculate_digit_max(PAR3_CTX *par3_ctx,
 				packet_size *= par3_ctx->interleave + 1;
 
 			// Calculate limit number of blocks
-			limit_size = par3_ctx->max_file_size;
+			limit_size = recovery_file_scheme;
 			upper_count = (limit_size + packet_size - 1) / packet_size;
 			total_size = try_total_packet_size(par3_ctx, packet_size, upper_count);
 			if (total_size <= limit_size){
@@ -176,6 +232,7 @@ uint32_t calculate_digit_max(PAR3_CTX *par3_ctx,
 					break;
 			}
 			num = min_count;
+			//printf("limit_size = %I64u, limit_count = %I64u\n", limit_size, num);
 
 			base_num = 1;
 			each_start = 0;
@@ -184,9 +241,11 @@ uint32_t calculate_digit_max(PAR3_CTX *par3_ctx,
 			while (block_count > 0){
 				each_start += each_count;
 				each_count = base_num;
-				base_num *= 2;
-				if (each_count > num)
+				if (each_count > num){	// When containing blocks exceeds limit count
 					each_count = num;
+				} else {
+					base_num *= 2;
+				}
 				if (each_count > block_count)
 					each_count = block_count;
 				if (max_count < each_count)
@@ -354,9 +413,10 @@ static void try_data_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t each_st
 // Write PAR3 files with Data packets (input blocks)
 int try_archive_file(PAR3_CTX *par3_ctx)
 {
-	char filename[_MAX_PATH], recovery_file_scheme;
+	char filename[_MAX_PATH];
 	int digit_num1, digit_num2;
 	uint32_t file_count;
+	int64_t recovery_file_scheme;
 	uint64_t block_count, base_num;
 	uint64_t each_start, each_count, max_count;
 	size_t len;
@@ -365,6 +425,8 @@ int try_archive_file(PAR3_CTX *par3_ctx)
 	if (block_count == 0)
 		return 0;
 	recovery_file_scheme = par3_ctx->recovery_file_scheme;
+	if (recovery_file_scheme == -2)
+		recovery_file_scheme = par3_ctx->max_file_size;
 
 	// Remove the last ".par3" from base PAR3 filename.
 	strcpy(filename, par3_ctx->par_filename);
@@ -388,57 +450,14 @@ int try_archive_file(PAR3_CTX *par3_ctx)
 	}
 
 	if (par3_ctx->noise_level >= 1){
-		uint32_t cohort_count = par3_ctx->interleave + 1;
-		if (file_count > 0){
-			if (recovery_file_scheme == 'u'){	// Uniform
-				if (cohort_count > 1){
-					if (base_num > 0){
-						printf("Put (%I64u ~ %I64u) * %u blocks each on %u files.\n", max_count - 1, max_count, cohort_count, file_count);
-					} else {
-						printf("Put %I64u * %u blocks each on %u files.\n", max_count, cohort_count, file_count);
-					}
-				} else {
-					if (base_num > 0){
-						printf("Put %I64u ~ %I64u blocks each on %u files.\n", max_count - 1, max_count, file_count);
-					} else {
-						printf("Put %I64u blocks each on %u files.\n", max_count, file_count);
-					}
-				}
-			} else {	// Variable (base number * power of 2)
-				if (cohort_count > 1){
-					printf("Put (%I64u ~ %I64u) * %u blocks each on %u files.\n", base_num, max_count, cohort_count, file_count);
-				} else {
-					printf("Put %I64u ~ %I64u blocks each on %u files.\n", base_num, max_count, file_count);
-				}
-			}
-		} else {
-			if (recovery_file_scheme == 'u'){	// Uniform
-				if (cohort_count > 1){
-					printf("Put %I64u * %u blocks on a single file.\n", max_count, cohort_count);
-				} else {
-					printf("Put %I64u blocks on a single file.\n", max_count);
-				}
-			} else if (recovery_file_scheme == 'l'){	// Limit size
-				if (cohort_count > 1){
-					printf("Put (power of 2) * %u blocks on files incrementaly, until %I64u * %u blocks each.\n", cohort_count, max_count, cohort_count);
-				} else {
-					printf("Put (power of 2) blocks on files incrementaly, until %I64u blocks each.\n", max_count);
-				}
-			} else {	// Power of 2
-				if (cohort_count > 1){
-					printf("Put (power of 2) * %u blocks on files incrementaly.\n", cohort_count);
-				} else {
-					printf("Put (power of 2) blocks on files incrementaly.\n");
-				}
-			}
-		}
+		show_sizing_scheme(par3_ctx, file_count, base_num, max_count);
 	}
 
 	// Write each PAR3 file.
 	each_start = 0;
 	while (block_count > 0){
 		if (file_count > 0){
-			if (recovery_file_scheme == 'u'){	// Uniform
+			if (recovery_file_scheme == -1){	// Uniform
 				each_count = max_count;
 				if (base_num > 0){
 					base_num--;
@@ -454,14 +473,16 @@ int try_archive_file(PAR3_CTX *par3_ctx)
 			}
 
 		} else {
-			if (recovery_file_scheme == 'u'){	// Uniform
+			if (recovery_file_scheme == -1){	// Uniform
 				each_count = block_count;
 
-			} else if (recovery_file_scheme == 'l'){	// Limit size
+			} else if (recovery_file_scheme > 0){	// Limit size
 				each_count = base_num;
-				base_num *= 2;
-				if (each_count > max_count)
+				if (each_count > max_count){
 					each_count = max_count;
+				} else {
+					base_num *= 2;
+				}
 				if (each_count > block_count)
 					each_count = block_count;
 
@@ -570,9 +591,10 @@ static void try_recovery_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t eac
 // Write PAR3 files with Recovery Data packets (recovery blocks are not written yet)
 int try_recovery_file(PAR3_CTX *par3_ctx)
 {
-	char filename[_MAX_PATH], recovery_file_scheme;
+	char filename[_MAX_PATH];
 	int digit_num1, digit_num2;
 	uint32_t file_count;
+	int64_t recovery_file_scheme;
 	uint64_t block_count, base_num, first_num;
 	uint64_t each_start, each_count, max_count;
 	size_t len;
@@ -581,6 +603,8 @@ int try_recovery_file(PAR3_CTX *par3_ctx)
 	if (block_count == 0)
 		return 0;
 	recovery_file_scheme = par3_ctx->recovery_file_scheme;
+	if (recovery_file_scheme == -2)
+		recovery_file_scheme = par3_ctx->max_file_size;
 	first_num = par3_ctx->first_recovery_block;
 
 	// Remove the last ".par3" from base PAR3 filename.
@@ -605,57 +629,14 @@ int try_recovery_file(PAR3_CTX *par3_ctx)
 	}
 
 	if (par3_ctx->noise_level >= 1){
-		uint32_t cohort_count = par3_ctx->interleave + 1;
-		if (file_count > 0){
-			if (recovery_file_scheme == 'u'){	// Uniform
-				if (cohort_count > 1){
-					if (base_num > 0){
-						printf("Put (%I64u ~ %I64u) * %u blocks each on %u files.\n", max_count - 1, max_count, cohort_count, file_count);
-					} else {
-						printf("Put %I64u * %u blocks each on %u files.\n", max_count, cohort_count, file_count);
-					}
-				} else {
-					if (base_num > 0){
-						printf("Put %I64u ~ %I64u blocks each on %u files.\n", max_count - 1, max_count, file_count);
-					} else {
-						printf("Put %I64u blocks each on %u files.\n", max_count, file_count);
-					}
-				}
-			} else {	// Variable (base number * power of 2)
-				if (cohort_count > 1){
-					printf("Put (%I64u ~ %I64u) * %u blocks each on %u files.\n", base_num, max_count, cohort_count, file_count);
-				} else {
-					printf("Put %I64u ~ %I64u blocks each on %u files.\n", base_num, max_count, file_count);
-				}
-			}
-		} else {
-			if (recovery_file_scheme == 'u'){	// Uniform
-				if (cohort_count > 1){
-					printf("Put %I64u * %u blocks on a single file.\n", max_count, cohort_count);
-				} else {
-					printf("Put %I64u blocks on a single file.\n", max_count);
-				}
-			} else if (recovery_file_scheme == 'l'){	// Limit size
-				if (cohort_count > 1){
-					printf("Put (power of 2) * %u blocks on files incrementaly, until %I64u * %u blocks each.\n", cohort_count, max_count, cohort_count);
-				} else {
-					printf("Put (power of 2) blocks on files incrementaly, until %I64u blocks each.\n", max_count);
-				}
-			} else {	// Power of 2
-				if (cohort_count > 1){
-					printf("Put (power of 2) * %u blocks on files incrementaly.\n", cohort_count);
-				} else {
-					printf("Put (power of 2) blocks on files incrementaly.\n");
-				}
-			}
-		}
+		show_sizing_scheme(par3_ctx, file_count, base_num, max_count);
 	}
 
 	// Write each PAR3 file.
 	each_start = first_num;
 	while (block_count > 0){
 		if (file_count > 0){
-			if (recovery_file_scheme == 'u'){	// Uniform
+			if (recovery_file_scheme == -1){	// Uniform
 				each_count = max_count;
 				if (base_num > 0){
 					base_num--;
@@ -671,14 +652,16 @@ int try_recovery_file(PAR3_CTX *par3_ctx)
 			}
 
 		} else {
-			if (recovery_file_scheme == 'u'){	// Uniform
+			if (recovery_file_scheme == -1){	// Uniform
 				each_count = block_count;
 
-			} else if (recovery_file_scheme == 'l'){	// Limit size
+			} else if (recovery_file_scheme > 0){	// Limit size
 				each_count = base_num;
-				base_num *= 2;
-				if (each_count > max_count)
+				if (each_count > max_count){
 					each_count = max_count;
+				} else {
+					base_num *= 2;
+				}
 				if (each_count > block_count)
 					each_count = block_count;
 
@@ -703,9 +686,10 @@ int try_recovery_file(PAR3_CTX *par3_ctx)
 // Erase created PAR3 files, when error occured.
 void remove_recovery_file(PAR3_CTX *par3_ctx)
 {
-	char filename[_MAX_PATH], recovery_file_scheme;
+	char filename[_MAX_PATH];
 	int digit_num1, digit_num2;
 	uint32_t file_count;
+	int64_t recovery_file_scheme;
 	uint64_t block_count, base_num, first_num;
 	uint64_t each_start, each_count, max_count;
 	size_t len;
@@ -720,6 +704,8 @@ void remove_recovery_file(PAR3_CTX *par3_ctx)
 
 	block_count = par3_ctx->recovery_block_count;
 	recovery_file_scheme = par3_ctx->recovery_file_scheme;
+	if (recovery_file_scheme == -2)
+		recovery_file_scheme = par3_ctx->max_file_size;
 	first_num = par3_ctx->first_recovery_block;
 
 	// Remove the last ".par3" from base PAR3 filename.
@@ -743,7 +729,7 @@ void remove_recovery_file(PAR3_CTX *par3_ctx)
 	each_start = first_num;
 	while (block_count > 0){
 		if (file_count > 0){
-			if (recovery_file_scheme == 'u'){	// Uniform
+			if (recovery_file_scheme == -1){	// Uniform
 				each_count = max_count;
 				if (base_num > 0){
 					base_num--;
@@ -759,10 +745,10 @@ void remove_recovery_file(PAR3_CTX *par3_ctx)
 			}
 
 		} else {
-			if (recovery_file_scheme == 'u'){	// Uniform
+			if (recovery_file_scheme == -1){	// Uniform
 				each_count = block_count;
 
-			} else if (recovery_file_scheme == 'l'){	// Limit size
+			} else if (recovery_file_scheme > 0){	// Limit size
 				each_count = base_num;
 				base_num *= 2;
 				if (each_count > max_count)
