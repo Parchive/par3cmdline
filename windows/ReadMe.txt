@@ -295,8 +295,10 @@ Be careful to set this value. No need to set mostly.
 [ About "-l" option ]
 
  It's possible to limit size of creating recovery files.
-By setting this option, each recovery files will be smaller than the max input file.
-If block size is large, it may not become smaller.
+By setting "-l", each recovery files will be smaller than the max input file.
+If packet and/or block size are large, it may not become smaller.
+You may set exact size after "-l", such like "-l2147483648". 
+The following number becomes limit size (bytes).
 
 
 

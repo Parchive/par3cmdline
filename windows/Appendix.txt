@@ -10,8 +10,10 @@ This is a reminder for later implementation.
 The unique random number is set to randomize InputSetID internally.
 No need to store the number in Start Packet, because it's not refered later.
 
+-------------------------------------------------------------------------------
+Old construction was below.
 
-*Old table: Start Packet Body Contents*
+*Table: Start Packet Body Contents*
 
 | Length (bytes) | Type | Description |
 |---------------:|:-----|:------------|
@@ -22,6 +24,8 @@ No need to store the number in Start Packet, because it's not refered later.
 |  1 | unsigned int | The size of the Galois field in bytes. |
 |  ? | ?-byte GF | The generator of the Galois field without its leading 1. |
 
+-------------------------------------------------------------------------------
+New construction is below.
 
 *Table: Start Packet Body Contents*
 
@@ -32,6 +36,8 @@ No need to store the number in Start Packet, because it's not refered later.
 |  8 | unsigned int | Block size in bytes |
 |  1 | unsigned int | The size of the Galois field in bytes. |
 |  ? | ?-byte GF | The generator of the Galois field without its leading 1. |
+
+-------------------------------------------------------------------------------
 
 
 
@@ -51,8 +57,10 @@ it can verify files by using checksums for input blocks in External Data Packet.
 By doing this change, all non used values are same 0xff bytes.
 It's easy to see which value is set or not.
 
+-------------------------------------------------------------------------------
+Old construction was below.
 
-*Old table: UNIX Permissions Packet Unset Values
+*Table: UNIX Permissions Packet Unset Values
 
 | Field | Unset Value |
 |------:|------------:|
@@ -62,6 +70,8 @@ It's easy to see which value is set or not.
 | owner name, group name | empty string | 
 | xattr | empty list |
 
+-------------------------------------------------------------------------------
+New construction is below.
 
 *Table: UNIX Permissions Packet Unset Values
 
@@ -73,6 +83,8 @@ It's easy to see which value is set or not.
 | owner name, group name | empty string | 
 | xattr | empty list |
 
+-------------------------------------------------------------------------------
+
 
 
 ##### FAT Permissions Packet
@@ -81,14 +93,18 @@ It's easy to see which value is set or not.
 By doing this change, all non used values are same 0xff bytes.
 It's easy to see which value is set or not.
 
+-------------------------------------------------------------------------------
+Old construction was below.
 
-*Old table: FAT Permissions Packet Unset Values
+*Table: FAT Permissions Packet Unset Values
 
 | Field | Unset Value |
 |------:|------------:|
 | CreationTimestamp, LastAccessTimestamp, LastWriteTimestamp |  2^64-1 (maximum unsigned value)  |
 | FileAttributes | 0 | 
 
+-------------------------------------------------------------------------------
+New construction is below.
 
 *Table: FAT Permissions Packet Unset Values
 
@@ -96,6 +112,8 @@ It's easy to see which value is set or not.
 |------:|------------:|
 | CreationTimestamp, LastAccessTimestamp, LastWriteTimestamp |  2^64-1 (maximum unsigned value)  |
 | FileAttributes | 0xffff | value to indicate unset |
+
+-------------------------------------------------------------------------------
 
 
 
