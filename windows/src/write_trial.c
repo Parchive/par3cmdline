@@ -12,7 +12,7 @@
 
 
 // Try Index File
-void try_index_file(PAR3_CTX *par3_ctx)
+uint64_t try_index_file(PAR3_CTX *par3_ctx)
 {
 	uint64_t file_size;
 
@@ -47,6 +47,8 @@ void try_index_file(PAR3_CTX *par3_ctx)
 
 	if (par3_ctx->noise_level >= -1)
 		printf("Size of index file = %I64u, %s\n", file_size, offset_file_name(par3_ctx->par_filename));
+
+	return file_size;
 }
 
 
@@ -300,7 +302,7 @@ uint32_t calculate_digit_max(PAR3_CTX *par3_ctx,
 }
 
 
-static void try_data_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t each_start, uint64_t each_count)
+static uint64_t try_data_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t each_start, uint64_t each_count)
 {
 	uint8_t *common_packet;
 	uint32_t cohort_count, write_count;
@@ -408,10 +410,12 @@ static void try_data_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t each_st
 
 	if (par3_ctx->noise_level >= -1)
 		printf("Size of archive file = %I64u, %s\n", file_size, offset_file_name(filename));
+
+	return file_size;
 }
 
 // Write PAR3 files with Data packets (input blocks)
-int try_archive_file(PAR3_CTX *par3_ctx)
+int try_archive_file(PAR3_CTX *par3_ctx, uint64_t *recovery_file_size)
 {
 	char filename[_MAX_PATH];
 	int digit_num1, digit_num2;
@@ -495,7 +499,7 @@ int try_archive_file(PAR3_CTX *par3_ctx)
 		}
 
 		sprintf(filename + len, ".part%0*I64u+%0*I64u.par3", digit_num1, each_start, digit_num2, each_count);
-		try_data_packet(par3_ctx, filename, each_start, each_count);
+		*recovery_file_size += try_data_packet(par3_ctx, filename, each_start, each_count);
 
 		each_start += each_count;
 		block_count -= each_count;
@@ -505,7 +509,7 @@ int try_archive_file(PAR3_CTX *par3_ctx)
 }
 
 
-static void try_recovery_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t each_start, uint64_t each_count)
+static uint64_t try_recovery_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t each_start, uint64_t each_count)
 {
 	uint8_t *common_packet;
 	uint32_t cohort_count;
@@ -586,10 +590,12 @@ static void try_recovery_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t eac
 
 	if (par3_ctx->noise_level >= -1)
 		printf("Size of recovery file = %I64u, %s\n", file_size, offset_file_name(filename));
+
+	return file_size;
 }
 
 // Write PAR3 files with Recovery Data packets (recovery blocks are not written yet)
-int try_recovery_file(PAR3_CTX *par3_ctx)
+int try_recovery_file(PAR3_CTX *par3_ctx, uint64_t *recovery_file_size)
 {
 	char filename[_MAX_PATH];
 	int digit_num1, digit_num2;
@@ -674,7 +680,7 @@ int try_recovery_file(PAR3_CTX *par3_ctx)
 		}
 
 		sprintf(filename + len, ".vol%0*I64u+%0*I64u.par3", digit_num1, each_start, digit_num2, each_count);
-		try_recovery_packet(par3_ctx, filename, each_start, each_count);
+		*recovery_file_size += try_recovery_packet(par3_ctx, filename, each_start, each_count);
 
 		each_start += each_count;
 		block_count -= each_count;

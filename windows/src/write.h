@@ -21,9 +21,9 @@ int write_recovery_file(PAR3_CTX *par3_ctx);
 
 // for Trial
 
-void try_index_file(PAR3_CTX *par3_ctx);
+uint64_t try_index_file(PAR3_CTX *par3_ctx);
 
-int try_archive_file(PAR3_CTX *par3_ctx);
+int try_archive_file(PAR3_CTX *par3_ctx, uint64_t *recovery_file_size);
 
-int try_recovery_file(PAR3_CTX *par3_ctx);
+int try_recovery_file(PAR3_CTX *par3_ctx, uint64_t *recovery_file_size);
 

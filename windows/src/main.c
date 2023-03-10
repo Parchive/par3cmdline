@@ -439,9 +439,7 @@ int main(int argc, char *argv[])
 					if (tmp_p[1] == 0){
 						par3_ctx->recovery_file_scheme = -2;
 					} else {
-						int64_t limit_size = strtoll(tmp_p + 1, NULL, 10);
-						if (limit_size > 0)
-							par3_ctx->recovery_file_scheme = limit_size;
+						par3_ctx->recovery_file_scheme = strtoll(tmp_p + 1, NULL, 10);
 					}
 				}
 

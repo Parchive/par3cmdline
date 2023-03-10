@@ -267,6 +267,7 @@ static int calculate_recovery_count(PAR3_CTX *par3_ctx)
 int par3_trial(PAR3_CTX *par3_ctx)
 {
 	int ret;
+	uint64_t total_par_size;	// Total size of Index File, Archive Files, and Recovery Files.
 
 	// Load input blocks on memory.
 	if (par3_ctx->block_count == 0){
@@ -314,7 +315,7 @@ int par3_trial(PAR3_CTX *par3_ctx)
 		return ret;
 
 	// Try Index File
-	try_index_file(par3_ctx);
+	total_par_size = try_index_file(par3_ctx);
 
 	// Try PAR3 files with input blocks
 	if ( (par3_ctx->block_count > 0) && ( (par3_ctx->data_packet != 0) || (par3_ctx->recovery_block_count > 0) ) ){
@@ -324,17 +325,37 @@ int par3_trial(PAR3_CTX *par3_ctx)
 
 		// Write PAR3 files with input blocks
 		if (par3_ctx->data_packet != 0){
-			ret = try_archive_file(par3_ctx);
+			ret = try_archive_file(par3_ctx, &total_par_size);
 			if (ret != 0)
 				return ret;
 		}
 
 		// Write PAR3 files with recovery blocks
 		if (par3_ctx->recovery_block_count > 0){
-			ret = try_recovery_file(par3_ctx);
+			ret = try_recovery_file(par3_ctx, &total_par_size);
 			if (ret != 0)
 				return ret;
 		}
+	}
+
+	// Show efficiency rate
+	if (par3_ctx->noise_level >= -1){
+		double rate1, rate2;
+		printf("\nTotal size of PAR files = %I64u\n", total_par_size);
+		if ( (par3_ctx->block_count == 0) || (total_par_size == 0) ){
+			rate1 = 0;
+			rate2 = 0;
+		} else {
+			rate1 = (double)(par3_ctx->total_file_size) / (double)(par3_ctx->block_size * par3_ctx->block_count);
+			if (par3_ctx->data_packet != 0){	// Archive Files are same as 100% redundancy.
+				rate2 = (double)(par3_ctx->total_file_size + par3_ctx->block_size * par3_ctx->recovery_block_count) / (double)total_par_size;
+			} else {
+				rate2 = (double)(par3_ctx->block_size * par3_ctx->recovery_block_count) / (double)total_par_size;
+			}
+		}
+		printf("File data in Blocks = %.1lf%%\n", rate1 * 100);
+		printf("Blocks in PAR files = %.1lf%%\n", rate2 * 100);
+		printf("Efficiency rate     = %.1lf%%\n", rate1 * rate2 * 100);
 	}
 
 	return 0;
