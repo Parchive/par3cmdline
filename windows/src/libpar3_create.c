@@ -353,9 +353,9 @@ int par3_trial(PAR3_CTX *par3_ctx)
 				rate2 = (double)(par3_ctx->block_size * par3_ctx->recovery_block_count) / (double)total_par_size;
 			}
 		}
-		printf("File data in Blocks = %.1lf%%\n", rate1 * 100);
-		printf("Blocks in PAR files = %.1lf%%\n", rate2 * 100);
-		printf("Efficiency rate     = %.1lf%%\n", rate1 * rate2 * 100);
+		printf("File data in Source blocks = %.1lf%%\n", rate1 * 100);
+		printf("Recovery data in PAR files = %.1lf%%\n", rate2 * 100);
+		printf("Efficiency of PAR files    = %.1lf%%\n", rate1 * rate2 * 100);
 	}
 
 	return 0;
