@@ -369,10 +369,11 @@ int par3_trial(PAR3_CTX *par3_ctx)
 		}
 		total_data_size = par3_ctx->total_file_size - total_tiny_size;
 		//printf("Total size of tiny chunk tails  = %I64u\n", total_tiny_size);
-		//printf("Total file data in input blocks = %I64u\n", total_data_size - total_tiny_size);
+		//printf("Total file data in input blocks = %I64u\n", total_data_size);
 
-		// rate1 = "total size of input file data" / "total size of source blocks"
-		// rate2 = "total size of recovery blocks" / "total size of PAR files"
+		// rate1 "File data in Source blocks" = "total size of input file data" / "total size of source blocks"
+		// rate2 "Recovery data in PAR files" = "total size of recovery blocks" / "total size of PAR files"
+		// rate of "Efficiency of PAR files" = rate1 * rate2
 		printf("\nTotal size of PAR files = %I64u\n", total_par_size);
 		if ( (par3_ctx->block_count == 0) || (total_par_size == 0) ){
 			rate1 = 0;
