@@ -341,36 +341,6 @@ int par3_trial(PAR3_CTX *par3_ctx)
 	// Show efficiency rate
 	if (par3_ctx->noise_level >= -1){
 		double rate1, rate2;
-
-		// Because tiny chunk tails (1~39 bytes) don't consume blocks, reduce the size from total_file_size.
-		uint32_t chunk_count;
-		uint64_t block_size, chunk_size, tail_size;
-		uint64_t total_data_size, total_tiny_size;
-		PAR3_CHUNK_CTX *chunk_p;
-
-		block_size = par3_ctx->block_size;
-		chunk_count = par3_ctx->chunk_count;
-		chunk_p = par3_ctx->chunk_list;
-		total_tiny_size = 0;
-		while (chunk_count > 0){
-			chunk_size = chunk_p->size;
-			if (chunk_size != 0){
-				if (chunk_size >= block_size){
-					tail_size = chunk_size % block_size;
-				} else {
-					tail_size = chunk_size;
-				}
-				if ( (tail_size > 0) && (tail_size < 40) )
-					total_tiny_size += tail_size;
-			}
-
-			chunk_p++;
-			chunk_count--;
-		}
-		total_data_size = par3_ctx->total_file_size - total_tiny_size;
-		//printf("Total size of tiny chunk tails  = %I64u\n", total_tiny_size);
-		//printf("Total file data in input blocks = %I64u\n", total_data_size);
-
 		// rate1 "File data in Source blocks" = "total size of input file data" / "total size of source blocks"
 		// rate2 "Recovery data in PAR files" = "total size of recovery blocks" / "total size of PAR files"
 		// rate of "Efficiency of PAR files" = rate1 * rate2
@@ -379,7 +349,23 @@ int par3_trial(PAR3_CTX *par3_ctx)
 			rate1 = 0;
 			rate2 = 0;
 		} else {
-			rate1 = (double)(total_data_size) / (double)(par3_ctx->block_size * par3_ctx->block_count);
+			// Tiny chunk tails (1~39 bytes) don't consume blocks.
+			// Duplicate data reuses same blocks.
+			// Sum using bytes in every blocks to calculate total file data size.
+			uint64_t block_count, total_data_size;
+			PAR3_BLOCK_CTX *block_p;
+
+			block_count = par3_ctx->block_count;
+			block_p = par3_ctx->block_list;
+			total_data_size = 0;
+			while (block_count > 0){
+				total_data_size += block_p->size;
+				block_p++;
+				block_count--;
+			}
+			//printf("Total file data in input blocks = %I64u\n", total_data_size);
+
+			rate1 = (double)total_data_size / (double)(par3_ctx->block_size * par3_ctx->block_count);
 			if (par3_ctx->data_packet != 0){	// Archive Files are same as 100% redundancy.
 				rate2 = (double)(total_data_size + par3_ctx->block_size * par3_ctx->recovery_block_count) / (double)total_par_size;
 			} else {
