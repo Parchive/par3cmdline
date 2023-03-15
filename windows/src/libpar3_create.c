@@ -341,21 +341,58 @@ int par3_trial(PAR3_CTX *par3_ctx)
 	// Show efficiency rate
 	if (par3_ctx->noise_level >= -1){
 		double rate1, rate2;
+
+		// Because tiny chunk tails (1~39 bytes) don't consume blocks, reduce the size from total_file_size.
+		uint32_t chunk_count;
+		uint64_t block_size, chunk_size, tail_size;
+		uint64_t total_data_size, total_tiny_size;
+		PAR3_CHUNK_CTX *chunk_p;
+
+		block_size = par3_ctx->block_size;
+		chunk_count = par3_ctx->chunk_count;
+		chunk_p = par3_ctx->chunk_list;
+		total_tiny_size = 0;
+		while (chunk_count > 0){
+			chunk_size = chunk_p->size;
+			if (chunk_size != 0){
+				if (chunk_size >= block_size){
+					tail_size = chunk_size % block_size;
+				} else {
+					tail_size = chunk_size;
+				}
+				if ( (tail_size > 0) && (tail_size < 40) )
+					total_tiny_size += tail_size;
+			}
+
+			chunk_p++;
+			chunk_count--;
+		}
+		total_data_size = par3_ctx->total_file_size - total_tiny_size;
+		//printf("Total size of tiny chunk tails  = %I64u\n", total_tiny_size);
+		//printf("Total file data in input blocks = %I64u\n", total_data_size - total_tiny_size);
+
+		// rate1 = "total size of input file data" / "total size of source blocks"
+		// rate2 = "total size of recovery blocks" / "total size of PAR files"
 		printf("\nTotal size of PAR files = %I64u\n", total_par_size);
 		if ( (par3_ctx->block_count == 0) || (total_par_size == 0) ){
 			rate1 = 0;
 			rate2 = 0;
 		} else {
-			rate1 = (double)(par3_ctx->total_file_size) / (double)(par3_ctx->block_size * par3_ctx->block_count);
+			rate1 = (double)(total_data_size) / (double)(par3_ctx->block_size * par3_ctx->block_count);
 			if (par3_ctx->data_packet != 0){	// Archive Files are same as 100% redundancy.
-				rate2 = (double)(par3_ctx->total_file_size + par3_ctx->block_size * par3_ctx->recovery_block_count) / (double)total_par_size;
+				rate2 = (double)(total_data_size + par3_ctx->block_size * par3_ctx->recovery_block_count) / (double)total_par_size;
 			} else {
 				rate2 = (double)(par3_ctx->block_size * par3_ctx->recovery_block_count) / (double)total_par_size;
 			}
 		}
-		printf("File data in Source blocks = %.1lf%%\n", rate1 * 100);
-		printf("Recovery data in PAR files = %.1lf%%\n", rate2 * 100);
-		printf("Efficiency of PAR files    = %.1lf%%\n", rate1 * rate2 * 100);
+		// Truncate two decimal places (use integer instead of showing double directly)
+		//printf("rate1 = %f, rate2 = %f\n", rate1, rate2);
+		ret = (int)(rate1 * 1000);
+		printf("File data in Source blocks = %d.%d%%\n", ret / 10, ret % 10);
+		ret = (int)(rate2 * 1000);
+		printf("Recovery data in PAR files = %d.%d%%\n", ret / 10, ret % 10);
+		ret = (int)(rate1 * rate2 * 1000);
+		printf("Efficiency of PAR files    = %d.%d%%\n", ret / 10, ret % 10);
 	}
 
 	return 0;
