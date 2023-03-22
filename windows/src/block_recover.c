@@ -1405,7 +1405,7 @@ int recover_lost_block_cohort(PAR3_CTX *par3_ctx, char *temp_path)
 			continue;
 		}
 		if (lost_list[cohort_index] == 0){	// No need to recover blocks in this cohort.
-			if (par3_ctx->noise_level >= 1){
+			if ( (cohort_count < 10) && (par3_ctx->noise_level >= 1) ){
 				printf("cohort[%u] : no lost\n", cohort_index);
 			}
 
@@ -1513,7 +1513,7 @@ int recover_lost_block_cohort(PAR3_CTX *par3_ctx, char *temp_path)
 			continue;
 		}
 
-		if (par3_ctx->noise_level >= 1){
+		if ( (cohort_count < 10) && (par3_ctx->noise_level >= 1) ){
 			printf("cohort[%u] : lost = %u, recovery = %u\n", cohort_index, lost_list[cohort_index], recv_list[cohort_index]);
 		}
 		for (split_offset = 0; split_offset < block_size; split_offset += split_size){

@@ -942,7 +942,7 @@ int create_recovery_block_cohort(PAR3_CTX *par3_ctx)
 	fp = NULL;
 	// Process each cohort
 	for (cohort_index = 0; cohort_index < cohort_count; cohort_index++){
-		if (par3_ctx->noise_level >= 1){
+		if ( (cohort_count < 10) && (par3_ctx->noise_level >= 1) ){
 			split_count = 0;
 			split_offset = block_count % cohort_count;
 			if ( (split_offset > 0) && (cohort_index >= split_offset) )
