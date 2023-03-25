@@ -34,8 +34,8 @@ Archive Files include Data Packets, which is a piece of input files.
  It can restore missing or damaged files by using Data Packets.
 It can correct filename of misnamed files, when they were specified as extra files.
 
-At this time, this supports Reed-Solomon Codes with Cauchy Matrix.
-I test FFT based Reed-Solomon Codes by Leopard-RS library.
+At this time, this supports Reed-Solomon Codes with Cauchy Matrix
+and FFT based Reed-Solomon Codes by Leopard-RS library.
 
 It doesn't use maultiple Recovery Codes at once.
 It doesn't support "PAR inside" feature yet.
