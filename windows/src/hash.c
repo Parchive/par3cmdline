@@ -597,3 +597,23 @@ int leo_region_check_parity(uint8_t *buf, size_t region_size)
 	return 0;
 }
 
+// Restore region bytes from ALTMAP for Leopard-RS
+void leo_region_restore(uint8_t *buf, size_t region_size)
+{
+	uint8_t temp_buf[64];
+	size_t i;
+
+	// XOR all block data to 4 bytes.
+	while (region_size >= 64){
+		// return from ALTMAP
+		for (i = 0; i < 32; i++){
+			temp_buf[i * 2    ] = buf[i     ];
+			temp_buf[i * 2 + 1] = buf[i + 32];
+		}
+		memcpy(buf, temp_buf, 64);
+
+		buf += 64;
+		region_size -= 64;
+	}
+}
+

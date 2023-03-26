@@ -27,4 +27,5 @@ int region_check_parity(uint8_t *buf, size_t region_size);
 // parity bytes in the region for Leopard-RS (ALTMAP)
 void leo_region_create_parity(uint8_t *buf, size_t region_size);
 int leo_region_check_parity(uint8_t *buf, size_t region_size);
+void leo_region_restore(uint8_t *buf, size_t region_size);
 

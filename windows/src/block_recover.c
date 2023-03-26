@@ -104,7 +104,7 @@ int recover_lost_block(PAR3_CTX *par3_ctx, char *temp_path, int lost_count)
 		clock_now = clock();
 	}
 
-	// Read available input blocks
+	// Store available input blocks on memory
 	name_prev = NULL;
 	file_prev = 0xFFFFFFFF;
 	fp_read = NULL;
@@ -735,7 +735,7 @@ int recover_lost_block_split(PAR3_CTX *par3_ctx, char *temp_path, uint64_t lost_
 		buf_p = block_data;	// Starting position of input blocks
 		name_prev = NULL;
 
-		// Read available input blocks on memory
+		// Store available input blocks on memory
 		for (block_index = 0; block_index < block_count; block_index++){
 			data_size = block_list[block_index].size;
 			part_size = data_size - split_offset;
@@ -1053,6 +1053,8 @@ if (par3_ctx->ecc_method & 8){	// FFT based Reed-Solomon Codes
 					printf("Parity of recovered block[%I64u] is different.\n", block_index);
 					return RET_LOGIC_ERROR;
 				}
+			} else if ( (par3_ctx->ecc_method & 8) && (gf_size == 2) ){
+				leo_region_restore(buf_p, region_size);	// Return from ALTMAP
 			}
 
 			slice_index = block_list[block_index].slice;
@@ -1532,7 +1534,7 @@ int recover_lost_block_cohort(PAR3_CTX *par3_ctx, char *temp_path)
 				fp_write = NULL;
 			}
 
-			// Read available input blocks on memory
+			// Store available input blocks on memory
 			for (block_index = cohort_index; block_index < block_count; block_index += cohort_count){
 				original_data[block_index / cohort_count] = buf_p;	// At first, set position of block data.
 				data_size = block_list[block_index].size;
@@ -1851,6 +1853,8 @@ printf("\n recover ok, progress = %I64u / %I64u\n", progress_step, progress_tota
 						printf("Parity of recovered block[%I64u] is different.\n", block_index);
 						return RET_LOGIC_ERROR;
 					}
+				} else if (gf_size == 2){
+					leo_region_restore(buf_p, region_size);	// Return from ALTMAP
 				}
 
 				slice_index = block_list[block_index].slice;

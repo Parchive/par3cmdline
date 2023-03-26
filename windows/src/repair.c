@@ -637,11 +637,9 @@ int verify_repaired_file(PAR3_CTX *par3_ctx, char *temp_path,
 
 			} else {	// Repaired file is bad.
 				// Delete the temporary file
-/*
 				if (remove(temp_path) != 0){
 					perror("Failed to delete temporary file");
 				}
-*/
 				if (file_list[file_index].state & 2){
 					*damaged_file_count += 1;
 				} else if (file_list[file_index].state & 1){
