@@ -603,7 +603,6 @@ void leo_region_restore(uint8_t *buf, size_t region_size)
 	uint8_t temp_buf[64];
 	size_t i;
 
-	// XOR all block data to 4 bytes.
 	while (region_size >= 64){
 		// return from ALTMAP
 		for (i = 0; i < 32; i++){
