@@ -826,10 +826,11 @@ int sort_input_set(PAR3_CTX *par3_ctx)
 }
 
 
-// search other par files from par_filename
-int par_search(PAR3_CTX *par3_ctx, int flag_other)
+// search other par files from base filename
+int par_search(PAR3_CTX *par3_ctx, char *base_name, int flag_other)
 {
 	char find_path[_MAX_PATH], *list_name;
+	int file_count;
 	size_t dir_len, len, off, list_len;
 	uint64_t max_file_size;
 
@@ -837,8 +838,9 @@ int par_search(PAR3_CTX *par3_ctx, int flag_other)
 	struct _finddatai64_t c_file;
 	intptr_t handle;
 
+	file_count = 0;
 	max_file_size = 0;
-	strcpy(find_path, par3_ctx->par_filename);
+	strcpy(find_path, base_name);
 
 	// get length of directory part
 	dir_len = offset_file_name(find_path) - find_path;
@@ -850,6 +852,7 @@ int par_search(PAR3_CTX *par3_ctx, int flag_other)
 		//printf("found = \"%s\", size = %I64d\n", find_path, c_file.size);
 		if (max_file_size < (uint64_t)c_file.size)
 			max_file_size = c_file.size;
+		file_count++;
 
 		// add found filename with absolute path
 		if ( namez_add(&(par3_ctx->par_file_name), &(par3_ctx->par_file_name_len), &(par3_ctx->par_file_name_max), find_path) != 0){
@@ -907,6 +910,7 @@ int par_search(PAR3_CTX *par3_ctx, int flag_other)
 				//printf("found = \"%s\", size = %I64d\n", find_path, c_file.size);
 				if (max_file_size < (uint64_t)c_file.size)
 					max_file_size = c_file.size;
+				file_count++;
 
 				// add found filename with absolute path
 				if ( namez_add(&(par3_ctx->par_file_name), &(par3_ctx->par_file_name_len), &(par3_ctx->par_file_name_max), find_path) != 0){
@@ -928,15 +932,34 @@ int par_search(PAR3_CTX *par3_ctx, int flag_other)
 				//printf("extra file = \"%s\"\n", list_name + off);
 				len = strlen(list_name + off);
 				if (_stricmp(list_name + off + len - 5, ".par3") == 0){	// move this file to list of par files
+					// Filename may be relative path.
+					if (par3_ctx->base_path[0] != 0){
+						int ret = get_absolute_path(find_path, list_name + off, _MAX_PATH - 8);
+						//printf("file = \"%s\"\n", find_path);
+						if (ret != 0){
+							off += len + 1;
+							continue;
+						}
+					} else {
+						strcpy(find_path, list_name + off);
+					}
 
 					// check name in list, and ignore if exist
-					if (namez_search(par3_ctx->par_file_name, par3_ctx->par_file_name_len, list_name + off) == NULL){
+					if (namez_search(par3_ctx->par_file_name, par3_ctx->par_file_name_len, find_path) == NULL){
+						struct _stat64 stat_buf;
+						if (_stat64(find_path, &stat_buf) == 0){
+							//printf("found = \"%s\", size = %I64d\n", find_path, stat_buf.st_size);
+							if (max_file_size < (uint64_t)stat_buf.st_size)
+								max_file_size = stat_buf.st_size;
+							file_count++;
+						}
+
 						// add found filename
-						if ( namez_add(&(par3_ctx->par_file_name), &(par3_ctx->par_file_name_len), &(par3_ctx->par_file_name_max), list_name + off) != 0){
+						if ( namez_add(&(par3_ctx->par_file_name), &(par3_ctx->par_file_name_len), &(par3_ctx->par_file_name_max), find_path) != 0){
 							return RET_MEMORY_ERROR;
 						}
-					//} else {
-					//	printf("extra file = \"%s\" is listed already.\n", list_name + off);
+					} else if (par3_ctx->noise_level >= 2){
+						printf("extra file = \"%s\" is listed already.\n", list_name + off);
 					}
 
 					// remove from list of extra files
@@ -986,7 +1009,8 @@ int par_search(PAR3_CTX *par3_ctx, int flag_other)
 	}
 
 	par3_ctx->max_file_size = max_file_size;
-	if (par3_ctx->noise_level >= 0){
+	if (par3_ctx->noise_level >= 1){
+		printf("Number of PAR file = %d\n", file_count);
 		printf("Max par file size = %I64u\n", par3_ctx->max_file_size);
 	}
 

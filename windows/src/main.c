@@ -43,8 +43,10 @@ static void print_help(void)
 "  par3 -h  : show this help\n"
 "  par3 -V  : show version\n"
 "  par3 -VV : show version and copyright\n\n"
-"  par3 t(rial)  [options] <PAR3 file> [files] : Try to create PAR3 files\n"
+"  par3 tc       [options] <PAR3 file> [files] : Try to create PAR3 files\n"
+"  par3 te       [options] <PAR3 file> [file]  : Try to extend PAR3 files\n"
 "  par3 c(reate) [options] <PAR3 file> [files] : Create PAR3 files\n"
+"  par3 e(xtend) [options] <PAR3 file> [file]  : Extend PAR3 files\n"
 "  par3 v(erify) [options] <PAR3 file> [files] : Verify files using PAR3 file\n"
 "  par3 r(epair) [options] <PAR3 file> [files] : Repair files using PAR3 files\n"
 "  par3 l(ist)   [options] <PAR3 file>         : List files in PAR3 file\n"
@@ -89,7 +91,8 @@ int main(int argc, char *argv[])
 	PAR3_CTX *par3_ctx = NULL;
 
 	// command-line options
-	char command_operation;
+	char command_operation = 0;
+	char command_trial = 0;
 	char command_recursive = 0;
 
 	// For non UTF-8 code page system
@@ -188,10 +191,17 @@ int main(int argc, char *argv[])
 		command_operation = 'v';	// verify
 	} else if ( (strcmp(argv[1], "r") == 0) || (strcmp(argv[1], "repair") == 0) ){
 		command_operation = 'r';	// repair
-	} else if ( (strcmp(argv[1], "t") == 0) || (strcmp(argv[1], "trial") == 0) ){
-		command_operation = 't';	// trial
 	} else if ( (strcmp(argv[1], "l") == 0) || (strcmp(argv[1], "list") == 0) ){
 		command_operation = 'l';	// list
+	} else if ( (strcmp(argv[1], "e") == 0) || (strcmp(argv[1], "extend") == 0) ){
+		command_operation = 'e';	// extend
+
+	} else if (strcmp(argv[1], "tc") == 0){
+		command_operation = 'c';	// try to create
+		command_trial = 't';
+	} else if (strcmp(argv[1], "te") == 0){
+		command_operation = 'e';	// try to extend
+		command_trial = 't';
 
 	} else {
 		print_help();
@@ -208,7 +218,7 @@ int main(int argc, char *argv[])
 	}
 	memset(par3_ctx, 0, sizeof(PAR3_CTX));
 
-	if ( (command_operation == 'c') || (command_operation == 't') ){
+	if (command_operation == 'c'){
 		// add text in Creator Packet
 		ret = add_creator_text(par3_ctx, PACKAGE " version " VERSION
 					"\n(https://github.com/Parchive/par3cmdline)\n");
@@ -272,7 +282,7 @@ int main(int argc, char *argv[])
 				}
 
 			} else if ( (tmp_p[0] == 'b') && (tmp_p[1] >= '0') && (tmp_p[1] <= '9') ){	// Set the block count
-				if ( (command_operation != 'c') && (command_operation != 't') ){
+				if (command_operation != 'c'){
 					printf("Cannot specify block count unless creating.\n");
 					ret = RET_INVALID_COMMAND;
 					goto prepare_return;
@@ -289,7 +299,7 @@ int main(int argc, char *argv[])
 				}
 
 			} else if ( (tmp_p[0] == 's') && (tmp_p[1] >= '0') && (tmp_p[1] <= '9') ){	// Set the block size
-				if ( (command_operation != 'c') && (command_operation != 't') ){
+				if (command_operation != 'c'){
 					printf("Cannot specify block size unless creating.\n");
 					ret = RET_INVALID_COMMAND;
 					goto prepare_return;
@@ -306,7 +316,7 @@ int main(int argc, char *argv[])
 				}
 
 			} else if ( (tmp_p[0] == 'r') && (tmp_p[1] >= '0') && (tmp_p[1] <= '9') ){	// Set the amount of redundancy required
-				if ( (command_operation != 'c') && (command_operation != 't') ){
+				if ( (command_operation != 'c') && (command_operation != 'e') ){
 					printf("Cannot specify redundancy unless creating.\n");
 					ret = RET_INVALID_COMMAND;
 					goto prepare_return;
@@ -326,8 +336,8 @@ int main(int argc, char *argv[])
 					}
 				}
 
-			} else if ( (tmp_p[0] == 'r') && (tmp_p[1] == 'm') && (tmp_p[2] >= '0') && (tmp_p[2] <= '9') ){	// Specify the Max recovery block count
-				if ( (command_operation != 'c') && (command_operation != 't') ){
+			} else if ( (tmp_p[0] == 'r') && (tmp_p[1] == 'm') && (tmp_p[2] >= '0') && (tmp_p[2] <= '9') ){	// Specify the Max redundancy
+				if (command_operation != 'c'){
 					printf("Cannot specify max redundancy unless creating.\n");
 					ret = RET_INVALID_COMMAND;
 					goto prepare_return;
@@ -348,7 +358,7 @@ int main(int argc, char *argv[])
 				}
 
 			} else if ( (tmp_p[0] == 'c') && (tmp_p[1] >= '0') && (tmp_p[1] <= '9') ){	// Set the number of recovery blocks to create
-				if ( (command_operation != 'c') && (command_operation != 't') ){
+				if ( (command_operation != 'c') && (command_operation != 'e') ){
 					printf("Cannot specify recovery block count unless creating.\n");
 					ret = RET_INVALID_COMMAND;
 					goto prepare_return;
@@ -369,8 +379,8 @@ int main(int argc, char *argv[])
 			It needs a parent PAR3 file instead of input files.
 			It needs to verify before creating recovery blocks.
 			*/
-			} else if ( (tmp_p[0] == 'c') && (tmp_p[1] == 'f') && (tmp_p[2] >= '0') && (tmp_p[2] <= '9') ){	// Specify the First block recovery number
-				if ( (command_operation != 'c') && (command_operation != 't') ){
+			} else if ( (tmp_p[0] == 'c') && (tmp_p[1] == 'f') && (tmp_p[2] >= '0') && (tmp_p[2] <= '9') ){	// Specify the First recovery block number
+				if ( (command_operation != 'c') && (command_operation != 'e') ){
 					printf("Cannot specify first block number unless creating.\n");
 					ret = RET_INVALID_COMMAND;
 					goto prepare_return;
@@ -391,7 +401,7 @@ int main(int argc, char *argv[])
 				}
 
 			} else if ( (tmp_p[0] == 'c') && (tmp_p[1] == 'm') && (tmp_p[2] >= '0') && (tmp_p[2] <= '9') ){	// Specify the Max recovery block count
-				if ( (command_operation != 'c') && (command_operation != 't') ){
+				if (command_operation != 'c'){
 					printf("Cannot specify max recovery block count unless creating.\n");
 					ret = RET_INVALID_COMMAND;
 					goto prepare_return;
@@ -404,7 +414,7 @@ int main(int argc, char *argv[])
 				}
 
 			} else if (strcmp(tmp_p, "u") == 0){	// Specify uniformly sized recovery files
-				if ( (command_operation != 'c') && (command_operation != 't') ){
+				if ( (command_operation != 'c') && (command_operation != 'e') ){
 					printf("Cannot specify uniform files unless creating.\n");
 					ret = RET_INVALID_COMMAND;
 					goto prepare_return;
@@ -423,7 +433,7 @@ int main(int argc, char *argv[])
 				}
 
 			} else if ( (tmp_p[0] == 'l') && ( (tmp_p[1] == 0) || ( (tmp_p[1] >= '0') && (tmp_p[1] <= '9') ) ) ){	// Limit the size of the recovery files
-				if ( (command_operation != 'c') && (command_operation != 't') ){
+				if ( (command_operation != 'c') && (command_operation != 'e') ){
 					printf("Cannot specify limit files unless creating.\n");
 					ret = RET_INVALID_COMMAND;
 					goto prepare_return;
@@ -444,7 +454,7 @@ int main(int argc, char *argv[])
 				}
 
 			} else if ( (tmp_p[0] == 'n') && (tmp_p[1] >= '0') && (tmp_p[1] <= '9') ){	// Specify the number of recovery files
-				if ( (command_operation != 'c') && (command_operation != 't') ){
+				if ( (command_operation != 'c') && (command_operation != 'e') ){
 					printf("Cannot specify recovery file count unless creating.\n");
 					ret = RET_INVALID_COMMAND;
 					goto prepare_return;
@@ -461,7 +471,7 @@ int main(int argc, char *argv[])
 				}
 
 			} else if (strcmp(tmp_p, "R") == 0){	// Enable recursive search
-				if ( (command_operation != 'c') && (command_operation != 't') ){
+				if (command_operation != 'c'){
 					printf("Cannot specify Recursive unless creating.\n");
 					ret = RET_INVALID_COMMAND;
 					goto prepare_return;
@@ -470,7 +480,7 @@ int main(int argc, char *argv[])
 				}
 
 			} else if (strcmp(tmp_p, "D") == 0){	// Store Data packets
-				if ( (command_operation != 'c') && (command_operation != 't') ){
+				if ( (command_operation != 'c') && (command_operation != 'e') ){
 					printf("Cannot specify Data packet unless creating.\n");
 					ret = RET_INVALID_COMMAND;
 					goto prepare_return;
@@ -479,7 +489,7 @@ int main(int argc, char *argv[])
 				}
 
 			} else if ( (tmp_p[0] == 'd') && (tmp_p[1] >= '0') && (tmp_p[1] <= '2') ){	// Enable deduplication
-				if ( (command_operation != 'c') && (command_operation != 't') ){
+				if (command_operation != 'c'){
 					printf("Cannot specify deduplication unless creating.\n");
 					ret = RET_INVALID_COMMAND;
 					goto prepare_return;
@@ -489,14 +499,14 @@ int main(int argc, char *argv[])
 					goto prepare_return;
 				} else {
 					par3_ctx->deduplication = tmp_p[1];
-					if (add_creator_text(par3_ctx, tmp_p - 1) != 0){
+					if (add_creator_text(par3_ctx, tmp_p - 1) != 0){	// Store this option for debug
 						ret = RET_MEMORY_ERROR;
 						goto prepare_return;
 					}
 				}
 
 			} else if ( (tmp_p[0] == 'e') && (tmp_p[1] >= '0') && (tmp_p[1] <= '9') ){	// Error Correction Codes
-				if ( (command_operation != 'c') && (command_operation != 't') ){
+				if (command_operation != 'c'){
 					printf("Cannot specify Error Correction Codes unless creating.\n");
 					ret = RET_INVALID_COMMAND;
 					goto prepare_return;
@@ -513,7 +523,7 @@ int main(int argc, char *argv[])
 				}
 
 			} else if ( (tmp_p[0] == 'i') && (tmp_p[1] >= '0') && (tmp_p[1] <= '9') ){	// Interleaving
-				if ( (command_operation != 'c') && (command_operation != 't') ){
+				if (command_operation != 'c'){
 					printf("Cannot specify interleaving unless creating.\n");
 					ret = RET_INVALID_COMMAND;
 					goto prepare_return;
@@ -525,7 +535,7 @@ int main(int argc, char *argv[])
 					par3_ctx->interleave = strtoul(tmp_p + 1, NULL, 10);
 /*
 					if (par3_ctx->interleave > 0){
-						if (add_creator_text(par3_ctx, tmp_p - 1) != 0){
+						if (add_creator_text(par3_ctx, tmp_p - 1) != 0){	// Store this option for debug
 							ret = RET_MEMORY_ERROR;
 							goto prepare_return;
 						}
@@ -546,8 +556,8 @@ int main(int argc, char *argv[])
 						ret = strtoul(tmp_p + 2, NULL, 10) & 7;
 					}
 					par3_ctx->file_system |= ret;
-					if ( (command_operation == 'c') || (command_operation == 't') ){	// Only creating time
-						if (add_creator_text(par3_ctx, tmp_p - 1) != 0){
+					if (command_operation == 'c'){	// Only creating time
+						if (add_creator_text(par3_ctx, tmp_p - 1) != 0){	// Store this option for debug
 							ret = RET_MEMORY_ERROR;
 							goto prepare_return;
 						}
@@ -561,8 +571,8 @@ int main(int argc, char *argv[])
 					goto prepare_return;
 				} else {
 					par3_ctx->file_system |= 0x10000;
-					if ( (command_operation == 'c') || (command_operation == 't') ){	// Only creating time
-						if (add_creator_text(par3_ctx, tmp_p - 1) != 0){
+					if (command_operation == 'c'){	// Only creating time
+						if (add_creator_text(par3_ctx, tmp_p - 1) != 0){	// Store this option for debug
 							ret = RET_MEMORY_ERROR;
 							goto prepare_return;
 						}
@@ -570,6 +580,11 @@ int main(int argc, char *argv[])
 				}
 
 			} else if ( (tmp_p[0] == 'C') && (tmp_p[1] != 0) ){	// Set comment
+				if (command_operation != 'c'){
+					printf("Cannot specify comment unless creating.\n");
+					ret = RET_INVALID_COMMAND;
+					goto prepare_return;
+				}
 				if (add_comment_text(par3_ctx, tmp_p + 1) != 0){
 					ret = RET_MEMORY_ERROR;
 					goto prepare_return;
@@ -662,7 +677,7 @@ int main(int argc, char *argv[])
 			ret = RET_FILE_IO_ERROR;
 			goto prepare_return;
 		}
-	} else if ( ((command_operation == 'c') || (command_operation == 't')) && (par3_ctx->absolute_path != 0) ){
+	} else if ( (command_operation == 'c') && (par3_ctx->absolute_path != 0) ){
 		// If base-path is empty at creation, current working directory becomes the absolute path.
 		if (_getcwd(par3_ctx->base_path, _MAX_PATH - 4) == NULL){
 			perror("Failed to get current working directory\n");
@@ -687,7 +702,7 @@ int main(int argc, char *argv[])
 		if (par3_ctx->recovery_block_count != 0)
 			printf("recovery_block_count = %I64u\n", par3_ctx->recovery_block_count);
 		if (par3_ctx->first_recovery_block != 0)
-			printf("first_recovery_block = %I64u\n", par3_ctx->first_recovery_block);
+			printf("First recovery block number = %I64u\n", par3_ctx->first_recovery_block);
 		if (par3_ctx->max_recovery_block != 0)
 			printf("max_recovery_block = %I64u\n", par3_ctx->max_recovery_block);
 		if (par3_ctx->recovery_file_count != 0)
@@ -722,11 +737,11 @@ int main(int argc, char *argv[])
 			printf("Data packet = store\n");
 		if (par3_ctx->base_path[0] != 0)
 			printf("Base path = \"%s\"\n", par3_ctx->base_path);
-		printf("PAR3 file = \"%s\"\n", par3_ctx->par_filename);
+		printf("PAR file = \"%s\"\n", par3_ctx->par_filename);
 		printf("\n");
 	}
 
-	if ( (command_operation == 'c') || (command_operation == 't') ){	// Create or Trial
+	if (command_operation == 'c'){	// Create
 
 		// When there is no argument for input file, return to the PAR file name.
 		if (argi == argc)
@@ -824,7 +839,7 @@ int main(int argc, char *argv[])
 			goto prepare_return;
 		}
 
-		if (command_operation == 'c'){
+		if (command_trial == 0){
 			// create recovery files
 			ret = par3_create(par3_ctx);
 		} else {
@@ -832,7 +847,7 @@ int main(int argc, char *argv[])
 			ret = par3_trial(par3_ctx);
 		}
 		if (ret != 0){
-			printf("Failed to create PAR3 file\n");
+			printf("Failed to create PAR file\n");
 			goto prepare_return;
 		}
 		if (par3_ctx->noise_level >= -1)
@@ -878,19 +893,19 @@ int main(int argc, char *argv[])
 
 		// search par files
 		if (command_operation != 'l'){	// Verify or Repair
-			ret = par_search(par3_ctx, 1);	// Check other PAR3 files, too.
+			ret = par_search(par3_ctx, par3_ctx->par_filename, 1);	// Check other PAR3 files, too.
 		} else {	// List
-			ret = par_search(par3_ctx, 0);	// Check the specified PAR3 file only.
+			ret = par_search(par3_ctx, par3_ctx->par_filename, 0);	// Check the specified PAR3 file only.
 		}
 		if (ret != 0){
-			printf("Failed to search PAR3 files\n");
+			printf("Failed to search PAR files\n");
 			goto prepare_return;
 		}
 
 		if (command_operation == 'l'){
 			ret = par3_list(par3_ctx);
 			if (ret != 0){
-				printf("Failed to list files in PAR3 file\n");
+				printf("Failed to list files in PAR file\n");
 				goto prepare_return;
 			}
 			if (par3_ctx->noise_level >= -1)
@@ -899,17 +914,91 @@ int main(int argc, char *argv[])
 		} else if (command_operation == 'v'){
 			ret = par3_verify(par3_ctx);
 			if ( (ret != 0) && (ret != RET_REPAIR_POSSIBLE) && (ret != RET_REPAIR_NOT_POSSIBLE) ){
-				printf("Failed to verify with PAR3 file\n");
+				printf("Failed to verify with PAR file\n");
 				goto prepare_return;
 			}
 
 		} else {
 			ret = par3_repair(par3_ctx, file_name);
 			if ( (ret != 0) && (ret != RET_REPAIR_FAILED) && (ret != RET_REPAIR_NOT_POSSIBLE) ){
-				printf("Failed to repair with PAR3 file\n");
+				printf("Failed to repair with PAR file\n");
 				goto prepare_return;
 			}
 		}
+
+	} else if (command_operation == 'e'){	// Extend
+
+		// search reference files
+		if (argi == argc){
+			// Base name of reference files is same as creating PAR3 files.
+			if (par3_ctx->noise_level >= 1){
+				printf("Reference file = \"%s\"\n", par3_ctx->par_filename);
+			}
+			ret = par_search(par3_ctx, par3_ctx->par_filename, 1);
+			if (ret != 0){
+				printf("Failed to search PAR files\n");
+				goto prepare_return;
+			}
+
+		} else {
+			if (utf8_argv != NULL){
+				tmp_p = utf8_argv[argi];
+			} else {
+				tmp_p = argv[argi];
+			}
+
+			// read relative path of a reference file
+			path_copy(file_name, tmp_p, _MAX_FNAME - 32);
+			if (file_name[0] == 0){
+				printf("PAR filename is not specified\n");
+				ret = RET_INVALID_COMMAND;
+				goto prepare_return;
+			}
+			// PAR filename must not include wildcard (* or ?).
+			len = strcspn(file_name, "*?");
+			if (len < strlen(file_name)){
+				printf("Found wildcard in PAR filename, %s\n", file_name);
+				ret = RET_INVALID_COMMAND;
+				goto prepare_return;
+			} else {
+				// PAR filename may be a relative path from current working directory.
+				if (par3_ctx->base_path[0] != 0){
+					char absolute_path[_MAX_PATH];
+					// if base-path isn't empty, relative from current working directory.
+					ret = get_absolute_path(absolute_path, file_name, _MAX_PATH - 8);
+					if (ret != 0){
+						printf("Failed to convert PAR filename to absolute path\n");
+						ret = RET_FILE_IO_ERROR;
+						goto prepare_return;
+					}
+					strcpy(file_name, absolute_path);
+				}
+			}
+			if (par3_ctx->noise_level >= 1){
+				printf("Reference file = \"%s\"\n", file_name);
+			}
+
+			// search par files
+			ret = par_search(par3_ctx, file_name, 1);
+			if (ret != 0){
+				printf("Failed to search: %s\n", file_name);
+				goto prepare_return;
+			}
+
+		}
+
+		// release UTF-8 argv
+		if (utf8_argv != NULL){
+			free(utf8_argv);
+			utf8_argv = NULL;
+		}
+		if (utf8_argv_buf != NULL){
+			free(utf8_argv_buf);
+			utf8_argv_buf = NULL;
+		}
+
+		printf("This feature is under construction.\n");
+
 	}
 
 	ret = 0;

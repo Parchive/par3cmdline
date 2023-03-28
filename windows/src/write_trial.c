@@ -449,7 +449,7 @@ int try_archive_file(PAR3_CTX *par3_ctx, uint64_t *recovery_file_size)
 	// Calculate block count and digits max.
 	file_count = calculate_digit_max(par3_ctx, 56, block_count, 0, &base_num, &max_count, &digit_num1, &digit_num2);
 	if (len + 11 + digit_num1 + digit_num2 >= _MAX_PATH){	// .part#+#.par3
-		printf("PAR3 filename will be too long.\n");
+		printf("PAR filename will be too long.\n");
 		return RET_FILE_IO_ERROR;
 	}
 
@@ -630,7 +630,7 @@ int try_recovery_file(PAR3_CTX *par3_ctx, uint64_t *recovery_file_size)
 	// Calculate block count and digits max.
 	file_count = calculate_digit_max(par3_ctx, 88, block_count, first_num, &base_num, &max_count, &digit_num1, &digit_num2);
 	if (len + 10 + digit_num1 + digit_num2 >= _MAX_PATH){	// .vol#+#.par3
-		printf("PAR3 filename will be too long.\n");
+		printf("PAR filename will be too long.\n");
 		return RET_FILE_IO_ERROR;
 	}
 

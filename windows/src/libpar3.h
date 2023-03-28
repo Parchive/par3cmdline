@@ -260,7 +260,7 @@ int par3_create(PAR3_CTX *par3_ctx);
 
 
 // About par files
-int par_search(PAR3_CTX *par3_ctx, int flag_other);
+int par_search(PAR3_CTX *par3_ctx, char *base_name, int flag_other);
 int extra_search(PAR3_CTX *par3_ctx, char *match_path);
 
 // For verification and repair

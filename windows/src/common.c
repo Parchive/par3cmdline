@@ -172,6 +172,15 @@ int get_absolute_path(char *absolute_path, char *relative_path, size_t max)
 			tmp_p[0] = '/';
 			tmp_p = strchr(tmp_p + 1, '\\');
 		}
+
+	} else {
+		// Even when the file doesn't exist, replace directory mark.
+		tmp_p = absolute_path;
+		tmp_p = strchr(tmp_p, '\\');
+		while (tmp_p != NULL){
+			tmp_p[0] = '/';
+			tmp_p = strchr(tmp_p + 1, '\\');
+		}
 	}
 
 	return 0;
