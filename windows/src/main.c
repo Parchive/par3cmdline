@@ -244,6 +244,8 @@ int main(int argc, char *argv[])
 				par3_ctx->noise_level++;
 			} else if (strcmp(tmp_p, "vv") == 0){
 				par3_ctx->noise_level += 2;
+			} else if (strcmp(tmp_p, "vvv") == 0){
+				par3_ctx->noise_level += 3;
 			} else if (strcmp(tmp_p, "q") == 0){
 				par3_ctx->noise_level--;
 			} else if (strcmp(tmp_p, "qq") == 0){
@@ -337,7 +339,7 @@ int main(int argc, char *argv[])
 				}
 
 			} else if ( (tmp_p[0] == 'r') && (tmp_p[1] == 'm') && (tmp_p[2] >= '0') && (tmp_p[2] <= '9') ){	// Specify the Max redundancy
-				if (command_operation != 'c'){
+				if ( (command_operation != 'c') && (command_operation != 'e') ){
 					printf("Cannot specify max redundancy unless creating.\n");
 					ret = RET_INVALID_COMMAND;
 					goto prepare_return;
@@ -401,7 +403,7 @@ int main(int argc, char *argv[])
 				}
 
 			} else if ( (tmp_p[0] == 'c') && (tmp_p[1] == 'm') && (tmp_p[2] >= '0') && (tmp_p[2] <= '9') ){	// Specify the Max recovery block count
-				if (command_operation != 'c'){
+				if ( (command_operation != 'c') && (command_operation != 'e') ){
 					printf("Cannot specify max recovery block count unless creating.\n");
 					ret = RET_INVALID_COMMAND;
 					goto prepare_return;
@@ -506,7 +508,7 @@ int main(int argc, char *argv[])
 				}
 
 			} else if ( (tmp_p[0] == 'e') && (tmp_p[1] >= '0') && (tmp_p[1] <= '9') ){	// Error Correction Codes
-				if (command_operation != 'c'){
+				if ( (command_operation != 'c') && (command_operation != 'e') ){
 					printf("Cannot specify Error Correction Codes unless creating.\n");
 					ret = RET_INVALID_COMMAND;
 					goto prepare_return;
@@ -523,7 +525,7 @@ int main(int argc, char *argv[])
 				}
 
 			} else if ( (tmp_p[0] == 'i') && (tmp_p[1] >= '0') && (tmp_p[1] <= '9') ){	// Interleaving
-				if (command_operation != 'c'){
+				if ( (command_operation != 'c') && (command_operation != 'e') ){
 					printf("Cannot specify interleaving unless creating.\n");
 					ret = RET_INVALID_COMMAND;
 					goto prepare_return;
@@ -928,9 +930,8 @@ int main(int argc, char *argv[])
 
 	} else if (command_operation == 'e'){	// Extend
 
-		// search reference files
+		// Base name of reference files is same as creating PAR3 files.
 		if (argi == argc){
-			// Base name of reference files is same as creating PAR3 files.
 			if (par3_ctx->noise_level >= 1){
 				printf("Reference file = \"%s\"\n", par3_ctx->par_filename);
 			}
@@ -940,6 +941,7 @@ int main(int argc, char *argv[])
 				goto prepare_return;
 			}
 
+		// search reference files
 		} else {
 			if (utf8_argv != NULL){
 				tmp_p = utf8_argv[argi];
@@ -984,7 +986,6 @@ int main(int argc, char *argv[])
 				printf("Failed to search: %s\n", file_name);
 				goto prepare_return;
 			}
-
 		}
 
 		// release UTF-8 argv
@@ -996,6 +997,10 @@ int main(int argc, char *argv[])
 			free(utf8_argv_buf);
 			utf8_argv_buf = NULL;
 		}
+
+		ret = par3_extend(par3_ctx);
+
+		printf("\n par3_extend = %d\n", ret);
 
 		printf("This feature is under construction.\n");
 

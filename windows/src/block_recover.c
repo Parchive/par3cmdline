@@ -133,7 +133,7 @@ int recover_lost_block(PAR3_CTX *par3_ctx, char *temp_path, int lost_count)
 			file_name = slice_list[slice_index].find_name;
 			file_offset = slice_list[slice_index].find_offset;
 			slice_size = slice_list[slice_index].size;
-			if (par3_ctx->noise_level >= 2){
+			if (par3_ctx->noise_level >= 3){
 				printf("Reading %zu bytes of slice[%I64d] for input block[%d]\n", slice_size, slice_index, block_index);
 			}
 			if ( (fp_read == NULL) || (file_name != name_prev) ){
@@ -166,7 +166,7 @@ int recover_lost_block(PAR3_CTX *par3_ctx, char *temp_path, int lost_count)
 			}
 
 		} else if (block_list[block_index].state & 16){	// All tail data is available. (one tail or packed tails)
-			if (par3_ctx->noise_level >= 2){
+			if (par3_ctx->noise_level >= 3){
 				printf("Reading %I64u bytes for input block[%d]\n", data_size, block_index);
 			}
 			tail_offset = 0;
@@ -244,7 +244,7 @@ int recover_lost_block(PAR3_CTX *par3_ctx, char *temp_path, int lost_count)
 					slice_size = slice_list[slice_index].size;
 					file_offset = slice_list[slice_index].offset;
 					tail_offset = slice_list[slice_index].tail_offset;
-					if (par3_ctx->noise_level >= 2){
+					if (par3_ctx->noise_level >= 3){
 						printf("Writing %zu bytes of slice[%I64d] on file[%u]:%I64d in input block[%d]\n", slice_size, slice_index, file_index, file_offset, block_index);
 					}
 					if ( (fp_write == NULL) || (file_index != file_prev) ){
@@ -334,7 +334,7 @@ int recover_lost_block(PAR3_CTX *par3_ctx, char *temp_path, int lost_count)
 		slice_size = block_size;
 		file_name = packet_list[packet_index].name;
 		file_offset = packet_list[packet_index].offset + 48 + 40;	// offset of the recovery block data
-		if (par3_ctx->noise_level >= 2){
+		if (par3_ctx->noise_level >= 3){
 			printf("Reading Recovery Data[%I64u] for recovery block[%d]\n", packet_index, block_index);
 		}
 		if ( (fp_read == NULL) || (file_name != name_prev) ){
@@ -437,7 +437,7 @@ int recover_lost_block(PAR3_CTX *par3_ctx, char *temp_path, int lost_count)
 				slice_size = slice_list[slice_index].size;
 				file_offset = slice_list[slice_index].offset;
 				tail_offset = slice_list[slice_index].tail_offset;
-				if (par3_ctx->noise_level >= 2){
+				if (par3_ctx->noise_level >= 3){
 					printf("Writing %zu bytes of slice[%I64d] on file[%u]:%I64d in lost block[%d]\n", slice_size, slice_index, file_index, file_offset, block_index);
 				}
 				if ( (fp_write == NULL) || (file_index != file_prev) ){
@@ -499,7 +499,7 @@ int recover_lost_block(PAR3_CTX *par3_ctx, char *temp_path, int lost_count)
 					memcpy(buf_tail + 32, &(chunk_list[chunk_index].tail_offset), 8);
 
 					// Write tail slice on temporary file.
-					if (par3_ctx->noise_level >= 2){
+					if (par3_ctx->noise_level >= 3){
 						printf("Writing %zu bytes of chunk[%u] tail on file[%u]:%I64d\n", slice_size, chunk_index, file_index, file_offset);
 					}
 					if ( (fp_write == NULL) || (file_index != file_prev) ){
@@ -717,10 +717,10 @@ int recover_lost_block_split(PAR3_CTX *par3_ctx, char *temp_path, uint64_t lost_
 
 	if (par3_ctx->noise_level >= 0){
 		printf("\nRecovering lost input blocks:\n");
-		// block_count = Number of input blocks (read)
-		// lost_count = Number of using recovery blocks (read)
+		// block_count = Number of input block (read)
+		// lost_count = Number of using recovery block (read)
 		// block_count * lost_count = Number of multiplication
-		// block_count = Number of input blocks (write)
+		// block_count = Number of input block (write)
 		progress_total = (block_count * lost_count + block_count * 2 + lost_count) * split_count;
 		progress_step = 0;
 		progress_old = 0;
@@ -761,7 +761,7 @@ int recover_lost_block_split(PAR3_CTX *par3_ctx, char *temp_path, uint64_t lost_
 				file_name = slice_list[slice_index].find_name;
 				file_offset = slice_list[slice_index].find_offset + split_offset;
 				io_size = part_size;
-				if (par3_ctx->noise_level >= 2){
+				if (par3_ctx->noise_level >= 3){
 					printf("Reading %zu bytes of slice[%I64d] for input block[%I64u]\n", io_size, slice_index, block_index);
 				}
 				if ( (fp == NULL) || (file_name != name_prev) ){
@@ -789,7 +789,7 @@ int recover_lost_block_split(PAR3_CTX *par3_ctx, char *temp_path, uint64_t lost_
 
 			// All tail data is available. (one tail or packed tails)
 			} else if ( (data_size > split_offset) && (block_list[block_index].state & 16) ){
-				if (par3_ctx->noise_level >= 2){
+				if (par3_ctx->noise_level >= 3){
 					printf("Reading %I64u bytes for input block[%I64u]\n", part_size, block_index);
 				}
 				tail_offset = split_offset;
@@ -918,7 +918,7 @@ int recover_lost_block_split(PAR3_CTX *par3_ctx, char *temp_path, uint64_t lost_
 			// Read one Recovery Data Packet from a recovery file.
 			file_name = packet_list[packet_index].name;
 			file_offset = packet_list[packet_index].offset + 48 + 40 + split_offset;	// offset of the recovery block data
-			if (par3_ctx->noise_level >= 2){
+			if (par3_ctx->noise_level >= 3){
 				printf("Reading Recovery Data[%I64u] for recovery block[%I64u]\n", packet_index, block_index);
 			}
 			if ( (fp == NULL) || (file_name != name_prev) ){
@@ -1080,7 +1080,7 @@ if (par3_ctx->ecc_method & 8){	// FFT based Reed-Solomon Codes
 								part_size = split_offset + split_size - tail_offset;
 						}
 						io_size = part_size;
-						if (par3_ctx->noise_level >= 2){
+						if (par3_ctx->noise_level >= 3){
 							printf("Writing %zu bytes of slice[%I64d] on file[%u]:%I64d in block[%I64u]\n", io_size, slice_index, file_index, file_offset, block_index);
 						}
 						if ( (fp == NULL) || (file_index != file_prev) ){
@@ -1160,7 +1160,7 @@ if (par3_ctx->ecc_method & 8){	// FFT based Reed-Solomon Codes
 					memcpy(buf_tail + 32, &(chunk_list[chunk_index].tail_offset), 8);
 
 					// Write tail slice on temporary file.
-					if (par3_ctx->noise_level >= 2){
+					if (par3_ctx->noise_level >= 3){
 						printf("Writing %zu bytes of chunk[%u] tail on file[%u]:%I64d\n", io_size, chunk_index, file_index, file_offset);
 					}
 					if ( (fp == NULL) || (file_index != file_prev) ){
@@ -1378,13 +1378,13 @@ int recover_lost_block_cohort(PAR3_CTX *par3_ctx, char *temp_path)
 				if (lost_list[cohort_index] > recv_list[cohort_index])
 					continue;
 				if (lost_list[cohort_index] == 0){
-					// block_count2 = Number of input blocks (read & write)
+					// block_count2 = Number of input block (read & write)
 					progress_total += block_count2;
 				} else {
-					// block_count2 = Number of input blocks (read)
-					// lost_count2 = Number of using recovery blocks (read)
+					// block_count2 = Number of input block (read)
+					// lost_count2 = Number of using recovery block (read)
 					// block_count2 * lost_count2 = Number of multiplication
-					// block_count2 = Number of input blocks (write)
+					// block_count2 = Number of input block (write)
 					progress_total += block_count2 * lost_list[cohort_index] + block_count2 * 2 + lost_list[cohort_index];
 				}
 			}
@@ -1423,7 +1423,7 @@ int recover_lost_block_cohort(PAR3_CTX *par3_ctx, char *temp_path)
 						file_name = slice_list[slice_index].find_name;
 						file_offset = slice_list[slice_index].find_offset;
 						io_size = slice_list[slice_index].size;
-						if (par3_ctx->noise_level >= 2){
+						if (par3_ctx->noise_level >= 3){
 							printf("Reading %zu bytes of slice[%I64d] for input block[%I64u]\n", io_size, slice_index, block_index);
 						}
 						if ( (fp_read == NULL) || (file_name != name_prev) ){
@@ -1457,7 +1457,7 @@ int recover_lost_block_cohort(PAR3_CTX *par3_ctx, char *temp_path)
 
 						// Write slice data on temporary file.
 						file_offset = slice_list[slice_index].offset;
-						if (par3_ctx->noise_level >= 2){
+						if (par3_ctx->noise_level >= 3){
 							printf("Writing %zu bytes of slice[%I64d] on file[%u]\n", io_size, slice_index, file_index);
 						}
 						if ( (fp_write == NULL) || (file_index != file_prev) ){
@@ -1561,7 +1561,7 @@ int recover_lost_block_cohort(PAR3_CTX *par3_ctx, char *temp_path)
 					file_name = slice_list[slice_index].find_name;
 					file_offset = slice_list[slice_index].find_offset + split_offset;
 					io_size = part_size;
-					if (par3_ctx->noise_level >= 2){
+					if (par3_ctx->noise_level >= 3){
 						printf("Reading %zu bytes of slice[%I64d] for input block[%I64u]\n", io_size, slice_index, block_index);
 					}
 					if ( (fp_read == NULL) || (file_name != name_prev) ){
@@ -1589,7 +1589,7 @@ int recover_lost_block_cohort(PAR3_CTX *par3_ctx, char *temp_path)
 
 				// All tail data is available. (one tail or packed tails)
 				} else if ( (data_size > split_offset) && (block_list[block_index].state & 16) ){
-					if (par3_ctx->noise_level >= 2){
+					if (par3_ctx->noise_level >= 3){
 						printf("Reading %I64u bytes for input block[%I64u]\n", part_size, block_index);
 					}
 					tail_offset = split_offset;
@@ -1723,7 +1723,7 @@ int recover_lost_block_cohort(PAR3_CTX *par3_ctx, char *temp_path)
 				// Read one Recovery Data Packet from a recovery file.
 				file_name = packet_list[packet_index].name;
 				file_offset = packet_list[packet_index].offset + 48 + 40 + split_offset;	// offset of the recovery block data
-				if (par3_ctx->noise_level >= 2){
+				if (par3_ctx->noise_level >= 3){
 					printf("Reading Recovery Data[%I64u] for recovery block[%I64u]\n", packet_index, block_index);
 				}
 				if ( (fp_read == NULL) || (file_name != name_prev) ){
@@ -1880,7 +1880,7 @@ printf("\n recover ok, progress = %I64u / %I64u\n", progress_step, progress_tota
 									part_size = split_offset + split_size - tail_offset;
 							}
 							io_size = part_size;
-							if (par3_ctx->noise_level >= 2){
+							if (par3_ctx->noise_level >= 3){
 								printf("Writing %zu bytes of slice[%I64d] on file[%u]:%I64d in block[%I64u]\n", io_size, slice_index, file_index, file_offset, block_index);
 							}
 							if ( (fp_write == NULL) || (file_index != file_prev) ){
@@ -1979,7 +1979,7 @@ printf("\n recover ok, progress = %I64u / %I64u\n", progress_step, progress_tota
 					memcpy(buf_tail + 32, &(chunk_list[chunk_index].tail_offset), 8);
 
 					// Write tail slice on temporary file.
-					if (par3_ctx->noise_level >= 2){
+					if (par3_ctx->noise_level >= 3){
 						printf("Writing %zu bytes of chunk[%u] tail on file[%u]:%I64d\n", io_size, chunk_index, file_index, file_offset);
 					}
 					if ( (fp_write == NULL) || (file_index != file_prev) ){

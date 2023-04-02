@@ -302,7 +302,7 @@ static int construct_directory_tree(PAR3_CTX *par3_ctx, uint8_t *checksum, size_
 						offset += 2;
 						memcpy(sub_dir + dir_len, file_packet + packet_offset + offset, len);
 						sub_dir[dir_len + len] = 0;
-						if (par3_ctx->noise_level >= 2){
+						if (par3_ctx->noise_level >= 3){
 							printf("input file = \"%s\"\n", sub_dir);
 						}
 						ret = sanitize_file_name(sub_dir + dir_len);
@@ -389,7 +389,7 @@ static int construct_directory_tree(PAR3_CTX *par3_ctx, uint8_t *checksum, size_
 						offset += 2;
 						memcpy(sub_dir + dir_len, dir_packet + packet_offset + offset, len);
 						sub_dir[dir_len + len] = 0;
-						if (par3_ctx->noise_level >= 2){
+						if (par3_ctx->noise_level >= 3){
 							printf("input dir  = \"%s\"\n", sub_dir);
 						}
 						// PAR3 file's absolute path is enabled, only when a user set option.

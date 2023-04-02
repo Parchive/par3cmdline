@@ -150,7 +150,7 @@ uint32_t calculate_digit_max(PAR3_CTX *par3_ctx,
 	// Check max number of digits.
 	file_count = par3_ctx->recovery_file_count;
 	if (file_count > block_count)
-		file_count = (uint32_t)block_count;	// Number of files cannot exceed number of blocks.
+		file_count = (uint32_t)block_count;	// Number of file cannot exceed number of blocks.
 	if (file_count > 0){	// When writing archive file, number of input block files will be same as recovery block files.
 		if (recovery_file_scheme == -1){	// Uniform
 			max_count = block_count / file_count;
@@ -171,7 +171,7 @@ uint32_t calculate_digit_max(PAR3_CTX *par3_ctx,
 			//printf("file_count = %u, (2 pow file_count) - 1 = %I64u\n", file_count, max_count);
 			if (max_count < block_count){	// Multiply by 2
 				base_num = (block_count + max_count - 1) / max_count;	// round up
-			} else {	// Number of files is reduced.
+			} else {	// Number of file is reduced.
 				base_num = 1;
 			}
 

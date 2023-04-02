@@ -358,7 +358,7 @@ uint64_t aggregate_recovery_block(PAR3_CTX *par3_ctx)
 			}
 			if (par3_ctx->noise_level >= 1){
 				if (hint_num > 0){
-					printf("Number of recovery blocks would be %I64u\n", hint_num);
+					printf("Number of recovery block would be %I64u\n", hint_num);
 				}
 			}
 			if (find_count > find_count_max){
@@ -399,7 +399,7 @@ uint64_t aggregate_recovery_block(PAR3_CTX *par3_ctx)
 			if (par3_ctx->noise_level >= 1){
 				printf("Max recovery block count = %I64u\n", max_num);
 				if (extra_num > 0){
-					printf("Number of cohorts = %u (Interleaving = %u)\n", extra_num + 1, extra_num);
+					printf("Number of cohort = %u (Interleaving = %u)\n", extra_num + 1, extra_num);
 					printf("Input block count per cohort = %I64u\n", (par3_ctx->block_count + extra_num) / (extra_num + 1));
 					printf("Max recovery block count per cohort = %I64u\n", max_num / (extra_num + 1));
 				}
@@ -557,7 +557,7 @@ int make_block_list(PAR3_CTX *par3_ctx, uint64_t lost_count, uint32_t lost_count
 		for (index = 0; index < count; index++){
 			if ((block_list[index].state & (4 | 16)) == 0){
 				if (id >= lost_count){
-					printf("Number of lost input blocks is wrong.\n");
+					printf("Number of lost input block is wrong.\n");
 					return RET_LOGIC_ERROR;
 				}
 

@@ -224,13 +224,13 @@ int make_start_packet(PAR3_CTX *par3_ctx, int flag_trial)
 			possible_count = par3_ctx->first_recovery_block + par3_ctx->recovery_block_count;
 			if (possible_count < par3_ctx->max_recovery_block)
 				possible_count = par3_ctx->max_recovery_block;
-			// Number of recovery blocks per cohort
+			// Number of recovery block per cohort
 			if (par3_ctx->interleave > 0)
 				possible_count = (possible_count + par3_ctx->interleave) / (par3_ctx->interleave + 1);
 			m = next_pow2(possible_count);
 			//printf("m = next_pow2(%I64u) = %I64u\n", possible_count, m);
 			possible_count = par3_ctx->block_count;
-			// Number of input blocks per cohort
+			// Number of input block per cohort
 			if (par3_ctx->interleave > 0)
 				possible_count = (possible_count + par3_ctx->interleave) / (par3_ctx->interleave + 1);
 			n = next_pow2(m + possible_count);
@@ -474,7 +474,7 @@ int make_file_packet(PAR3_CTX *par3_ctx)
 				absolute_num++;
 			tmp_p++;
 		}
-		//printf("Number of directory parts in absolute path = %u\n", absolute_num);
+		//printf("Number of directory part in absolute path = %u\n", absolute_num);
 	}
 	num = par3_ctx->input_dir_count;
 	if (num + absolute_num > 0){
@@ -542,7 +542,7 @@ int make_file_packet(PAR3_CTX *par3_ctx)
 		}
 	}
 
-	// Number of File Packets may be same as number of input files.
+	// Number of File Packet may be same as number of input files.
 	// When there are same files in different directories, deduplication detects them.
 	// Deduplication may reduce number of File Packets.
 	file_list = par3_ctx->input_file_list;
@@ -705,7 +705,7 @@ int make_file_packet(PAR3_CTX *par3_ctx)
 	alloc_size *= 16;	// size of total checksums
 	chk_p = malloc(alloc_size);
 
-	// Number of Directory Packets may be same as number of input directories.
+	// Number of Directory Packet may be same as number of input directories.
 	// When there are same empty folder in different directories, there are less packets.
 	dir_list = par3_ctx->input_dir_list;
 	num = par3_ctx->input_dir_count;

@@ -137,7 +137,7 @@ int create_recovery_block(PAR3_CTX *par3_ctx)
 			file_index = slice_list[slice_index].file;
 			file_offset = slice_list[slice_index].offset;
 			read_size = data_size;
-			if (par3_ctx->noise_level >= 2){
+			if (par3_ctx->noise_level >= 3){
 				printf("Reading %zu bytes of slice[%I64d] for input block[%d]\n", read_size, slice_index, block_index);
 			}
 			if ( (fp == NULL) || (file_index != file_prev) ){
@@ -164,7 +164,7 @@ int create_recovery_block(PAR3_CTX *par3_ctx)
 			}
 
 		} else {	// tail data only (one tail or packed tails)
-			if (par3_ctx->noise_level >= 2){
+			if (par3_ctx->noise_level >= 3){
 				printf("Reading %I64u bytes for input block[%d]\n", data_size, block_index);
 			}
 			tail_offset = 0;
@@ -451,7 +451,7 @@ int create_recovery_block_split(PAR3_CTX *par3_ctx)
 				file_index = slice_list[slice_index].file;
 				file_offset = slice_list[slice_index].offset + split_offset;
 				io_size = part_size;
-				if (par3_ctx->noise_level >= 2){
+				if (par3_ctx->noise_level >= 3){
 					printf("Reading %zu bytes of slice[%I64d] for input block[%I64u]\n", io_size, slice_index, block_index);
 				}
 				if ( (fp == NULL) || (file_index != file_prev) ){
@@ -478,7 +478,7 @@ int create_recovery_block_split(PAR3_CTX *par3_ctx)
 				}
 
 			} else if (data_size > split_offset){	// tail data only (one tail or packed tails)
-				if (par3_ctx->noise_level >= 2){
+				if (par3_ctx->noise_level >= 3){
 					printf("Reading %I64u bytes for input block[%I64u]\n", part_size, block_index);
 				}
 				tail_offset = split_offset;
@@ -980,7 +980,7 @@ int create_recovery_block_cohort(PAR3_CTX *par3_ctx)
 					file_index = slice_list[slice_index].file;
 					file_offset = slice_list[slice_index].offset + split_offset;
 					io_size = part_size;
-					if (par3_ctx->noise_level >= 2){
+					if (par3_ctx->noise_level >= 3){
 						printf("Reading %zu bytes of slice[%I64d] for input block[%I64u]\n", io_size, slice_index, block_index);
 					}
 					if ( (fp == NULL) || (file_index != file_prev) ){
@@ -1007,7 +1007,7 @@ int create_recovery_block_cohort(PAR3_CTX *par3_ctx)
 					}
 
 				} else if (data_size > split_offset){	// tail data only (one tail or packed tails)
-					if (par3_ctx->noise_level >= 2){
+					if (par3_ctx->noise_level >= 3){
 						printf("Reading %I64u bytes for input block[%I64u]\n", part_size, block_index);
 					}
 					tail_offset = split_offset;

@@ -50,7 +50,7 @@ int rs8_gaussian_elimination(PAR3_CTX *par3_ctx, int lost_count)
 		// because they will be put in positions of lost blocks.
 	}
 
-	if (par3_ctx->noise_level >= 2){
+	if (par3_ctx->noise_level >= 3){
 		printf("\n generator matrix (%d * %d):\n", block_count, lost_count);
 		for (y = 0; y < lost_count; y++){
 			printf("lost%3d <- recv%3d =", lost_id[y], recv_id[y]);
@@ -89,7 +89,7 @@ int rs8_gaussian_elimination(PAR3_CTX *par3_ctx, int lost_count)
 		matrix[block_count * y + pivot] = factor;
 	}
 
-	if (par3_ctx->noise_level >= 2){
+	if (par3_ctx->noise_level >= 3){
 		printf("\n recovery matrix (%d * %d):\n", block_count, lost_count);
 		for (y = 0; y < lost_count; y++){
 			printf("recv%3d -> lost%3d =", recv_id[y], lost_id[y]);
@@ -196,7 +196,7 @@ int rs8_invert_matrix_cauchy(PAR3_CTX *par3_ctx, int lost_count)
 	}
 
 /*
-	if (par3_ctx->noise_level >= 2){
+	if (par3_ctx->noise_level >= 3){
 		printf("\n fast inversion (%d * 6):\n", block_count);
 		printf("y =");
 		for (i = 0; i < block_count; i++){
@@ -240,7 +240,7 @@ int rs8_invert_matrix_cauchy(PAR3_CTX *par3_ctx, int lost_count)
 		}
 	}
 
-	if (par3_ctx->noise_level >= 2){
+	if (par3_ctx->noise_level >= 3){
 		printf("\n recovery matrix (%d * %d):\n", block_count, lost_count);
 		for (i = 0; i < lost_count; i++){
 			printf("recv%3d -> lost%3d =", recv_id[i], lost_id[i]);

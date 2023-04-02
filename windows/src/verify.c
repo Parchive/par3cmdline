@@ -192,7 +192,7 @@ int verify_input_file(PAR3_CTX *par3_ctx, uint32_t *missing_file_count, uint32_t
 	if (ret != 0)
 		return ret;
 	if (par3_ctx->noise_level >= 2){
-		printf("Number of full size blocks = %I64u, chunk tails = %I64u\n", par3_ctx->crc_count, par3_ctx->tail_count);
+		printf("Number of full size block = %I64u, chunk tail = %I64u\n", par3_ctx->crc_count, par3_ctx->tail_count);
 /*
 		// for debug
 		for (uint64_t i = 0; i < par3_ctx->crc_count; i++){

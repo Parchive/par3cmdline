@@ -54,7 +54,7 @@ int rs16_gaussian_elimination(PAR3_CTX *par3_ctx, int lost_count)
 		// because they will be put in positions of lost blocks.
 	}
 
-	if (par3_ctx->noise_level >= 2){
+	if (par3_ctx->noise_level >= 3){
 		printf("\n generator matrix (%d * %d):\n", block_count, lost_count);
 		for (y = 0; y < lost_count; y++){
 			printf("lost%5d <- recv%5d =", lost_id[y], recv_id[y]);
@@ -118,7 +118,7 @@ int rs16_gaussian_elimination(PAR3_CTX *par3_ctx, int lost_count)
 		printf("done in %.1f seconds.\n", (double)clock_now / CLOCKS_PER_SEC);
 	}
 
-	if (par3_ctx->noise_level >= 2){
+	if (par3_ctx->noise_level >= 3){
 		printf("\n recovery matrix (%d * %d):\n", block_count, lost_count);
 		for (y = 0; y < lost_count; y++){
 			printf("recv%5d -> lost%5d =", recv_id[y], lost_id[y]);
@@ -250,7 +250,7 @@ int rs16_invert_matrix_cauchy(PAR3_CTX *par3_ctx, int lost_count)
 	}
 
 /*
-	if (par3_ctx->noise_level >= 2){
+	if (par3_ctx->noise_level >= 3){
 		printf("\n fast inversion (%d * 6):\n", block_count);
 		printf("y =");
 		for (i = 0; i < block_count; i++){
@@ -313,7 +313,7 @@ int rs16_invert_matrix_cauchy(PAR3_CTX *par3_ctx, int lost_count)
 		printf("done in %.1f seconds.\n", (double)clock_now / CLOCKS_PER_SEC);
 	}
 
-	if (par3_ctx->noise_level >= 2){
+	if (par3_ctx->noise_level >= 3){
 		printf("\n recovery matrix (%d * %d):\n", block_count, lost_count);
 		for (i = 0; i < lost_count; i++){
 			printf("recv%5d -> lost%5d =", recv_id[i], lost_id[i]);

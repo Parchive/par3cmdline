@@ -250,7 +250,7 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 						//printf("tail_offset = %I64d\n", tail_offset);
 
 						if (tail_offset < 0){	// Same data as previous tail
-							if (par3_ctx->noise_level >= 2){
+							if (par3_ctx->noise_level >= 3){
 								printf("o t block[%2I64u] : slice[%2I64u] chunk[%2u] file %d, offset %I64u, tail size %I64u, offset %I64u\n",
 										slice_list[index].block, slice_index, chunk_index, num, file_offset, tail_size, slice_list[index].tail_offset);
 							}
@@ -266,7 +266,7 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 							num_dedup++;
 
 						} else if (tail_offset == 0){	// Put tail in new block
-							if (par3_ctx->noise_level >= 2){
+							if (par3_ctx->noise_level >= 3){
 								printf("n t block[%2I64u] : slice[%2I64u] chunk[%2u] file %d, offset %I64u, tail size %I64u\n",
 										block_index, slice_index, chunk_index, num, file_offset, tail_size);
 							}
@@ -288,7 +288,7 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 							block_index++;
 
 						} else {	// Put tail after another tail
-							if (par3_ctx->noise_level >= 2){
+							if (par3_ctx->noise_level >= 3){
 								printf("a t block[%2I64u] : slice[%2I64u] chunk[%2u] file %d, offset %I64u, tail size %I64u, offset %I64d\n",
 										index, slice_index, chunk_index, num, file_offset, tail_size, tail_offset);
 							}
@@ -333,7 +333,7 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 					} else {	// When tail size is 1~39 bytes, it's saved in File Packet.
 						memcpy(buf_tail, work_buf, tail_size);	// block size may be smaller than 40 bytes.
 						memset(buf_tail + tail_size, 0, 40 - tail_size);	// zero fill the rest bytes
-						if (par3_ctx->noise_level >= 2){
+						if (par3_ctx->noise_level >= 3){
 							printf("    block no  : slice no  chunk[%2u] file %d, offset %I64u, tail size %I64u\n",
 									chunk_index, num, file_offset, tail_size);
 						}
@@ -385,7 +385,7 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 					slice_p->block = find_index;
 					slice_p->tail_offset = 0;
 					slice_p->next = -1;
-					if (par3_ctx->noise_level >= 2){
+					if (par3_ctx->noise_level >= 3){
 						printf("o s block[%2I64d] : slice[%2I64u] chunk[%2u] file %d, offset %I64u\n",
 								find_index, slice_index, chunk_index, num, file_offset + slide_offset);
 					}
@@ -511,7 +511,7 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 					slice_p->block = block_index;
 					slice_p->tail_offset = 0;
 					slice_p->next = -1;
-					if (par3_ctx->noise_level >= 2){
+					if (par3_ctx->noise_level >= 3){
 						printf("new block[%2I64u] : slice[%2I64u] chunk[%2u] file %d, offset %I64u\n",
 								block_index, slice_index, chunk_index, num, file_offset);
 					}
@@ -633,7 +633,7 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 				slice_p->block = find_index;
 				slice_p->tail_offset = 0;
 				slice_p->next = -1;
-				if (par3_ctx->noise_level >= 2){
+				if (par3_ctx->noise_level >= 3){
 					printf("old block[%2I64u] : slice[%2I64u] chunk[%2u] file %d, offset %I64u\n",
 							find_index, slice_index, chunk_index, num, file_offset);
 				}
@@ -759,7 +759,7 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 			//printf("tail_offset = %I64d\n", tail_offset);
 
 			if (tail_offset < 0){	// Same data as previous tail
-				if (par3_ctx->noise_level >= 2){
+				if (par3_ctx->noise_level >= 3){
 					printf("o t block[%2I64u] : slice[%2I64u] chunk[%2u] file %d, offset %I64u, tail size %I64u, offset %I64u\n",
 							slice_list[index].block, slice_index, chunk_index, num, file_offset, tail_size, slice_list[index].tail_offset);
 				}
@@ -775,7 +775,7 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 				num_dedup++;
 
 			} else if (tail_offset == 0){	// Put tail in new block
-				if (par3_ctx->noise_level >= 2){
+				if (par3_ctx->noise_level >= 3){
 					printf("n t block[%2I64u] : slice[%2I64u] chunk[%2u] file %d, offset %I64u, tail size %I64u\n",
 							block_index, slice_index, chunk_index, num, file_offset, tail_size);
 				}
@@ -797,7 +797,7 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 				block_index++;
 
 			} else {	// Put tail after another tail
-				if (par3_ctx->noise_level >= 2){
+				if (par3_ctx->noise_level >= 3){
 					printf("a t block[%2I64u] : slice[%2I64u] chunk[%2u] file %d, offset %I64u, tail size %I64u, offset %I64d\n",
 							index, slice_index, chunk_index, num, file_offset, tail_size, tail_offset);
 				}
@@ -842,7 +842,7 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 		} else if (tail_size > 0){	// When tail size is 1~39 bytes, it's saved in File Packet.
 			memcpy(buf_tail, work_buf, tail_size);	// block size may be smaller than 40 bytes.
 			memset(buf_tail + tail_size, 0, 40 - tail_size);	// zero fill the rest bytes
-			if (par3_ctx->noise_level >= 2){
+			if (par3_ctx->noise_level >= 3){
 				printf("    block no  : slice no  chunk[%2u] file %d, offset %I64u, tail size %I64u\n",
 						chunk_index, num, file_offset, tail_size);
 			}
@@ -929,7 +929,7 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 	// Re-allocate memory for actual number of input file slices
 	if (slice_index < slice_count){
 		if (par3_ctx->noise_level >= 1){
-			printf("Number of input file slices = %I64u (max %I64u)\n", slice_index, slice_count);
+			printf("Number of input file slice = %I64u (max %I64u)\n", slice_index, slice_count);
 		}
 		if (slice_index > 0){
 			slice_p = realloc(par3_ctx->slice_list, sizeof(PAR3_SLICE_CTX) * slice_index);

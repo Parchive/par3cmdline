@@ -269,6 +269,10 @@ int par3_verify(PAR3_CTX *par3_ctx);
 int par3_repair(PAR3_CTX *par3_ctx, char *temp_path);
 
 
+// For creation after verification
+int par3_extend(PAR3_CTX *par3_ctx);
+
+
 // Release internal allocated memory
 void par3_release(PAR3_CTX *par3_ctx);
 

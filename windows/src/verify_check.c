@@ -93,7 +93,7 @@ int check_complete_file(PAR3_CTX *par3_ctx, char *filename, uint32_t file_id,
 	slice_index = file_p->slice;
 	chunk_size = chunk_list[chunk_index].size;
 	block_index = chunk_list[chunk_index].block;
-	if (par3_ctx->noise_level >= 2){
+	if (par3_ctx->noise_level >= 3){
 		printf("first chunk = %u, size = %I64u, block index = %I64d\n", chunk_index, chunk_size, block_index);
 	}
 	blake3_hasher_init(&hasher);
@@ -159,7 +159,7 @@ int check_complete_file(PAR3_CTX *par3_ctx, char *filename, uint32_t file_id,
 					if (crc == block_list[block_index].crc){
 						blake3(work_buf, (size_t)block_size, buf_hash);
 						if (memcmp(buf_hash, block_list[block_index].hash, 16) == 0){
-							if (par3_ctx->noise_level >= 2){
+							if (par3_ctx->noise_level >= 3){
 								printf("full block[%2I64d] : slice[%2I64u] chunk[%2u] file %d, offset = %I64u\n",
 										block_index, slice_index, chunk_index, file_id, file_offset);
 							}
@@ -253,7 +253,7 @@ int check_complete_file(PAR3_CTX *par3_ctx, char *filename, uint32_t file_id,
 				if (crc == chunk_list[chunk_index].tail_crc){
 					blake3(work_buf, (size_t)tail_size, buf_hash);
 					if (memcmp(buf_hash, chunk_list[chunk_index].tail_hash, 16) == 0){
-						if (par3_ctx->noise_level >= 2){
+						if (par3_ctx->noise_level >= 3){
 							printf("tail block[%2I64d] : slice[%2I64u] chunk[%2u] file %d, offset = %I64u, size = %I64u\n",
 									block_index, slice_index, chunk_index, file_id, file_offset, tail_size);
 						}
@@ -313,7 +313,7 @@ int check_complete_file(PAR3_CTX *par3_ctx, char *filename, uint32_t file_id,
 
 				// Compare bytes directly.
 				if (memcmp(work_buf, buf_tail, (size_t)tail_size) == 0){
-					if (par3_ctx->noise_level >= 2){
+					if (par3_ctx->noise_level >= 3){
 						printf("tail block no  : slice no  chunk[%2u] file %d, offset = %I64u, size = %I64u\n",
 								chunk_index, file_id, file_offset, tail_size);
 					}
@@ -338,7 +338,7 @@ int check_complete_file(PAR3_CTX *par3_ctx, char *filename, uint32_t file_id,
 
 			chunk_size = chunk_list[chunk_index].size;
 			block_index = chunk_list[chunk_index].block;
-			if (par3_ctx->noise_level >= 2){
+			if (par3_ctx->noise_level >= 3){
 				printf("next chunk = %u, size = %I64u, block index = %I64d\n", chunk_index, chunk_size, block_index);
 			}
 		}
@@ -379,7 +379,7 @@ int check_complete_file(PAR3_CTX *par3_ctx, char *filename, uint32_t file_id,
 			// Check all blocks in the chunk
 			while (chunk_size >= block_size){
 				if (slice_list[slice_index].find_name == NULL){	// When this slice was not found.
-					if (par3_ctx->noise_level >= 2){
+					if (par3_ctx->noise_level >= 3){
 						printf("full block[%2I64d] : slice[%2I64u] chunk[%2u] file %d, offset = %I64u, no checksum\n",
 								block_index, slice_index, chunk_index, file_id, file_offset);
 					}
@@ -551,7 +551,7 @@ int check_damaged_file(PAR3_CTX *par3_ctx, char *filename,
 				if (temp_crc == block_list[block_index].crc){
 					blake3(work_buf + slide_offset, block_size, buf_hash);
 					if (memcmp(buf_hash, block_list[block_index].hash, 16) == 0){
-						if (par3_ctx->noise_level >= 2){
+						if (par3_ctx->noise_level >= 3){
 							printf("p fu block[%2I64d] : slice[%2I64d] offset = %I64u + %I64u\n",
 									block_index, slice_index, file_offset, slide_offset);
 						}
@@ -594,7 +594,7 @@ int check_damaged_file(PAR3_CTX *par3_ctx, char *filename,
 					blake3(work_buf + slide_offset, tail_size, buf_hash);
 					if (memcmp(buf_hash, chunk_list[slice_list[slice_index].chunk].tail_hash, 16) == 0){
 						block_index = slice_list[slice_index].block;	// index of block
-						if (par3_ctx->noise_level >= 2){
+						if (par3_ctx->noise_level >= 3){
 							printf("p ta block[%2I64d] : slice[%2I64d] offset = %I64u + %I64u, tail size = %I64u, offset = %I64u\n",
 									block_index, slice_index, file_offset, slide_offset, tail_size, slice_list[slice_index].tail_offset);
 						}
@@ -665,7 +665,7 @@ int check_damaged_file(PAR3_CTX *par3_ctx, char *filename,
 					}
 					if (memcmp(buf_hash, block_list[block_index].hash, 16) == 0){
 						slice_index = block_list[block_index].slice;
-						if (par3_ctx->noise_level >= 2){
+						if (par3_ctx->noise_level >= 3){
 							printf("full block[%2I64d] : slice[%2I64d] offset = %I64u + %I64u\n",
 									block_index, slice_index, file_offset, slide_offset);
 						}
@@ -740,7 +740,7 @@ int check_damaged_file(PAR3_CTX *par3_ctx, char *filename,
 							slide_offset++;
 						}
 						uniform_end = slide_offset;	// Offset of the last byte of uniform data
-						if (par3_ctx->noise_level >= 2){
+						if (par3_ctx->noise_level >= 3){
 							printf("Because data is uniform, skip from %I64u to %I64u.\n", uniform_start, slide_offset);
 						}
 					}
@@ -805,7 +805,7 @@ int check_damaged_file(PAR3_CTX *par3_ctx, char *filename,
 					if (memcmp(buf_hash, chunk_list[slice_list[slice_index].chunk].tail_hash, 16) == 0){
 						// When a chunk tail was found while slide search.
 						block_index = slice_list[slice_index].block;
-						if (par3_ctx->noise_level >= 2){
+						if (par3_ctx->noise_level >= 3){
 							printf("tail block[%2I64u] : slice[%2I64d] offset = %I64u + %I64u, tail size = %I64u, offset = %I64u\n",
 									block_index, slice_index, file_offset, slide_offset, tail_size, slice_list[slice_index].tail_offset);
 						}
@@ -867,7 +867,7 @@ int check_damaged_file(PAR3_CTX *par3_ctx, char *filename,
 					if ( (slide_offset >= uniform_start) && (slide_offset < uniform_end) ){
 						// Skip the area of uniform data.
 						slide_offset = uniform_end;
-						if (par3_ctx->noise_level >= 2){
+						if (par3_ctx->noise_level >= 3){
 							printf("While data is uniform, skip from %I64u to %I64u.\n", uniform_start, uniform_end);
 						}
 						// No need to re-calculate CRC-64 after skip, because the value is same for uniform data.

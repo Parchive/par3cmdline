@@ -166,6 +166,7 @@
     <ClCompile Include="leopard\LeopardFF16.cpp" />
     <ClCompile Include="leopard\LeopardFF8.cpp" />
     <ClCompile Include="libpar3_create.c" />
+    <ClCompile Include="libpar3_extra.c" />
     <ClCompile Include="libpar3_verify.c" />
     <ClCompile Include="map.c" />
     <ClCompile Include="map_simple.c" />

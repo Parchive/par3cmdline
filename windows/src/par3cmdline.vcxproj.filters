@@ -144,6 +144,9 @@
     <ClCompile Include="blake3\blake3_portable.c">
       <Filter>ソース ファイル\blake3</Filter>
     </ClCompile>
+    <ClCompile Include="libpar3_extra.c">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="libpar3.h">
