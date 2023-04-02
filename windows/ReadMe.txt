@@ -160,9 +160,10 @@ for the PAR3 files on the name of the source file.
 
  By setting "-v", it may show more detail information.
 When setting double "-v -v" or "-vv", it may show debug information.
-For example, mapping of all blocks is shown at creation.
+
+When setting triple "-v -v -v" or "-vvv", it will show information of all blocks.
 If file size is large and there are many blocks, output lines may be too many.
-Use the option only for debug usage with small files.
+Use this option only for debug usage with small files.
 
 
 
