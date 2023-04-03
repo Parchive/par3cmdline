@@ -193,10 +193,6 @@ int make_start_packet(PAR3_CTX *par3_ctx, int flag_trial)
 	memcpy(tmp_p, &(par3_ctx->block_size), 8);	// Block size
 	tmp_p += 8;
 	// Galois Field is varied by using Error Correction Codes.
-	if ( (par3_ctx->block_count > 0) && (par3_ctx->ecc_method == 0) ){
-		// When using algothim was not specified.
-		par3_ctx->ecc_method = 1;	// At this time, select Cauchy Reed-Solomon Codes by default.
-	}
 	if (par3_ctx->ecc_method & 1){	// Reed-Solomon Erasure Codes with Cauchy Matrix
 		if ( (par3_ctx->block_count > 128)
 				|| (par3_ctx->block_count + par3_ctx->first_recovery_block + par3_ctx->recovery_block_count > 256)
@@ -411,7 +407,7 @@ int make_matrix_packet(PAR3_CTX *par3_ctx)
 	par3_ctx->matrix_packet_size = packet_size;
 	par3_ctx->matrix_packet_count = 1;
 	if (par3_ctx->noise_level >= 1){
-		printf("Size of Matrix Packets = %zu\n", packet_size);
+		printf("Size of Matrix Packet = %zu\n", packet_size);
 	}
 
 	return 0;
@@ -451,7 +447,7 @@ int make_file_packet(PAR3_CTX *par3_ctx)
 		alloc_size += par3_ctx->input_file_name_len - num;	// subtle null-string of each name
 		alloc_size += (16 + 40) * par3_ctx->chunk_count;	// chunk description with tail info
 		if (par3_ctx->noise_level >= 2){
-			printf("Possible total size of File Packets = %zu\n", alloc_size);
+			printf("Possible total size of File Packet = %zu\n", alloc_size);
 		}
 		file_alloc_size = alloc_size;
 		if (par3_ctx->file_packet == NULL){
@@ -483,9 +479,9 @@ int make_file_packet(PAR3_CTX *par3_ctx)
 		if (absolute_num > 0)
 			alloc_size += strlen(par3_ctx->base_path);
 		num = par3_ctx->input_file_count + par3_ctx->input_dir_count + absolute_num;
-		alloc_size += 16 * num;	// checksums of File Packets and Directory Packets
+		alloc_size += 16 * num;	// checksums of File Packet and Directory Packet
 		if (par3_ctx->noise_level >= 2){
-			printf("Possible total size of Directory Packets = %zu\n", alloc_size);
+			printf("Possible total size of Directory Packet = %zu\n", alloc_size);
 		}
 		dir_alloc_size = alloc_size;
 		if (par3_ctx->dir_packet == NULL){
@@ -504,7 +500,7 @@ int make_file_packet(PAR3_CTX *par3_ctx)
 			num = par3_ctx->input_file_count + par3_ctx->input_dir_count + absolute_num;
 			alloc_size += 84 * num;	// mtime and i_mode are set.
 			if (par3_ctx->noise_level >= 2){
-				printf("Possible total size of UNIX Permissions Packets = %u\n", 84 * num);
+				printf("Possible total size of UNIX Permissions Packet = %u\n", 84 * num);
 			}
 		}
 		if (par3_ctx->file_system & 0x10000){	// FAT Permissions Packet
@@ -512,14 +508,14 @@ int make_file_packet(PAR3_CTX *par3_ctx)
 			num = par3_ctx->input_file_count;
 			alloc_size += 74 * num;	// LastWriteTimestamp is set.
 			if (par3_ctx->noise_level >= 2){
-				printf("Possible total size of FAT Permissions Packets = %u\n", 74 * num);
+				printf("Possible total size of FAT Permissions Packet = %u\n", 74 * num);
 			}
 		}
 		file_system_alloc_size = alloc_size;
 		if (par3_ctx->file_system_packet == NULL){
 			par3_ctx->file_system_packet = malloc(alloc_size);
 			if (par3_ctx->file_system_packet == NULL){
-				perror("Failed to allocate memory for File System Packets");
+				perror("Failed to allocate memory for File System Packet");
 				return RET_MEMORY_ERROR;
 			}
 		}
@@ -693,7 +689,7 @@ int make_file_packet(PAR3_CTX *par3_ctx)
 		par3_ctx->file_packet_size = total_packet_size;
 		par3_ctx->file_packet_count = packet_count;
 		if (par3_ctx->noise_level >= 1){
-			printf("Total size of File Packets = %zu (count = %u / %u)\n", total_packet_size, packet_count, par3_ctx->input_file_count);
+			printf("Total size of File Packet = %zu (count = %u / %u)\n", total_packet_size, packet_count, par3_ctx->input_file_count);
 		}
 	}
 
@@ -933,7 +929,7 @@ int make_file_packet(PAR3_CTX *par3_ctx)
 		par3_ctx->dir_packet_size = total_packet_size;
 		par3_ctx->dir_packet_count = packet_count;
 		if (par3_ctx->noise_level >= 1){
-			printf("Total size of Directory Packets = %zu (count = %u / %u)\n", total_packet_size, packet_count, par3_ctx->input_dir_count);
+			printf("Total size of Directory Packet = %zu (count = %u / %u)\n", total_packet_size, packet_count, par3_ctx->input_dir_count);
 		}
 	}
 
@@ -1000,7 +996,7 @@ int make_file_packet(PAR3_CTX *par3_ctx)
 	par3_ctx->root_packet_size = packet_size;
 	par3_ctx->root_packet_count = 1;
 	if (par3_ctx->noise_level >= 1){
-		printf("Size of Root Packets = %zu (children = %zu)\n", packet_size, alloc_size / 16);
+		printf("Size of Root Packet = %zu (children = %zu)\n", packet_size, alloc_size / 16);
 	}
 	free(chk_p);
 
@@ -1018,7 +1014,7 @@ int make_file_packet(PAR3_CTX *par3_ctx)
 				par3_ctx->file_system_packet = tmp_p;
 			}
 			if (par3_ctx->noise_level >= 1){
-				printf("Size of File System Packets = %zu (count = %u)\n", par3_ctx->file_system_packet_size, par3_ctx->file_system_packet_count);
+				printf("Size of File System Packet = %zu (count = %u)\n", par3_ctx->file_system_packet_size, par3_ctx->file_system_packet_count);
 			}
 		}
 	}
@@ -1077,7 +1073,7 @@ int make_ext_data_packet(PAR3_CTX *par3_ctx)
 
 	// If there is no full size blocks, checksums are saved in File Packets.
 	if (par3_ctx->noise_level >= 2){
-		printf("Number of External Data Packets = %zu (number of full size blocks = %I64d)\n", write_packet_count, find_block_count);
+		printf("Number of External Data Packet = %zu (number of full size blocks = %I64d)\n", write_packet_count, find_block_count);
 	}
 	if (write_packet_count == 0)
 		return 0;
@@ -1086,7 +1082,7 @@ int make_ext_data_packet(PAR3_CTX *par3_ctx)
 	packet_size = write_packet_count * (48 + 8);	// packet header (48-bytes) + index (8-bytes)
 	packet_size += find_block_count * 24;	// CRC-64 + BLAKE3 (24-bytes) per full size blocks
 	if (par3_ctx->noise_level >= 1){
-		printf("Total size of External Data Packets = %zu\n", packet_size);
+		printf("Total size of External Data Packet = %zu\n", packet_size);
 	}
 	if (par3_ctx->ext_data_packet == NULL){
 		par3_ctx->ext_data_packet = malloc(packet_size);

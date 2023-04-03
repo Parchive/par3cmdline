@@ -728,7 +728,7 @@ int main(int argc, char *argv[])
 			}
 		}
 		if (par3_ctx->file_system != 0)
-			printf("File System Packets = 0x%X\n", par3_ctx->file_system);
+			printf("File System Packet = 0x%X\n", par3_ctx->file_system);
 		if (par3_ctx->deduplication != 0)
 			printf("deduplication = level %c\n", par3_ctx->deduplication);
 		if (command_recursive != 0)

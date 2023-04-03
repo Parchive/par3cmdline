@@ -147,6 +147,7 @@ static int calculate_extra_count(PAR3_CTX *par3_ctx)
 	uint64_t total_count;
 
 	if (par3_ctx->block_count == 0){
+		par3_ctx->ecc_method = 0;
 		par3_ctx->redundancy_size = 0;
 		par3_ctx->recovery_block_count = 0;
 		return 0;	// There is no input block.
@@ -169,7 +170,33 @@ static int calculate_extra_count(PAR3_CTX *par3_ctx)
 	}
 
 	// Test number of blocks
-	if (par3_ctx->ecc_method & 8){	// FFT based Reed-Solomon Codes
+	if (par3_ctx->ecc_method & 1){	// Cauchy Reed-Solomon Codes
+		if (par3_ctx->noise_level >= 0){
+			printf("Cauchy Reed-Solomon Codes\n");
+		}
+
+		// When max recovery block count is set, it must be equal or larger than creating recovery blocks.
+		if ((par3_ctx->max_recovery_block > 0) && (par3_ctx->max_recovery_block < par3_ctx->recovery_block_count))
+			par3_ctx->max_recovery_block = par3_ctx->recovery_block_count;
+
+		// Check total number of blocks
+		total_count = par3_ctx->block_count + par3_ctx->first_recovery_block + par3_ctx->recovery_block_count;
+		if (total_count < par3_ctx->block_count + par3_ctx->max_recovery_block)
+			total_count = par3_ctx->block_count + par3_ctx->max_recovery_block;
+		if (total_count > 65536){
+			printf("Total block count %I64u are too many.\n", total_count);
+			return RET_LOGIC_ERROR;
+		}
+
+		if (par3_ctx->noise_level >= 0){
+			printf("Recovery block count = %I64u\n", par3_ctx->recovery_block_count);
+			if (par3_ctx->max_recovery_block > 0){
+				printf("Max recovery block count = %I64u\n", par3_ctx->max_recovery_block);
+			}
+			printf("\n");
+		}
+
+	} else if (par3_ctx->ecc_method & 8){	// FFT based Reed-Solomon Codes
 		uint64_t cohort_count, i;
 
 		if (par3_ctx->noise_level >= 0){
@@ -246,33 +273,8 @@ static int calculate_extra_count(PAR3_CTX *par3_ctx)
 			printf("\n");
 		}
 
-	} else if (par3_ctx->ecc_method & 1){	// Cauchy Reed-Solomon Codes
-		if (par3_ctx->noise_level >= 0){
-			printf("Cauchy Reed-Solomon Codes\n");
-		}
-
-		// When max recovery block count is set, it must be equal or larger than creating recovery blocks.
-		if ((par3_ctx->max_recovery_block > 0) && (par3_ctx->max_recovery_block < par3_ctx->recovery_block_count))
-			par3_ctx->max_recovery_block = par3_ctx->recovery_block_count;
-
-		// Check total number of blocks
-		total_count = par3_ctx->block_count + par3_ctx->first_recovery_block + par3_ctx->recovery_block_count;
-		if (total_count < par3_ctx->block_count + par3_ctx->max_recovery_block)
-			total_count = par3_ctx->block_count + par3_ctx->max_recovery_block;
-		if (total_count > 65536){
-			printf("Total block count %I64u are too many.\n", total_count);
-			return RET_LOGIC_ERROR;
-		}
-
-		if (par3_ctx->noise_level >= 0){
-			printf("Recovery block count = %I64u\n", par3_ctx->recovery_block_count);
-			if (par3_ctx->max_recovery_block > 0){
-				printf("Max recovery block count = %I64u\n", par3_ctx->max_recovery_block);
-			}
-			printf("\n");
-		}
-
 	} else {
+		printf("The specified Error Correction Codes (%u) isn't implemented yet.\n", par3_ctx->ecc_method);
 		return RET_LOGIC_ERROR;
 	}
 
@@ -351,6 +353,16 @@ int par3_extend(PAR3_CTX *par3_ctx)
 			if (ret != 0)
 				return ret;
 		}
+		/*
+		{	// Debug output to compare result
+			FILE *fp;
+			fp = fopen("debug.txt", "wb");
+			if (fp != NULL){
+				fwrite(par3_ctx->matrix_packet, 1, par3_ctx->matrix_packet_size, fp);
+				fclose(fp);
+			}
+		}
+		*/
 
 	} else {
 		return ret;
