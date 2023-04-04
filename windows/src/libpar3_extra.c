@@ -12,6 +12,7 @@
 #include "packet.h"
 #include "read.h"
 #include "verify.h"
+#include "write.h"
 
 
 // Check Matrix Packet in refered PAR file.
@@ -282,10 +283,11 @@ static int calculate_extra_count(PAR3_CTX *par3_ctx)
 }
 
 
-int par3_extend(PAR3_CTX *par3_ctx)
+int par3_extend(PAR3_CTX *par3_ctx, char command_trial)
 {
 	int ret;
 	uint32_t missing_file_count, damaged_file_count, bad_file_count;
+	uint64_t total_par_size;	// Total size of Index File, Archive Files, and Recovery Files.
 
 	ret = read_packet(par3_ctx);
 	if (ret != 0)
@@ -368,8 +370,17 @@ int par3_extend(PAR3_CTX *par3_ctx)
 		return ret;
 	}
 
+	if (command_trial != 0){
+		// Try Index File
+		total_par_size = try_index_file(par3_ctx);
 
+	} else {
+		// Write Index File
+		ret = write_index_file(par3_ctx);
+		if (ret != 0)
+			return ret;
 
+	}
 
 	return 0;
 }

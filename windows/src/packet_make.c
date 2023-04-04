@@ -1134,7 +1134,7 @@ int make_ext_data_packet(PAR3_CTX *par3_ctx)
 	return 0;
 }
 
-// Duplicate common packet between PAR3 files.
+// Duplicate common packets between PAR3 files
 int duplicate_common_packet(PAR3_CTX *par3_ctx)
 {
 	uint8_t *tmp_p;
