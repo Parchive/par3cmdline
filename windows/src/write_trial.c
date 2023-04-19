@@ -65,22 +65,22 @@ void show_sizing_scheme(PAR3_CTX *par3_ctx,
 		if (recovery_file_scheme == -1){	// Uniform
 			if (cohort_count > 1){
 				if (base_num > 0){
-					printf("Put (%I64u ~ %I64u) * %u blocks each on %u files.\n", max_count - 1, max_count, cohort_count, file_count);
+					printf("Put [%I64u ~ %I64u] * %u blocks each on %u files.\n", max_count - 1, max_count, cohort_count, file_count);
 				} else {
 					printf("Put %I64u * %u blocks each on %u files.\n", max_count, cohort_count, file_count);
 				}
 			} else {
 				if (base_num > 0){
-					printf("Put %I64u ~ %I64u blocks each on %u files.\n", max_count - 1, max_count, file_count);
+					printf("Put [%I64u ~ %I64u] blocks each on %u files.\n", max_count - 1, max_count, file_count);
 				} else {
 					printf("Put %I64u blocks each on %u files.\n", max_count, file_count);
 				}
 			}
 		} else {	// Variable (base number * power of 2)
 			if (cohort_count > 1){
-				printf("Put (%I64u ~ %I64u) * %u blocks each on %u files.\n", base_num, max_count, cohort_count, file_count);
+				printf("Put [%I64u ~ %I64u] * %u blocks each on %u files.\n", base_num, max_count, cohort_count, file_count);
 			} else {
-				printf("Put %I64u ~ %I64u blocks each on %u files.\n", base_num, max_count, file_count);
+				printf("Put [%I64u ~ %I64u] blocks each on %u files.\n", base_num, max_count, file_count);
 			}
 		}
 	} else {
@@ -92,15 +92,15 @@ void show_sizing_scheme(PAR3_CTX *par3_ctx,
 			}
 		} else if (recovery_file_scheme > 0){	// Limit size
 			if (cohort_count > 1){
-				printf("Put (power of 2) * %u blocks on files incrementaly, until %I64u * %u blocks each.\n", cohort_count, max_count, cohort_count);
+				printf("Put \"power of 2\" * %u blocks on files incrementaly, until %I64u * %u blocks each.\n", cohort_count, max_count, cohort_count);
 			} else {
-				printf("Put (power of 2) blocks on files incrementaly, until %I64u blocks each.\n", max_count);
+				printf("Put \"power of 2\" blocks on files incrementaly, until %I64u blocks each.\n", max_count);
 			}
 		} else {	// Power of 2
 			if (cohort_count > 1){
-				printf("Put (power of 2) * %u blocks on files incrementaly.\n", cohort_count);
+				printf("Put \"power of 2\" * %u blocks on files incrementaly.\n", cohort_count);
 			} else {
-				printf("Put (power of 2) blocks on files incrementaly.\n");
+				printf("Put \"power of 2\" blocks on files incrementaly.\n");
 			}
 		}
 	}

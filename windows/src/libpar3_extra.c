@@ -287,7 +287,6 @@ int par3_extend(PAR3_CTX *par3_ctx, char command_trial)
 {
 	int ret;
 	uint32_t missing_file_count, damaged_file_count, bad_file_count;
-	uint64_t total_par_size;	// Total size of Index File, Archive Files, and Recovery Files.
 
 	ret = read_packet(par3_ctx);
 	if (ret != 0)
@@ -371,14 +370,42 @@ int par3_extend(PAR3_CTX *par3_ctx, char command_trial)
 	}
 
 	if (command_trial != 0){
+		uint64_t total_par_size;	// This is a dummy item, when it doesn't show efficiency rate.
+
 		// Try Index File
 		total_par_size = try_index_file(par3_ctx);
+
+		// Try other PAR3 files
+		if ( (par3_ctx->block_count > 0) && ( (par3_ctx->data_packet != 0) || (par3_ctx->recovery_block_count > 0) ) ){
+			ret = duplicate_common_packet(par3_ctx);
+			if (ret != 0)
+				return ret;
+
+			// Write PAR3 files with input blocks
+			if (par3_ctx->data_packet != 0){
+				ret = try_archive_file(par3_ctx, &total_par_size);
+				if (ret != 0)
+					return ret;
+			}
+
+			// Write PAR3 files with recovery blocks
+			if (par3_ctx->recovery_block_count > 0){
+				ret = try_recovery_file(par3_ctx, &total_par_size);
+				if (ret != 0)
+					return ret;
+			}
+		}
+
+		// Because a user cannot change setting to create extra recovery blocks,
+		// showing efficiency rate will be useless.
+		//printf("\nTotal size of PAR files = %I64u\n", total_par_size);
 
 	} else {
 		// Write Index File
 		ret = write_index_file(par3_ctx);
 		if (ret != 0)
 			return ret;
+
 
 	}
 

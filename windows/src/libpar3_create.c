@@ -141,7 +141,7 @@ int par3_trial(PAR3_CTX *par3_ctx)
 	// Try Index File
 	total_par_size = try_index_file(par3_ctx);
 
-	// Try PAR3 files with input blocks
+	// Try other PAR3 files
 	if ( (par3_ctx->block_count > 0) && ( (par3_ctx->data_packet != 0) || (par3_ctx->recovery_block_count > 0) ) ){
 		ret = duplicate_common_packet(par3_ctx);
 		if (ret != 0)
