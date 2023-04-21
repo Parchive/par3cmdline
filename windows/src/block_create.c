@@ -47,7 +47,7 @@ int allocate_recovery_block(PAR3_CTX *par3_ctx)
 
 	// Allocate memory to keep recovery blocks
 	par3_ctx->block_data = malloc(alloc_size);
-	par3_ctx->block_data = NULL;	// For testing another method
+	//par3_ctx->block_data = NULL;	// For testing another method
 	if (par3_ctx->block_data != NULL){
 		par3_ctx->ecc_method |= 0x8000;	// Keep all recovery blocks on memory
 		if (par3_ctx->noise_level >= 2){
