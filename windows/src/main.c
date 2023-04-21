@@ -999,16 +999,12 @@ int main(int argc, char *argv[])
 		}
 
 		ret = par3_extend(par3_ctx, command_trial);
-		printf("\n par3_extend = %d\n", ret);
-
 		if (ret != 0){
 			printf("Failed to extend PAR file\n");
 			goto prepare_return;
 		}
 		if (par3_ctx->noise_level >= -1)
 			printf("Done\n");
-
-		printf("This feature is under construction.\n");
 	}
 
 	ret = 0;

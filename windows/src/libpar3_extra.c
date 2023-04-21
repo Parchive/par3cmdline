@@ -406,7 +406,60 @@ int par3_extend(PAR3_CTX *par3_ctx, char command_trial)
 		if (ret != 0)
 			return ret;
 
+		// Write other PAR3 files
+		if ( (par3_ctx->block_count > 0) && ( (par3_ctx->data_packet != 0) || (par3_ctx->recovery_block_count > 0) ) ){
+			ret = duplicate_common_packet(par3_ctx);
+			if (ret != 0)
+				return ret;
 
+			// When it uses Reed-Solomon Erasure Codes, it tries to keep all recovery blocks on memory.
+			if (par3_ctx->ecc_method & 1){
+				ret = allocate_recovery_block(par3_ctx);
+				if (ret != 0)
+					return ret;
+			}
+
+			// Write PAR3 files with input blocks
+			if (par3_ctx->data_packet != 0){
+				ret = write_archive_file(par3_ctx);
+				if (ret != 0)
+					return ret;
+			}
+
+			// If there are enough memory to keep all recovery blocks,
+			// it calculates recovery blocks before writing Recovery Data Packets.
+			if (par3_ctx->ecc_method & 0x8000){
+				ret = create_recovery_block(par3_ctx);
+				if (ret < 0){
+					par3_ctx->ecc_method &= ~0x8000;
+				} else if (ret > 0){
+					return ret;
+				}
+			}
+
+			// Write PAR3 files with recovery blocks
+			if (par3_ctx->recovery_block_count > 0){
+				ret = write_recovery_file(par3_ctx);
+				if (ret != 0){
+					//remove_recovery_file(par3_ctx);	// Remove partially created files
+					return ret;
+				}
+			}
+
+			// When recovery blocks were not created yet, calculate and write at here.
+			if ((par3_ctx->ecc_method & 0x8000) == 0){
+				if ( (par3_ctx->ecc_method & 8) && (par3_ctx->interleave > 0) ){
+					// Interleaving is adapted only for FFT based Reed-Solomon Codes.
+					ret = create_recovery_block_cohort(par3_ctx);
+				} else {
+					ret = create_recovery_block_split(par3_ctx);
+				}
+				if (ret != 0){
+					//remove_recovery_file(par3_ctx);	// Remove partially created files
+					return ret;
+				}
+			}
+		}
 	}
 
 	return 0;

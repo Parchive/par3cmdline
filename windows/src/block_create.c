@@ -39,9 +39,6 @@ int allocate_recovery_block(PAR3_CTX *par3_ctx)
 	// Set memory alignment of block data to be 4.
 	// Increase at least 1 byte as checksum.
 	region_size = (par3_ctx->block_size + 4 + 3) & ~3;
-	if (par3_ctx->noise_level >= 2){
-		printf("Aligned size of block data = %zu\n", region_size);
-	}
 
 	// Limited memory usage
 	alloc_size = region_size * par3_ctx->recovery_block_count;
@@ -50,9 +47,14 @@ int allocate_recovery_block(PAR3_CTX *par3_ctx)
 
 	// Allocate memory to keep recovery blocks
 	par3_ctx->block_data = malloc(alloc_size);
-	//par3_ctx->block_data = NULL;	// For testing another method
-	if (par3_ctx->block_data != NULL)
+	par3_ctx->block_data = NULL;	// For testing another method
+	if (par3_ctx->block_data != NULL){
 		par3_ctx->ecc_method |= 0x8000;	// Keep all recovery blocks on memory
+		if (par3_ctx->noise_level >= 2){
+			printf("\nAligned size of block data = %zu\n", region_size);
+			printf("Keep all recovery blocks on memory (%zu * %I64u = %zu)\n", region_size, par3_ctx->recovery_block_count, alloc_size);
+		}
+	}
 
 	return 0;
 }
@@ -220,11 +222,16 @@ int create_recovery_block(PAR3_CTX *par3_ctx)
 		// Zero fill rest bytes
 		memset(work_buf + data_size, 0, region_size - data_size);
 
-		// Calculate checksum of block to confirm that input file was not changed.
-		if (crc64(work_buf, data_size, 0) != block_list[block_index].crc){
-			printf("Checksum of block[%d] is different.\n", block_index);
-			fclose(fp);
-			return RET_LOGIC_ERROR;
+		// At creating time, CRC of a block was set, even when the block includes multiple chunk tails.
+		// It appends chunk tails as tail packing, and calculates their total CRC for the block.
+		// But, after verification, a block without full size data doesn't have valid CRC value.
+		if ( ((block_list[block_index].state & 1) != 0) || (block_list[block_index].crc != 0) ){
+			// Calculate checksum of block to confirm that input file was not changed.
+			if (crc64(work_buf, data_size, 0) != block_list[block_index].crc){
+				printf("Checksum of block[%d] is different.\n", block_index);
+				fclose(fp);
+				return RET_LOGIC_ERROR;
+			}
 		}
 
 		// Calculate parity bytes in the region
@@ -288,7 +295,7 @@ int create_recovery_block_split(PAR3_CTX *par3_ctx)
 	int64_t slice_index, file_offset;
 	uint64_t crc, block_index;
 	uint64_t block_size, block_count;
-	uint64_t recovery_block_count, first_recovery_block;
+	uint64_t recovery_block_count, first_recovery_block, max_recovery_block;
 	uint64_t alloc_size, region_size, split_size;
 	uint64_t data_size, part_size, split_offset;
 	uint64_t tail_offset, tail_gap;
@@ -309,6 +316,7 @@ int create_recovery_block_split(PAR3_CTX *par3_ctx)
 	block_count = par3_ctx->block_count;
 	recovery_block_count = par3_ctx->recovery_block_count;
 	first_recovery_block = par3_ctx->first_recovery_block;
+	max_recovery_block = par3_ctx->max_recovery_block;
 	gf_size = par3_ctx->gf_size;
 	galois_poly = par3_ctx->galois_poly;
 	file_list = par3_ctx->input_file_list;
@@ -326,8 +334,8 @@ int create_recovery_block_split(PAR3_CTX *par3_ctx)
 			printf("Failed to initialize Leopard-RS library (%d)\n", ret);
 			return RET_LOGIC_ERROR;
 		}
-		work_count = leo_encode_work_count((uint32_t)block_count,
-							(uint32_t)(first_recovery_block + recovery_block_count));
+		work_count = leo_encode_work_count((uint32_t)block_count, (uint32_t)max_recovery_block);
+		// max_recovery_block is equal or larger than (first_recovery_block + recovery_block_count).
 		//printf("Leopard-RS: work_count = %u\n", work_count);
 		// Leopard-RS requires multiple of 64 bytes for SIMD.
 		region_size = (block_size + 4 + 63) & ~63;
@@ -368,11 +376,18 @@ int create_recovery_block_split(PAR3_CTX *par3_ctx)
 		region_size = (split_size + 4 + 63) & ~63;
 		alloc_size = region_size * (block_count + work_count);	// work_count is larger than recovery_block_count.
 		// Though Leopard-RS doesn't require memory alignment for SIMD, align to 32 bytes may be faster.
+		if (par3_ctx->noise_level >= 2){
+			printf("\nAligned size of block data = %I64u\n", region_size);
+			printf("Allocated memory size = %I64u * (%I64u + %u) = %I64u\n", region_size, block_count, work_count, alloc_size);
+		}
 	} else {	// Reed-Solomon Erasure Codes
 		region_size = (split_size + 4 + 3) & ~3;
 		alloc_size = region_size * (block_count + recovery_block_count);
+		if (par3_ctx->noise_level >= 2){
+			printf("\nAligned size of block data = %I64u\n", region_size);
+			printf("Allocated memory size = %I64u * (%I64u + %I64u) = %I64u\n", region_size, block_count, recovery_block_count, alloc_size);
+		}
 	}
-	//printf("split_size = %I64u, region_size = %I64u, alloc_size = %I64u\n", split_size, region_size, alloc_size);
 	block_data = malloc(alloc_size);
 	if (block_data == NULL){
 		perror("Failed to allocate memory for block data");
@@ -562,18 +577,20 @@ int create_recovery_block_split(PAR3_CTX *par3_ctx)
 					}
 				}
 			}
-			if (split_offset + split_size >= block_size){	// At the last
-				if (crc != block_list[block_index].crc){
-					printf("Checksum of block[%I64u] is different.\n", block_index);
-					fclose(fp);
-					return RET_LOGIC_ERROR;
+			if ( ((block_list[block_index].state & 1) != 0) || (block_list[block_index].crc != 0) ){
+				if (split_offset + split_size >= block_size){	// At the last
+					if (crc != block_list[block_index].crc){
+						printf("Checksum of block[%I64u] is different.\n", block_index);
+						fclose(fp);
+						return RET_LOGIC_ERROR;
+					}
+				} else {
+					memcpy(block_list[block_index].hash, &crc, 8);	// Save this CRC value
 				}
-			} else {
-				memcpy(block_list[block_index].hash, &crc, 8);	// Save this CRC value
 			}
 
 			// Print progress percent
-			if ( (par3_ctx->noise_level >= 0) && (par3_ctx->noise_level <= 1) ){
+			if ( (par3_ctx->noise_level >= 0) && (par3_ctx->noise_level <= 2) ){
 				progress_step++;
 				time_now = time(NULL);
 				if (time_now != time_old){
@@ -601,16 +618,14 @@ int create_recovery_block_split(PAR3_CTX *par3_ctx)
 			rs_create_all(par3_ctx, region_size, progress_total, progress_step);
 
 		} else if (par3_ctx->ecc_method & 8){	// FFT based Reed-Solomon Codes
-			ret = leo_encode(region_size,
-							(uint32_t)block_count, (uint32_t)(first_recovery_block + recovery_block_count),
-							work_count, original_data, work_data);
+			ret = leo_encode(region_size, (uint32_t)block_count, (uint32_t)max_recovery_block, work_count, original_data, work_data);
 			if (ret != 0){
 				printf("Failed to call Leopard-RS library (%d)\n", ret);
 				return RET_LOGIC_ERROR;
 			}
 
 		}
-		if ( (par3_ctx->noise_level >= 0) && (par3_ctx->noise_level <= 1) ){
+		if ( (par3_ctx->noise_level >= 0) && (par3_ctx->noise_level <= 2) ){
 			progress_step += block_count * recovery_block_count;
 			time_old = time(NULL);
 		}
@@ -677,7 +692,7 @@ int create_recovery_block_split(PAR3_CTX *par3_ctx)
 			}
 
 			// Print progress percent
-			if ( (par3_ctx->noise_level >= 0) && (par3_ctx->noise_level <= 1) ){
+			if ( (par3_ctx->noise_level >= 0) && (par3_ctx->noise_level <= 2) ){
 				progress_step++;
 				time_now = time(NULL);
 				if (time_now != time_old){
@@ -777,8 +792,10 @@ fclose(fp2);
 	}
 
 	if (par3_ctx->noise_level >= 0){
-		if (progress_step < progress_total)
-			printf("Didn't finish progress. %I64u / %I64u\n", progress_step, progress_total);
+		if (par3_ctx->noise_level <= 2){
+			if (progress_step < progress_total)
+				printf("Didn't finish progress. %I64u / %I64u\n", progress_step, progress_total);
+		}
 		clock_now = clock() - clock_now;
 		printf("done in %.1f seconds.\n", (double)clock_now / CLOCKS_PER_SEC);
 		printf("\n");
@@ -815,7 +832,7 @@ int create_recovery_block_cohort(PAR3_CTX *par3_ctx)
 	int64_t slice_index, file_offset;
 	uint64_t crc, block_index;
 	uint64_t block_size, block_count, recovery_block_count;
-	uint64_t block_count2, recovery_block_count2, first_recovery_block2;
+	uint64_t block_count2, recovery_block_count2, first_recovery_block2, max_recovery_block2;
 	uint64_t alloc_size, region_size, split_size;
 	uint64_t data_size, part_size, split_offset;
 	uint64_t tail_offset, tail_gap;
@@ -850,8 +867,11 @@ int create_recovery_block_cohort(PAR3_CTX *par3_ctx)
 	block_count2 = (block_count + cohort_count - 1) / cohort_count;	// round up
 	recovery_block_count2 = recovery_block_count / cohort_count;
 	first_recovery_block2 = par3_ctx->first_recovery_block / cohort_count;
+	max_recovery_block2 = par3_ctx->max_recovery_block / cohort_count;
+	// max_recovery_block2 is equal or larger than (first_recovery_block2 + recovery_block_count2).
 	//printf("cohort_count = %u, block_count2 = %I64u\n", cohort_count, block_count2);
 	//printf("recovery_block_count2 = %I64u, first_recovery_block2 = %I64u\n", recovery_block_count2, first_recovery_block2);
+	//printf("max_recovery_block2 = %I64u\n", max_recovery_block2);
 
 	// Set required memory size at first
 	ret = leo_init();	// Initialize Leopard-RS library.
@@ -859,8 +879,7 @@ int create_recovery_block_cohort(PAR3_CTX *par3_ctx)
 		printf("Failed to initialize Leopard-RS library (%d)\n", ret);
 		return RET_LOGIC_ERROR;
 	}
-	work_count = leo_encode_work_count((uint32_t)block_count2,
-						(uint32_t)(first_recovery_block2 + recovery_block_count2));
+	work_count = leo_encode_work_count((uint32_t)block_count2, (uint32_t)max_recovery_block2);
 	//printf("Leopard-RS: work_count = %u\n", work_count);
 	// Leopard-RS requires multiple of 64 bytes for SIMD.
 	region_size = (block_size + 4 + 63) & ~63;
@@ -894,7 +913,10 @@ int create_recovery_block_cohort(PAR3_CTX *par3_ctx)
 	region_size = (split_size + 4 + 63) & ~63;
 	alloc_size = region_size * (block_count2 + work_count);	// work_count is larger than recovery_block_count.
 	// Though Leopard-RS doesn't require memory alignment for SIMD, align to 32 bytes may be faster.
-	//printf("split_size = %I64u, region_size = %I64u, alloc_size = %I64u\n", split_size, region_size, alloc_size);
+	if (par3_ctx->noise_level >= 2){
+		printf("\nAligned size of block data = %I64u\n", region_size);
+		printf("Allocated memory size = %I64u * (%I64u + %u) = %I64u\n", region_size, block_count2, work_count, alloc_size);
+	}
 	block_data = malloc(alloc_size);
 	if (block_data == NULL){
 		perror("Failed to allocate memory for block data");
@@ -1081,18 +1103,20 @@ int create_recovery_block_cohort(PAR3_CTX *par3_ctx)
 						region_create_parity(buf_p, region_size);
 					}
 				}
-				if (split_offset + split_size >= block_size){	// At the last
-					if (crc != block_list[block_index].crc){
-						printf("Checksum of block[%I64u] is different.\n", block_index);
-						fclose(fp);
-						return RET_LOGIC_ERROR;
+				if ( ((block_list[block_index].state & 1) != 0) || (block_list[block_index].crc != 0) ){
+					if (split_offset + split_size >= block_size){	// At the last
+						if (crc != block_list[block_index].crc){
+							printf("Checksum of block[%I64u] is different.\n", block_index);
+							fclose(fp);
+							return RET_LOGIC_ERROR;
+						}
+					} else {
+						memcpy(block_list[block_index].hash, &crc, 8);	// Save this CRC value
 					}
-				} else {
-					memcpy(block_list[block_index].hash, &crc, 8);	// Save this CRC value
 				}
 
 				// Print progress percent
-				if ( (par3_ctx->noise_level >= 0) && (par3_ctx->noise_level <= 1) ){
+				if ( (par3_ctx->noise_level >= 0) && (par3_ctx->noise_level <= 2) ){
 					progress_step++;
 					time_now = time(NULL);
 					if (time_now != time_old){
@@ -1122,15 +1146,13 @@ int create_recovery_block_cohort(PAR3_CTX *par3_ctx)
 			}
 
 			// Create all recovery blocks on memory
-			ret = leo_encode(region_size,
-							(uint32_t)block_count2, (uint32_t)(first_recovery_block2 + recovery_block_count2),
-							work_count, original_data, work_data);
+			ret = leo_encode(region_size, (uint32_t)block_count2, (uint32_t)max_recovery_block2, work_count, original_data, work_data);
 			if (ret != 0){
 				printf("Failed to call Leopard-RS library (%d)\n", ret);
 				return RET_LOGIC_ERROR;
 			}
 
-			if ( (par3_ctx->noise_level >= 0) && (par3_ctx->noise_level <= 1) ){
+			if ( (par3_ctx->noise_level >= 0) && (par3_ctx->noise_level <= 2) ){
 				progress_step += block_count2 * recovery_block_count2;
 				time_old = time(NULL);
 			}
@@ -1187,7 +1209,7 @@ int create_recovery_block_cohort(PAR3_CTX *par3_ctx)
 				}
 
 				// Print progress percent
-				if ( (par3_ctx->noise_level >= 0) && (par3_ctx->noise_level <= 1) ){
+				if ( (par3_ctx->noise_level >= 0) && (par3_ctx->noise_level <= 2) ){
 					progress_step++;
 					time_now = time(NULL);
 					if (time_now != time_old){
@@ -1287,8 +1309,10 @@ fclose(fp2);
 	}
 
 	if (par3_ctx->noise_level >= 0){
-		if (progress_step < progress_total)
-			printf("Didn't finish progress. %I64u / %I64u\n", progress_step, progress_total);
+		if (par3_ctx->noise_level <= 2){
+			if (progress_step < progress_total)
+				printf("Didn't finish progress. %I64u / %I64u\n", progress_step, progress_total);
+		}
 		clock_now = clock() - clock_now;
 		printf("done in %.1f seconds.\n", (double)clock_now / CLOCKS_PER_SEC);
 		printf("\n");

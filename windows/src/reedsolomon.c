@@ -178,9 +178,6 @@ int rs_compute_matrix(PAR3_CTX *par3_ctx, uint64_t lost_count)
 	// Set memory alignment of block data to be 4.
 	// Increase at least 1 byte as checksum.
 	region_size = (par3_ctx->block_size + 4 + 3) & ~3;
-	if (par3_ctx->noise_level >= 2){
-		printf("\nAligned size of block data = %zu\n", region_size);
-	}
 
 	// Limited memory usage
 	alloc_size = region_size * lost_count;
@@ -190,8 +187,13 @@ int rs_compute_matrix(PAR3_CTX *par3_ctx, uint64_t lost_count)
 	// Allocate memory to keep lost blocks
 	par3_ctx->block_data = malloc(alloc_size);
 	//par3_ctx->block_data = NULL;	// For testing another method
-	if (par3_ctx->block_data != NULL)
+	if (par3_ctx->block_data != NULL){
 		par3_ctx->ecc_method |= 0x8000;	// Keep all lost blocks on memory
+		if (par3_ctx->noise_level >= 2){
+			printf("\nAligned size of block data = %zu\n", region_size);
+			printf("Keep all lost blocks on memory (%zu * %I64u = %zu)\n", region_size, lost_count, alloc_size);
+		}
+	}
 
 	return 0;
 }

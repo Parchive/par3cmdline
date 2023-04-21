@@ -295,7 +295,7 @@ int recover_lost_block(PAR3_CTX *par3_ctx, char *temp_path, int lost_count)
 			rs_recover_one_all(par3_ctx, block_index, lost_count);
 
 			// Print progress percent
-			if ( (par3_ctx->noise_level >= 0) && (par3_ctx->noise_level <= 1) ){
+			if ( (par3_ctx->noise_level >= 0) && (par3_ctx->noise_level <= 2) ){
 				progress_step++;
 				time_now = time(NULL);
 				if (time_now != time_old){
@@ -381,7 +381,7 @@ int recover_lost_block(PAR3_CTX *par3_ctx, char *temp_path, int lost_count)
 		rs_recover_one_all(par3_ctx, lost_id[lost_index], lost_count);
 
 		// Print progress percent
-		if ( (par3_ctx->noise_level >= 0) && (par3_ctx->noise_level <= 1) ){
+		if ( (par3_ctx->noise_level >= 0) && (par3_ctx->noise_level <= 2) ){
 			progress_step++;
 			time_now = time(NULL);
 			if (time_now != time_old){
@@ -665,11 +665,18 @@ int recover_lost_block_split(PAR3_CTX *par3_ctx, char *temp_path, uint64_t lost_
 		// So, it will write back recovered data from there.
 		region_size = (split_size + 4 + 63) & ~63;
 		alloc_size = region_size * (block_count + work_count);
+		if (par3_ctx->noise_level >= 2){
+			printf("\nAligned size of block data = %I64u\n", region_size);
+			printf("Allocated memory size = %I64u * (%I64u + %u) = %I64u\n", region_size, block_count, work_count, alloc_size);
+		}
 	} else {	// Reed-Solomon Erasure Codes
 		region_size = (split_size + 4 + 3) & ~3;
 		alloc_size = region_size * (block_count + lost_count);
+		if (par3_ctx->noise_level >= 2){
+			printf("\nAligned size of block data = %I64u\n", region_size);
+			printf("Allocated memory size = %I64u * (%I64u + %I64u) = %I64u\n", region_size, block_count, lost_count, alloc_size);
+		}
 	}
-	//printf("split_size = %I64u, region_size = %I64u, alloc_size = %I64u\n", split_size, region_size, alloc_size);
 	block_data = malloc(alloc_size);
 	if (block_data == NULL){
 		perror("Failed to allocate memory for block data");
@@ -876,7 +883,7 @@ int recover_lost_block_split(PAR3_CTX *par3_ctx, char *temp_path, uint64_t lost_
 			}
 
 			// Print progress percent
-			if ( (par3_ctx->noise_level >= 0) && (par3_ctx->noise_level <= 1) ){
+			if ( (par3_ctx->noise_level >= 0) && (par3_ctx->noise_level <= 2) ){
 				progress_step++;
 				time_now = time(NULL);
 				if (time_now != time_old){
@@ -964,7 +971,7 @@ int recover_lost_block_split(PAR3_CTX *par3_ctx, char *temp_path, uint64_t lost_
 			}
 
 			// Print progress percent
-			if ( (par3_ctx->noise_level >= 0) && (par3_ctx->noise_level <= 1) ){
+			if ( (par3_ctx->noise_level >= 0) && (par3_ctx->noise_level <= 2) ){
 				progress_step++;
 				time_now = time(NULL);
 				if (time_now != time_old){
@@ -1024,7 +1031,7 @@ if (par3_ctx->ecc_method & 8){	// FFT based Reed-Solomon Codes
 			}
 
 		}
-		if ( (par3_ctx->noise_level >= 0) && (par3_ctx->noise_level <= 1) ){
+		if ( (par3_ctx->noise_level >= 0) && (par3_ctx->noise_level <= 2) ){
 			progress_step += block_count * lost_count;
 			time_old = time(NULL);
 		}
@@ -1114,7 +1121,7 @@ if (par3_ctx->ecc_method & 8){	// FFT based Reed-Solomon Codes
 			}
 
 			// Print progress percent
-			if ( (par3_ctx->noise_level >= 0) && (par3_ctx->noise_level <= 1) ){
+			if ( (par3_ctx->noise_level >= 0) && (par3_ctx->noise_level <= 2) ){
 				progress_step++;
 				time_now = time(NULL);
 				if (time_now != time_old){
@@ -1210,8 +1217,10 @@ if (par3_ctx->ecc_method & 8){	// FFT based Reed-Solomon Codes
 	}
 
 	if (par3_ctx->noise_level >= 0){
-		if (progress_step < progress_total)
-			printf("Didn't finish progress. %I64u / %I64u\n", progress_step, progress_total);
+		if (par3_ctx->noise_level <= 2){
+			if (progress_step < progress_total)
+				printf("Didn't finish progress. %I64u / %I64u\n", progress_step, progress_total);
+		}
 		clock_now = clock() - clock_now;
 		printf("done in %.1f seconds.\n", (double)clock_now / CLOCKS_PER_SEC);
 	}
@@ -1342,7 +1351,10 @@ int recover_lost_block_cohort(PAR3_CTX *par3_ctx, char *temp_path)
 	alloc_size = region_size * (block_count2 + work_count);
 	if (alloc_size < block_size)
 		alloc_size = block_size;	// This buffer size must be enough large to copy a slice.
-	//printf("split_size = %I64u, region_size = %I64u, alloc_size = %I64u\n", split_size, region_size, alloc_size);
+	if (par3_ctx->noise_level >= 2){
+		printf("\nAligned size of block data = %I64u\n", region_size);
+		printf("Allocated memory size = %I64u * (%I64u + %u) = %I64u\n", region_size, block_count2, work_count, alloc_size);
+	}
 	block_data = malloc(alloc_size);
 	if (block_data == NULL){
 		perror("Failed to allocate memory for block data");
@@ -1493,7 +1505,7 @@ int recover_lost_block_cohort(PAR3_CTX *par3_ctx, char *temp_path)
 				}
 
 				// Print progress percent
-				if ( (par3_ctx->noise_level >= 0) && (par3_ctx->noise_level <= 1) ){
+				if ( (par3_ctx->noise_level >= 0) && (par3_ctx->noise_level <= 2) ){
 					progress_step++;
 					time_now = time(NULL);
 					if (time_now != time_old){
@@ -1506,7 +1518,7 @@ int recover_lost_block_cohort(PAR3_CTX *par3_ctx, char *temp_path)
 					}
 				}
 			}
-			if ( (par3_ctx->noise_level >= 0) && (par3_ctx->noise_level <= 1) ){
+			if ( (par3_ctx->noise_level >= 0) && (par3_ctx->noise_level <= 2) ){
 				// When the last input block doesn't exist in this cohort.
 				if (block_index < block_count2 * cohort_count){
 					progress_step++;
@@ -1667,7 +1679,7 @@ int recover_lost_block_cohort(PAR3_CTX *par3_ctx, char *temp_path)
 				}
 
 				// Print progress percent
-				if ( (par3_ctx->noise_level >= 0) && (par3_ctx->noise_level <= 1) ){
+				if ( (par3_ctx->noise_level >= 0) && (par3_ctx->noise_level <= 2) ){
 					progress_step++;
 					time_now = time(NULL);
 					if (time_now != time_old){
@@ -1688,7 +1700,7 @@ int recover_lost_block_cohort(PAR3_CTX *par3_ctx, char *temp_path)
 				//printf("zero fill %I64u, block_count2 * cohort_count = %I64u\n", block_index, block_count2 * cohort_count);
 				memset(buf_p, 0, region_size);
 				original_data[block_index / cohort_count] = buf_p;
-				if ( (par3_ctx->noise_level >= 0) && (par3_ctx->noise_level <= 1) ){
+				if ( (par3_ctx->noise_level >= 0) && (par3_ctx->noise_level <= 2) ){
 					progress_step++;
 				}
 			}
@@ -1757,7 +1769,7 @@ int recover_lost_block_cohort(PAR3_CTX *par3_ctx, char *temp_path)
 				}
 
 				// Print progress percent
-				if ( (par3_ctx->noise_level >= 0) && (par3_ctx->noise_level <= 1) ){
+				if ( (par3_ctx->noise_level >= 0) && (par3_ctx->noise_level <= 2) ){
 					progress_step++;
 					time_now = time(NULL);
 					if (time_now != time_old){
@@ -1824,7 +1836,7 @@ fclose(fp2);
 				buf_p += region_size;
 			}
 
-			if ( (par3_ctx->noise_level >= 0) && (par3_ctx->noise_level <= 1) ){
+			if ( (par3_ctx->noise_level >= 0) && (par3_ctx->noise_level <= 2) ){
 				progress_step += block_count2 * lost_index;
 				time_old = time(NULL);
 			}
@@ -1914,7 +1926,7 @@ printf("\n recover ok, progress = %I64u / %I64u\n", progress_step, progress_tota
 				}
 
 				// Print progress percent
-				if ( (par3_ctx->noise_level >= 0) && (par3_ctx->noise_level <= 1) ){
+				if ( (par3_ctx->noise_level >= 0) && (par3_ctx->noise_level <= 2) ){
 					progress_step++;
 					time_now = time(NULL);
 					if (time_now != time_old){
@@ -1929,7 +1941,7 @@ printf("\n recover ok, progress = %I64u / %I64u\n", progress_step, progress_tota
 
 				buf_p += region_size;	// Goto next partial block
 			}
-			if ( (par3_ctx->noise_level >= 0) && (par3_ctx->noise_level <= 1) ){
+			if ( (par3_ctx->noise_level >= 0) && (par3_ctx->noise_level <= 2) ){
 				// When the last input block doesn't exist in this cohort.
 				if (block_index < block_count2 * cohort_count){
 					progress_step++;
@@ -2029,8 +2041,10 @@ printf("\n recover ok, progress = %I64u / %I64u\n", progress_step, progress_tota
 	}
 
 	if (par3_ctx->noise_level >= 0){
-		if (progress_step < progress_total)
-			printf("Didn't finish progress. %I64u / %I64u\n", progress_step, progress_total);
+		if (par3_ctx->noise_level <= 2){
+			if (progress_step < progress_total)
+				printf("Didn't finish progress. %I64u / %I64u\n", progress_step, progress_total);
+		}
 		clock_now = clock() - clock_now;
 		printf("done in %.1f seconds.\n", (double)clock_now / CLOCKS_PER_SEC);
 	}

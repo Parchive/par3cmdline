@@ -346,12 +346,17 @@ static int write_data_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t each_s
 				//	memset(work_buf + write_size, 0, block_size - write_size);
 			}
 
-			// Calculate checksum of block to confirm that input file was not changed.
-			if (crc64(work_buf, write_size, 0) != block_list[block_index].crc){
-				printf("Checksum of block[%I64u] is different.\n", block_index);
-				fclose(fp_read);
-				fclose(fp_write);
-				return RET_LOGIC_ERROR;
+			// At creating time, CRC of a block was set, even when the block includes multiple chunk tails.
+			// It appends chunk tails as tail packing, and calculates their total CRC for the block.
+			// But, after verification, a block without full size data doesn't have valid CRC value.
+			if ( ((block_list[block_index].state & 1) != 0) || (block_list[block_index].crc != 0) ){
+				// Calculate checksum of block to confirm that input file was not changed.
+				if (crc64(work_buf, write_size, 0) != block_list[block_index].crc){
+					printf("Checksum of block[%I64u] is different.\n", block_index);
+					fclose(fp_read);
+					fclose(fp_write);
+					return RET_LOGIC_ERROR;
+				}
 			}
 
 			// Calculate checksum of packet here.
@@ -829,6 +834,7 @@ int write_recovery_file(PAR3_CTX *par3_ctx)
 	// Set count for each cohort
 	if (par3_ctx->interleave > 0){
 		block_count = (block_count + par3_ctx->interleave) / (par3_ctx->interleave + 1);	// round up
+		first_num = (first_num + par3_ctx->interleave) / (par3_ctx->interleave + 1);
 	}
 
 	// Calculate block count and digits max.

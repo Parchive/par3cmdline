@@ -625,6 +625,7 @@ int try_recovery_file(PAR3_CTX *par3_ctx, uint64_t *recovery_file_size)
 	// Set count for each cohort
 	if (par3_ctx->interleave > 0){
 		block_count = (block_count + par3_ctx->interleave) / (par3_ctx->interleave + 1);	// round up
+		first_num = (first_num + par3_ctx->interleave) / (par3_ctx->interleave + 1);
 	}
 
 	// Calculate block count and digits max.
