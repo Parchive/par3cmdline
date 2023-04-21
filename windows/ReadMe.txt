@@ -47,8 +47,10 @@ Usage:
   par3 -V  : show version
   par3 -VV : show version and copyright
 
-  par3 t(rial)  [options] <PAR3 file> [files] : Try to create PAR3 files
+  par3 tc       [options] <PAR3 file> [files] : Try to create PAR3 files
+  par3 te       [options] <PAR3 file> [file]  : Try to extend PAR3 files
   par3 c(reate) [options] <PAR3 file> [files] : Create PAR3 files
+  par3 e(xtend) [options] <PAR3 file> [file]  : Extend PAR3 files
   par3 v(erify) [options] <PAR3 file> [files] : Verify files using PAR3 file
   par3 r(epair) [options] <PAR3 file> [files] : Repair files using PAR3 files
   par3 l(ist)   [options] <PAR3 file>         : List files in PAR3 file
@@ -93,7 +95,7 @@ Filename may include sub-directory, like "zipfolder/*.zip".
 
 
 
-[ About "trial" command ]
+[ About "try to create" command ]
 
  If you want to see how PAR3 files will be created, use this command.
 It tries to create PAR3 files, but won't write created data on files really.
@@ -103,6 +105,22 @@ It's useful to see file size or how many files.
 So, it may be slow for large files.
 If you don't enable deduplication, it's possible to trial without file reading.
 At that time, InputSetID is unknown.
+
+
+
+[ About "extend" command ]
+
+ When you want to create more recovery blocks for a given PAR3 set, use this command.
+Instead of setting names of input files, set one PAR filename.
+It verifies input files and creates compatible recovery blocks.
+All input files must be complete, or else it will fail.
+When you set wrong option, it may fail by compatibility issue.
+
+ It will over-write existing PAR files.
+If you want to create new PAR3 files in different base name, set a name of refered PAR file.
+
+ If you set the max number of recovery blocks at the first creating time,
+you won't be able to extend recovery blocks beyond the limit.
 
 
 
