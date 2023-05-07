@@ -9,6 +9,7 @@
 #include <time.h>
 
 #include "libpar3.h"
+#include "common.h"
 #include "galois.h"
 #include "hash.h"
 #include "reedsolomon.h"
@@ -225,7 +226,7 @@ int create_recovery_block(PAR3_CTX *par3_ctx)
 		// At creating time, CRC of a block was set, even when the block includes multiple chunk tails.
 		// It appends chunk tails as tail packing, and calculates their total CRC for the block.
 		// But, after verification, a block without full size data doesn't have valid CRC value.
-		if ( ((block_list[block_index].state & 1) != 0) || (block_list[block_index].crc != 0) ){
+		if ( ((block_list[block_index].state & 1) != 0) || (mem_or16(block_list[block_index].hash) != 0) ){
 			// Calculate checksum of block to confirm that input file was not changed.
 			if (crc64(work_buf, data_size, 0) != block_list[block_index].crc){
 				printf("Checksum of block[%d] is different.\n", block_index);
@@ -577,7 +578,10 @@ int create_recovery_block_split(PAR3_CTX *par3_ctx)
 					}
 				}
 			}
-			if ( ((block_list[block_index].state & 1) != 0) || (block_list[block_index].crc != 0) ){
+			// Though intermediate CRC value is stored in "block_list[block_index].hash",
+			// the field had not been zero already.
+			// If "block_list[block_index].hash" was zero at first, it doesn't store CRC.
+			if ( ((block_list[block_index].state & 1) != 0) || (mem_or16(block_list[block_index].hash) != 0) ){
 				if (split_offset + split_size >= block_size){	// At the last
 					if (crc != block_list[block_index].crc){
 						printf("Checksum of block[%I64u] is different.\n", block_index);
@@ -1103,7 +1107,7 @@ int create_recovery_block_cohort(PAR3_CTX *par3_ctx)
 						region_create_parity(buf_p, region_size);
 					}
 				}
-				if ( ((block_list[block_index].state & 1) != 0) || (block_list[block_index].crc != 0) ){
+				if ( ((block_list[block_index].state & 1) != 0) || (mem_or16(block_list[block_index].hash) != 0) ){
 					if (split_offset + split_size >= block_size){	// At the last
 						if (crc != block_list[block_index].crc){
 							printf("Checksum of block[%I64u] is different.\n", block_index);

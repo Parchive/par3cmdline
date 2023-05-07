@@ -283,6 +283,7 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 							block_p->slice = slice_index;
 							block_p->size = tail_size;
 							block_p->crc = crc64(work_buf, (size_t)tail_size, 0);
+							memset(block_p->hash, 1, 16);	// Calculate CRC-64 only
 							block_p->state = 2;
 							block_p++;
 							block_index++;
@@ -792,6 +793,7 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 				block_p->slice = slice_index;
 				block_p->size = tail_size;
 				block_p->crc = crc64(work_buf, (size_t)tail_size, 0);
+				memset(block_p->hash, 1, 16);	// Calculate CRC-64 only
 				block_p->state = 2;
 				block_p++;
 				block_index++;

@@ -147,6 +147,12 @@
     <ClCompile Include="libpar3_extra.c">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
+    <ClCompile Include="libpar3_inside.c">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="inside_zip.c">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="libpar3.h">
@@ -201,6 +207,9 @@
       <Filter>ヘッダー ファイル\leopard</Filter>
     </ClInclude>
     <ClInclude Include="file.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="inside.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
   </ItemGroup>

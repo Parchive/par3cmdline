@@ -582,7 +582,7 @@ uint64_t suggest_block_size(PAR3_CTX *par3_ctx)
 	long double f;
 
 	// If every input files are smaller than 40 bytes, block size will be 40.
-	if (par3_ctx->max_file_size < 40)
+	if (par3_ctx->max_file_size <= 40)
 		return 40;
 
 	// Let block count to be 1% of block size.

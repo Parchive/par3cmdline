@@ -13,8 +13,8 @@ char * namez_get(char *namez, size_t namez_len, int index);
 int namez_sort(char *namez, size_t namez_len);
 size_t namez_maxlen(char *namez, size_t namez_len);
 
-int mem_or8(unsigned char buf[8]);
-int mem_or16(unsigned char buf[16]);
+unsigned int mem_or8(unsigned char buf[8]);
+unsigned int mem_or16(unsigned char buf[16]);
 
 int popcount32(uint32_t x);
 int roundup_log2(uint64_t x);

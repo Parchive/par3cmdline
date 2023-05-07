@@ -277,4 +277,9 @@ int par3_extend(PAR3_CTX *par3_ctx, char command_trial);
 void par3_release(PAR3_CTX *par3_ctx);
 
 
+// For PAR inside ZIP
+int par3_insert_zip(PAR3_CTX *par3_ctx);
+int par3_delete_zip(PAR3_CTX *par3_ctx);
+
+
 #endif // __LIBPAR3_H__

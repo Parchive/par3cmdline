@@ -50,6 +50,8 @@ static void print_help(void)
 "  par3 v(erify) [options] <PAR3 file> [files] : Verify files using PAR3 file\n"
 "  par3 r(epair) [options] <PAR3 file> [files] : Repair files using PAR3 files\n"
 "  par3 l(ist)   [options] <PAR3 file>         : List files in PAR3 file\n"
+"  par3 iz       [options] <ZIP file>          : Insert to ZIP file\n"
+"  par3 dz       [options] <ZIP file>          : Delete from ZIP file\n"
 "\n"
 "Options: (all uses)\n"
 "  -B<path> : Set the base-path to use as reference for the datafiles\n"
@@ -203,6 +205,13 @@ int main(int argc, char *argv[])
 		command_operation = 'e';	// try to extend
 		command_trial = 't';
 
+	} else if (strcmp(argv[1], "iz") == 0){
+		command_operation = 'i';	// insert to ZIP
+		command_trial = 'z';
+	} else if (strcmp(argv[1], "dz") == 0){
+		command_operation = 'd';	// delete from ZIP
+		command_trial = 'z';
+
 	} else {
 		print_help();
 		ret = RET_INVALID_COMMAND;
@@ -218,7 +227,7 @@ int main(int argc, char *argv[])
 	}
 	memset(par3_ctx, 0, sizeof(PAR3_CTX));
 
-	if (command_operation == 'c'){
+	if ( (command_operation == 'c') || (command_operation == 'i') ){
 		// add text in Creator Packet
 		ret = add_creator_text(par3_ctx, PACKAGE " version " VERSION
 					"\n(https://github.com/Parchive/par3cmdline)\n");
@@ -275,7 +284,15 @@ int main(int argc, char *argv[])
 				}
 
 			} else if ( (tmp_p[0] == 'B') && (tmp_p[1] != 0) ){	// Set the base-path manually
-				if (par3_ctx->base_path[0] != 0){
+				if (command_operation == 'l'){
+					printf("Cannot specify base-path for listing.\n");
+					ret = RET_INVALID_COMMAND;
+					goto prepare_return;
+				} else if ( (command_operation == 'i') || (command_operation == 'd') ){
+					printf("Cannot specify base-path for PAR inside.\n");
+					ret = RET_INVALID_COMMAND;
+					goto prepare_return;
+				} else if (par3_ctx->base_path[0] != 0){
 					printf("Cannot specify base-path twice.\n");
 					ret = RET_INVALID_COMMAND;
 					goto prepare_return;
@@ -318,7 +335,7 @@ int main(int argc, char *argv[])
 				}
 
 			} else if ( (tmp_p[0] == 'r') && (tmp_p[1] >= '0') && (tmp_p[1] <= '9') ){	// Set the amount of redundancy required
-				if ( (command_operation != 'c') && (command_operation != 'e') ){
+				if ( (command_operation != 'c') && (command_operation != 'e') && (command_operation != 'i') ){
 					printf("Cannot specify redundancy unless creating.\n");
 					ret = RET_INVALID_COMMAND;
 					goto prepare_return;
@@ -335,6 +352,13 @@ int main(int argc, char *argv[])
 					if (par3_ctx->redundancy_size > 250){
 						printf("Invalid redundancy option: %u\n", par3_ctx->redundancy_size);
 						par3_ctx->redundancy_size = 0;	// reset
+					}
+					// Store redundancy for PAR inside
+					if ( (command_operation == 'i') && (par3_ctx->redundancy_size > 0) ){
+						if (add_creator_text(par3_ctx, tmp_p - 1) != 0){
+							ret = RET_MEMORY_ERROR;
+							goto prepare_return;
+						}
 					}
 				}
 
@@ -653,7 +677,7 @@ int main(int argc, char *argv[])
 		printf("PAR filename is not specified\n");
 		ret = RET_INVALID_COMMAND;
 		goto prepare_return;
-	} else {
+	} else if (command_trial != 'z'){
 		tmp_p = par3_ctx->par_filename;
 		len = strlen(tmp_p);
 		// add standard extension
@@ -698,7 +722,7 @@ int main(int argc, char *argv[])
 		if (par3_ctx->block_size != 0)
 			printf("Specified block size = %I64u\n", par3_ctx->block_size);
 		if (par3_ctx->redundancy_size != 0)
-			printf("Specified redundancy = %u\n", par3_ctx->redundancy_size);
+			printf("Specified redundancy = %u %%\n", par3_ctx->redundancy_size);
 		if (par3_ctx->max_redundancy_size != 0)
 			printf("max_redundancy_size = %u\n", par3_ctx->max_redundancy_size);
 		if (par3_ctx->recovery_block_count != 0)
@@ -1005,6 +1029,39 @@ int main(int argc, char *argv[])
 		}
 		if (par3_ctx->noise_level >= -1)
 			printf("Done\n");
+
+	} else if ( (command_operation == 'i') || (command_operation == 'd') ){	// PAR inside
+
+		// release UTF-8 argv
+		if (utf8_argv != NULL){
+			free(utf8_argv);
+			utf8_argv = NULL;
+		}
+		if (utf8_argv_buf != NULL){
+			free(utf8_argv_buf);
+			utf8_argv_buf = NULL;
+		}
+
+		if (command_trial == 'z'){
+			if (command_operation == 'i'){
+				// insert PAR3 packets to ZIP file
+				ret = par3_insert_zip(par3_ctx);
+			} else if (command_operation == 'd'){
+				// delete PAR3 packets from ZIP file
+				ret = par3_delete_zip(par3_ctx);
+			} else {
+				ret = RET_INVALID_COMMAND;
+			}
+			if (ret != 0){
+				printf("Failed to operate PAR inside ZIP\n");
+				goto prepare_return;
+			}
+		}
+		if (par3_ctx->noise_level >= -1)
+			printf("Done\n");
+
+		printf("This feature is under construction.\n");
+
 	}
 
 	ret = 0;
