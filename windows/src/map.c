@@ -143,7 +143,7 @@ int map_input_block(PAR3_CTX *par3_ctx)
 			}
 
 			// Print progress percent
-			if ( (par3_ctx->noise_level >= 0) && (par3_ctx->noise_level <= 1) ){
+			if ( (par3_ctx->noise_level >= 0) && (par3_ctx->noise_level <= 2) ){
 				progress_step += block_size;
 				time_now = time(NULL);
 				if (time_now != time_old){
@@ -300,7 +300,7 @@ int map_input_block(PAR3_CTX *par3_ctx)
 			}
 
 			// Print progress percent
-			if ( (par3_ctx->noise_level >= 0) && (par3_ctx->noise_level <= 1) ){
+			if ( (par3_ctx->noise_level >= 0) && (par3_ctx->noise_level <= 2) ){
 				progress_step += tail_size;
 				time_now = time(NULL);
 				if (time_now != time_old){
@@ -446,7 +446,7 @@ int map_input_block(PAR3_CTX *par3_ctx)
 			}
 
 			// Print progress percent
-			if ( (par3_ctx->noise_level >= 0) && (par3_ctx->noise_level <= 1) ){
+			if ( (par3_ctx->noise_level >= 0) && (par3_ctx->noise_level <= 2) ){
 				progress_step += tail_size;
 				time_now = time(NULL);
 				if (time_now != time_old){
@@ -513,8 +513,10 @@ int map_input_block(PAR3_CTX *par3_ctx)
 	par3_ctx->work_buf = NULL;
 
 	if (par3_ctx->noise_level >= 0){
-		if (progress_step < progress_total)
-			printf("Didn't finish progress. %I64u / %I64u\n", progress_step, progress_total);
+		if (par3_ctx->noise_level <= 2){
+			if (progress_step < progress_total)
+				printf("Didn't finish progress. %I64u / %I64u\n", progress_step, progress_total);
+		}
 		clock_now = clock() - clock_now;
 		printf("done in %.1f seconds.\n", (double)clock_now / CLOCKS_PER_SEC);
 		printf("\n");

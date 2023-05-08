@@ -15,7 +15,7 @@
 #define ZIP_SEARCH_SIZE	1024
 
 // Check ZIP file and return total size of footer sections.
-// format_type : -1 = Unknown, 0 = PAR3, 1 = ZIP, 2 = 7-Zip
+// format_type : 0 = Unknown, 1 = PAR3, 2 = ZIP, 3 = 7-Zip
 // copy_size   : 0 = 7-Zip, 22 or 98 or more = ZIP
 int check_outside_format(PAR3_CTX *par3_ctx, int *format_type, uint32_t *copy_size)
 {
@@ -23,6 +23,9 @@ int check_outside_format(PAR3_CTX *par3_ctx, int *format_type, uint32_t *copy_si
 	uint32_t byte4;
 	int64_t byte8, file_size, read_size, offset, footer_size;
 	FILE *fp;
+
+	*format_type = 0;
+	file_size = par3_ctx->total_file_size;
 
 	//printf("ZIP filename = \"%s\"\n", par3_ctx->par_filename);
 	fp = fopen(par3_ctx->par_filename, "rb");
@@ -43,17 +46,11 @@ int check_outside_format(PAR3_CTX *par3_ctx, int *format_type, uint32_t *copy_si
 		return RET_FILE_IO_ERROR;
 	}
 	if (((uint32_t *)buf)[0] == 0x04034b50){	// ZIP archive
-		*format_type = 1;
+		*format_type = 2;
 
 		// Seek to end of file
 		if (_fseeki64(fp, 0, SEEK_END) != 0){
 			perror("Failed to seek ZIP file");
-			fclose(fp);
-			return RET_FILE_IO_ERROR;
-		}
-		file_size = _ftelli64(fp);
-		if (file_size < 0){
-			perror("Failed to get size of ZIP file");
 			fclose(fp);
 			return RET_FILE_IO_ERROR;
 		}
@@ -104,20 +101,7 @@ int check_outside_format(PAR3_CTX *par3_ctx, int *format_type, uint32_t *copy_si
 		}
 
 	} else if ( (((uint16_t *)buf)[0] == 0x7A37) && (((uint32_t *)(buf + 2))[0] == 0x1C27AFBC) ){	// 7-Zip archive
-		*format_type = 2;
-
-		// Seek to end of file
-		if (_fseeki64(fp, 0, SEEK_END) != 0){
-			perror("Failed to seek ZIP file");
-			fclose(fp);
-			return RET_FILE_IO_ERROR;
-		}
-		file_size = _ftelli64(fp);
-		if (file_size < 0){
-			perror("Failed to get size of ZIP file");
-			fclose(fp);
-			return RET_FILE_IO_ERROR;
-		}
+		*format_type = 3;
 
 		// Check size in Start Header
 		memcpy(&offset, buf + 12, 8);
@@ -131,12 +115,8 @@ int check_outside_format(PAR3_CTX *par3_ctx, int *format_type, uint32_t *copy_si
 	} else {	// Unknown format
 		fclose(fp);
 		printf("Unknown file format\n");
-		*format_type = -1;
 		return RET_LOGIC_ERROR;
 	}
-
-	par3_ctx->total_file_size = file_size;
-	par3_ctx->max_file_size = file_size;
 
 	if (fclose(fp) != 0){
 		perror("Failed to close ZIP file");
@@ -153,13 +133,13 @@ int check_outside_format(PAR3_CTX *par3_ctx, int *format_type, uint32_t *copy_si
 // [ Original ZIP file ] [ PAR3 packets ] [ Duplicated ZIP section ]
 uint64_t inside_zip_size(PAR3_CTX *par3_ctx,
 		uint64_t block_size,	// Block size to calculate total packet size
-		uint32_t footer_size)	// Copy size after appending recovery data
+		uint32_t footer_size,	// Copy size after appending recovery data
+		uint64_t *block_count)
 {
 	int i, repeat_count, redundancy_percent;
 	int footer_block_count, tail_block_count;
-	uint64_t block_count, data_block_count, recovery_block_count;
-	uint64_t data_tail_size, footer_tail_size;
-	uint64_t zip_file_size, data_size;
+	uint64_t input_block_count, data_block_count, recovery_block_count;
+	uint64_t data_size, data_tail_size, footer_tail_size;
 	uint64_t common_packet_size, total_packet_size;
 	uint64_t start_packet_size, ext_data_packet_size;
 	uint64_t matrix_packet_size, recv_data_packet_size;
@@ -173,10 +153,9 @@ uint64_t inside_zip_size(PAR3_CTX *par3_ctx,
 
 	// Because it duplicates ZIP sections, there are 3 protected chunks.
 	// [ data chunk ] [ footer chunk ] [ unprotected chunk ] [ duplicated footer chunk ]
-	zip_file_size = par3_ctx->total_file_size;
-	data_size = zip_file_size - footer_size;
+	data_size = par3_ctx->total_file_size - footer_size;
 	if (par3_ctx->noise_level >= 2){
-		printf("file size = %I64d, footer_size = %d, block_size = %I64d\n", zip_file_size, footer_size, block_size);
+		printf("data_size = %I64d, footer_size = %d, block_size = %I64d\n", data_size, footer_size, block_size);
 	}
 
 	// How many blocks in 1st protected chunk
@@ -203,18 +182,18 @@ uint64_t inside_zip_size(PAR3_CTX *par3_ctx,
 	// Because data in 2nd chunk and 3rd chunk are identical, deduplication works.
 
 	// Create at least 1 recovery block
-	block_count = data_block_count + footer_block_count + tail_block_count;
+	input_block_count = data_block_count + footer_block_count + tail_block_count;
 	if (redundancy_percent == 0){
 		recovery_block_count = 1;
 	} else {
-		recovery_block_count = (block_count * redundancy_percent + 99) / 100;	// Round up
+		recovery_block_count = (input_block_count * redundancy_percent + 99) / 100;	// Round up
 		if (recovery_block_count < 1)
 			recovery_block_count = 1;
 	}
 
 	if (par3_ctx->noise_level >= 2){
 		printf("data_block = %I64d, footer_block = %d, tail_block = %d\n", data_block_count, footer_block_count, tail_block_count);
-		printf("block_count = %I64d, recovery_block_count = %I64d\n", block_count, recovery_block_count);
+		printf("input_block_count = %I64d, recovery_block_count = %I64d\n", input_block_count, recovery_block_count);
 	}
 
 	// Creator Packet
@@ -224,7 +203,7 @@ uint64_t inside_zip_size(PAR3_CTX *par3_ctx,
 
 	// Start Packet
 	start_packet_size = 48 + 33 + 1;	// Assume GF(2^8) at first
-	if (block_count + recovery_block_count > 256)
+	if (input_block_count + recovery_block_count > 256)
 		start_packet_size++;	// Use GF(2^16) for many blocks
 	common_packet_size = start_packet_size;
 	if (par3_ctx->noise_level >= 1){
@@ -350,6 +329,7 @@ uint64_t inside_zip_size(PAR3_CTX *par3_ctx,
 		printf("Total packet size = %I64d\n\n", total_packet_size);
 	}
 
+	*block_count = input_block_count;
 	return total_packet_size;
 }
 

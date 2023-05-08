@@ -11,6 +11,7 @@
 #include "libpar3.h"
 #include "inside.h"
 #include "common.h"
+#include "map.h"
 
 
 static uint64_t initial_block_size(uint64_t data_size)
@@ -36,8 +37,8 @@ static uint64_t initial_block_size(uint64_t data_size)
 	// Block size is good to be power of 2.
 	block_size = next_pow2(block_size);
 
-	// 3000 blocks would be enough to protect a file.
-	while (data_size / block_size > 8192){
+	// 1000 blocks would be enough to protect a file.
+	while (data_size / block_size > 2048){
 		block_size *= 2;
 	}
 
@@ -51,6 +52,7 @@ int par3_insert_zip(PAR3_CTX *par3_ctx)
 	uint32_t copy_size;
 	uint64_t original_file_size;
 	uint64_t block_size, best_block_size;
+	uint64_t block_count, best_block_count;
 	uint64_t total_packet_size, best_total_size;
 
 	ret = check_outside_format(par3_ctx, &format_type, &copy_size);
@@ -63,27 +65,58 @@ int par3_insert_zip(PAR3_CTX *par3_ctx)
 		printf("Start block size = %I64d\n\n", block_size);
 	}
 	best_block_size = block_size;
-	best_total_size = inside_zip_size(par3_ctx, block_size, copy_size);
+	best_total_size = inside_zip_size(par3_ctx, block_size, copy_size, &best_block_count);
 	if (block_size == 40){
 		block_size = 64;
 	} else {
 		block_size *= 2;
 	}
 	while (block_size * 2 <= original_file_size){
-		total_packet_size = inside_zip_size(par3_ctx, block_size, copy_size);
+		total_packet_size = inside_zip_size(par3_ctx, block_size, copy_size, &block_count);
 		// When the difference is very small, selecting more blocks would be safe.
 		// total_packet_size < best_total_size * 99 / 100
-		//if (total_packet_size * 100 < best_total_size * 99){
-		if (total_packet_size < best_total_size){
+		if (total_packet_size * 100 < best_total_size * 99){
+		//if (total_packet_size < best_total_size){
 			best_total_size = total_packet_size;
 			best_block_size = block_size;
+			best_block_count = block_count;
 		} else {
 			break;
 		}
 		block_size *= 2;
 	}
 	block_size = best_block_size;
-	printf("Best block size = %I64d\n\n", block_size);
+	block_count = best_block_count;
+	par3_ctx->block_size = block_size;
+	par3_ctx->block_count = block_count;
+	if (par3_ctx->noise_level >= 2){
+		printf("Best block size = %I64d, block count = %I64d\n", block_size, block_count);
+	}
+
+	if (format_type == 2){	// ZIP (.zip)
+		// It splits original file into 2 chunks and appends 2 chunks.
+		// [ data chunk ] [ footer chunk ] [ unprotected chunk ] [ duplicated footer chunk ]
+		if (par3_ctx->noise_level >= 2){
+			printf("ZIP file format (.zip)\n");
+		}
+		// Special funtion is required for additonal chunks.
+
+	} else if (format_type == 3){	// 7-Zip (.7z)
+		// It appends 1 chunk.
+		// [ data chunk ] [ unprotected chunk ]
+		if (par3_ctx->noise_level >= 2){
+			printf("7-Zip file format (.7z)\n");
+		}
+		//ret = map_input_block_simple(par3_ctx);
+		// Special funtion may be good for unprotected chunk ?
+
+	} else {
+		ret = RET_LOGIC_ERROR;
+	}
+	if (ret != 0)
+		return ret;
+
+
 
 
 	return 0;

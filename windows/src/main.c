@@ -1032,6 +1032,18 @@ int main(int argc, char *argv[])
 
 	} else if ( (command_operation == 'i') || (command_operation == 'd') ){	// PAR inside
 
+		// Outside file = input file = PAR file
+		par3_ctx->input_file_name_len = strlen(par3_ctx->par_filename) + 1;
+		par3_ctx->input_file_name_max = par3_ctx->input_file_name_len;
+		par3_ctx->input_file_name = malloc(par3_ctx->input_file_name_max);
+		if (par3_ctx->input_file_name == NULL){
+			ret = RET_MEMORY_ERROR;
+			goto prepare_return;
+		}
+		strcpy(par3_ctx->input_file_name, par3_ctx->par_filename);
+		//printf("input file = \"%s\"\n", par3_ctx->input_file_name);
+		par3_ctx->input_file_count = 1;
+
 		// release UTF-8 argv
 		if (utf8_argv != NULL){
 			free(utf8_argv);
@@ -1040,6 +1052,13 @@ int main(int argc, char *argv[])
 		if (utf8_argv_buf != NULL){
 			free(utf8_argv_buf);
 			utf8_argv_buf = NULL;
+		}
+
+		// get information of input files
+		ret = get_file_status(par3_ctx);
+		if (ret != 0){
+			printf("Failed to check file status\n");
+			goto prepare_return;
 		}
 
 		if (command_trial == 'z'){
