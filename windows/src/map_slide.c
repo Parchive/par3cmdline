@@ -283,8 +283,7 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 							block_p->slice = slice_index;
 							block_p->size = tail_size;
 							block_p->crc = crc64(work_buf, (size_t)tail_size, 0);
-							memset(block_p->hash, 1, 16);	// Calculate CRC-64 only
-							block_p->state = 2;
+							block_p->state = 2 | 64;
 							block_p++;
 							block_index++;
 
@@ -474,7 +473,7 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 					} else {
 						blake3(work_buf, (size_t)block_size, block_p->hash);
 					}
-					block_p->state = 1;
+					block_p->state = 1 | 64 | 128;
 
 					// set chunk info
 					if ( (chunk_p->size > 0) && (previous_index >= 0) ){	// When there are old blocks already in the chunk.
@@ -793,8 +792,7 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 				block_p->slice = slice_index;
 				block_p->size = tail_size;
 				block_p->crc = crc64(work_buf, (size_t)tail_size, 0);
-				memset(block_p->hash, 1, 16);	// Calculate CRC-64 only
-				block_p->state = 2;
+				block_p->state = 2 | 64;
 				block_p++;
 				block_index++;
 

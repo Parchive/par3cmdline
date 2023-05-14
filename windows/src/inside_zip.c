@@ -134,10 +134,12 @@ int check_outside_format(PAR3_CTX *par3_ctx, int *format_type, uint32_t *copy_si
 uint64_t inside_zip_size(PAR3_CTX *par3_ctx,
 		uint64_t block_size,	// Block size to calculate total packet size
 		uint32_t footer_size,	// Copy size after appending recovery data
-		uint64_t *block_count)
+		uint64_t *block_count,
+		uint64_t *recv_block_count)
 {
-	int i, repeat_count, redundancy_percent;
+	int repeat_count, redundancy_percent;
 	int footer_block_count, tail_block_count;
+	uint64_t i;
 	uint64_t input_block_count, data_block_count, recovery_block_count;
 	uint64_t data_size, data_tail_size, footer_tail_size;
 	uint64_t common_packet_size, total_packet_size;
@@ -211,18 +213,15 @@ uint64_t inside_zip_size(PAR3_CTX *par3_ctx,
 	}
 
 	// External Data Packet
-	// Because chunk tail doesn't make checksum, count full size blocks only.
-	// There are 2 protected chunks.
-	ext_data_packet_size = 48 + 8 + 24 * data_block_count;	// data chunk
-	if (footer_block_count > 0)
-		ext_data_packet_size += 48 + 8 + 24 * footer_block_count;	// footer chunk
+	// All input blocks make checksum for "PAR inside" feature.
+	// Even when it packs chunk tails, it stores the block's checksum of packed tails.
+	ext_data_packet_size = 48 + 8 + 24 * input_block_count;
 	common_packet_size += ext_data_packet_size;
 	if (par3_ctx->noise_level >= 1){
 		printf("External Data Packet size = %I64d\n", ext_data_packet_size);
 	}
 
 	// Matrix Packet
-	//printf("ecc_method = %x\n", par3_ctx->ecc_method);
 	// Cauchy Matrix Packet
 	matrix_packet_size = 48 + 24;
 	common_packet_size += matrix_packet_size;
@@ -237,8 +236,7 @@ uint64_t inside_zip_size(PAR3_CTX *par3_ctx,
 	}
 
 	// File Packet
-	i = (int)strlen(offset_file_name(par3_ctx->par_filename));
-	printf("Filename length = %d\n", i);
+	i = strlen(par3_ctx->par_filename);
 	file_packet_size = 48 + 2 + i + 25;
 	// Protected Chunk Description (data chunk)
 	file_packet_size += 8;	// length of protected chunk
@@ -298,7 +296,7 @@ uint64_t inside_zip_size(PAR3_CTX *par3_ctx,
 	// number of blocks = 16384 ~ 32767 : number of copies = 15
 	// number of blocks = 32768 ~ 65535 : number of copies = 16
 	repeat_count = 2;
-	for (i = 2; i <= recovery_block_count; i *= 2)	// log2(recovery_block_count)
+	for (i = 4; i <= recovery_block_count; i *= 2)	// log2(recovery_block_count)
 		repeat_count++;
 	// Limit repetition by redundancy
 	// Redundancy = 0 ~ 5% : Max 4 times
@@ -312,9 +310,9 @@ uint64_t inside_zip_size(PAR3_CTX *par3_ctx,
 		if (repeat_count > redundancy_percent - 1)
 			repeat_count = redundancy_percent - 1;
 	} else if (redundancy_percent < 20){	// n * 100 / (100 + n)
-		i = (int)((redundancy_percent * 100) / (100 + redundancy_percent));
-		if (repeat_count > i)
-			repeat_count = i;
+		i = (redundancy_percent * 100) / (100 + redundancy_percent);
+		if (repeat_count > (int)i)
+			repeat_count = (int)i;
 	}
 	if (par3_ctx->noise_level >= 2){
 		printf("repeat_count = %d\n", repeat_count);
@@ -325,11 +323,17 @@ uint64_t inside_zip_size(PAR3_CTX *par3_ctx,
 	total_packet_size += common_packet_size * repeat_count;
 	total_packet_size += recv_data_packet_size * recovery_block_count;
 	if (par3_ctx->noise_level >= 1){
+		if (par3_ctx->noise_level >= 2){
+			double rate;
+			rate = (double)(block_size * recovery_block_count) / (double)total_packet_size;
+			printf("Recovery data in unprotected chunks = %.1f%%\n", rate * 100);
+		}
 		printf("Common packet size = %I64d\n", common_packet_size);
 		printf("Total packet size = %I64d\n\n", total_packet_size);
 	}
 
 	*block_count = input_block_count;
+	*recv_block_count = recovery_block_count;
 	return total_packet_size;
 }
 

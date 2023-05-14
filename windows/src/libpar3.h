@@ -82,6 +82,7 @@ typedef struct {
 	uint8_t hash[16];	// BLAKE3 hash
 
 	uint32_t state;	// bit flag: 1 = including full size data, 2 = including tail data
+					// 64 = calculated CRC-64, 128 = calculated BLAKE3
 					// Result of verification
 					// 4 = found full data, 8 = found tail data, 16 = found all tails
 					// 64 = found checksum on External Data Packet

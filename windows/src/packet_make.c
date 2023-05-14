@@ -187,14 +187,14 @@ int make_start_packet(PAR3_CTX *par3_ctx, int flag_trial)
 
 	// Set initial value temporary.
 	tmp_p = par3_ctx->start_packet + 48;
-	// At this time, "PAR inside" feature isn't made.
+	// At this time, "incremental backup" feature isn't made.
 	memset(tmp_p, 0, 24);	// When there is no parent, fill zeros.
 	tmp_p += 24;
 	memcpy(tmp_p, &(par3_ctx->block_size), 8);	// Block size
 	tmp_p += 8;
 	// Galois Field is varied by using Error Correction Codes.
 	if (par3_ctx->ecc_method & 1){	// Reed-Solomon Erasure Codes with Cauchy Matrix
-		if ( (par3_ctx->block_count > 128)
+		if ( ( (par3_ctx->block_count > 128) && (par3_ctx->max_recovery_block == 0) )
 				|| (par3_ctx->block_count + par3_ctx->first_recovery_block + par3_ctx->recovery_block_count > 256)
 				|| (par3_ctx->block_count + par3_ctx->max_recovery_block > 256) ){
 			// When there are 129 or more input blocks, use 16-bit Galois Field (0x1100B).
@@ -546,7 +546,7 @@ int make_file_packet(PAR3_CTX *par3_ctx)
 	num = par3_ctx->input_file_count;
 	if (num > 0){
 		uint8_t buf_tail[40];
-		uint32_t chunk_index, chunk_num;
+		uint32_t chunk_index, chunk_num, unprotect_num;
 		uint64_t block_size, tail_size, total_size;
 		PAR3_CHUNK_CTX *chunk_p;
 
@@ -602,51 +602,64 @@ int make_file_packet(PAR3_CTX *par3_ctx)
 			tmp_p[option_offset] = option_num;	// Value is saved in 1-byte.
 
 			if (file_p->size > 0){	// chunk descriptions
+				unprotect_num = 0;
 				total_size = 0;
 				chunk_index = file_p->chunk;
 				chunk_num = file_p->chunk_num;
-				// At this time, this doesn't support "Par inside" feature.
 				while (chunk_num > 0){
-					// length of protected chunk
-					total_size += chunk_p[chunk_index].size;
-					memcpy(tmp_p + packet_size, &(chunk_p[chunk_index].size), 8);
-					packet_size += 8;
-					if (chunk_p[chunk_index].size >= block_size){
-						// index of first input block holding chunk
+					// If the first field is zero, it means Unprotected Chunk Description.
+					if (chunk_p[chunk_index].size == 0){	// Unprotected Chunk Description
+						unprotect_num++;
+						// zeros
+						memset(tmp_p + packet_size, 0, 8);
+						packet_size += 8;
+						// length of chunk
+						total_size += chunk_p[chunk_index].block;
 						memcpy(tmp_p + packet_size, &(chunk_p[chunk_index].block), 8);
 						packet_size += 8;
-						//printf("chunk[%2u], block[%2I64u], %s\n", chunk_index, chunk_p[chunk_index].index, file_p->name);
-					}
-					tail_size = chunk_p[chunk_index].size % block_size;
-					if (tail_size >= 40){
-						// hash of first 40 bytes of tail
-						memcpy(tmp_p + packet_size, &(chunk_p[chunk_index].tail_crc), 8);
+
+					} else {	// Protected Chunk Description
+						// length of protected chunk
+						total_size += chunk_p[chunk_index].size;
+						memcpy(tmp_p + packet_size, &(chunk_p[chunk_index].size), 8);
 						packet_size += 8;
-						// hash of all of tail
-						memcpy(tmp_p + packet_size, chunk_p[chunk_index].tail_hash, 16);
-						packet_size += 16;
-						// index of block holding tail
-						memcpy(tmp_p + packet_size, &(chunk_p[chunk_index].tail_block), 8);
-						packet_size += 8;
-						// offset of tail inside block
-						memcpy(tmp_p + packet_size, &(chunk_p[chunk_index].tail_offset), 8);
-						packet_size += 8;
-					} else if (tail_size > 0){
-						memcpy(buf_tail, &(chunk_p[chunk_index].tail_crc), 8);
-						memcpy(buf_tail + 8, chunk_p[chunk_index].tail_hash, 16);
-						memcpy(buf_tail + 24, &(chunk_p[chunk_index].tail_block), 8);
-						memcpy(buf_tail + 32, &(chunk_p[chunk_index].tail_offset), 8);
-						// tail's contents
-						memcpy(tmp_p + packet_size, buf_tail, tail_size);
-						packet_size += tail_size;
+						if (chunk_p[chunk_index].size >= block_size){
+							// index of first input block holding chunk
+							memcpy(tmp_p + packet_size, &(chunk_p[chunk_index].block), 8);
+							packet_size += 8;
+							//printf("chunk[%2u], block[%2I64u], %s\n", chunk_index, chunk_p[chunk_index].index, file_p->name);
+						}
+						tail_size = chunk_p[chunk_index].size % block_size;
+						if (tail_size >= 40){
+							// hash of first 40 bytes of tail
+							memcpy(tmp_p + packet_size, &(chunk_p[chunk_index].tail_crc), 8);
+							packet_size += 8;
+							// hash of all of tail
+							memcpy(tmp_p + packet_size, chunk_p[chunk_index].tail_hash, 16);
+							packet_size += 16;
+							// index of block holding tail
+							memcpy(tmp_p + packet_size, &(chunk_p[chunk_index].tail_block), 8);
+							packet_size += 8;
+							// offset of tail inside block
+							memcpy(tmp_p + packet_size, &(chunk_p[chunk_index].tail_offset), 8);
+							packet_size += 8;
+						} else if (tail_size > 0){
+							memcpy(buf_tail, &(chunk_p[chunk_index].tail_crc), 8);
+							memcpy(buf_tail + 8, chunk_p[chunk_index].tail_hash, 16);
+							memcpy(buf_tail + 24, &(chunk_p[chunk_index].tail_block), 8);
+							memcpy(buf_tail + 32, &(chunk_p[chunk_index].tail_offset), 8);
+							// tail's contents
+							memcpy(tmp_p + packet_size, buf_tail, tail_size);
+							packet_size += tail_size;
+						}
 					}
 
 					chunk_index++;	// goto next chunk
 					chunk_num--;
 				}
 
-				// check size of chunks
-				if (total_size != file_p->size){
+				// When all chunks are protected, check total size of chunks.
+				if ( (unprotect_num == 0) && (total_size != file_p->size) ){
 					printf("Error: total size of chunks = %I64u, file size = %I64u\n", total_size, file_p->size);
 					return RET_LOGIC_ERROR;
 				}
@@ -1051,7 +1064,7 @@ int make_ext_data_packet(PAR3_CTX *par3_ctx)
 	find_block_count = 0;
 	write_packet_count = 0;
 	while (block_count > 0){
-		if (block_p->state & 1){	// block of full size data
+		if (block_p->state & 128){	// block of full size data, or partial data with BLAKE3 hash
 			if (find_block_count < 0)
 				find_block_count *= -1;
 			find_block_count++;
@@ -1073,7 +1086,7 @@ int make_ext_data_packet(PAR3_CTX *par3_ctx)
 
 	// If there is no full size blocks, checksums are saved in File Packets.
 	if (par3_ctx->noise_level >= 2){
-		printf("Number of External Data Packet = %zu (number of full size blocks = %I64d)\n", write_packet_count, find_block_count);
+		printf("Number of External Data Packet = %zu (number of checksum = %I64d)\n", write_packet_count, find_block_count);
 	}
 	if (write_packet_count == 0)
 		return 0;
@@ -1101,7 +1114,7 @@ int make_ext_data_packet(PAR3_CTX *par3_ctx)
 	find_block_count = 0;
 	write_packet_count = 0;
 	while (block_count > 0){
-		if (block_p->state & 1){	// block of full size data
+		if (block_p->state & 128){	// block of full size data, or partial data with BLAKE3 hash
 			if (write_packet_count == 0){
 				tmp_p += 48;	// skip packet header
 				memcpy(tmp_p, &find_block_count, 8);	// Index of the first input block

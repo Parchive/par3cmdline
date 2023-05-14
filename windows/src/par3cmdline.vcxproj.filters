@@ -153,6 +153,9 @@
     <ClCompile Include="inside_zip.c">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
+    <ClCompile Include="map_inside.c">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="libpar3.h">

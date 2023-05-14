@@ -353,13 +353,15 @@ int main(int argc, char *argv[])
 						printf("Invalid redundancy option: %u\n", par3_ctx->redundancy_size);
 						par3_ctx->redundancy_size = 0;	// reset
 					}
-					// Store redundancy for PAR inside
+/*
+					// Store redundancy for "PAR inside"
 					if ( (command_operation == 'i') && (par3_ctx->redundancy_size > 0) ){
 						if (add_creator_text(par3_ctx, tmp_p - 1) != 0){
 							ret = RET_MEMORY_ERROR;
 							goto prepare_return;
 						}
 					}
+*/
 				}
 
 			} else if ( (tmp_p[0] == 'r') && (tmp_p[1] == 'm') && (tmp_p[2] >= '0') && (tmp_p[2] <= '9') ){	// Specify the Max redundancy
@@ -677,7 +679,17 @@ int main(int argc, char *argv[])
 		printf("PAR filename is not specified\n");
 		ret = RET_INVALID_COMMAND;
 		goto prepare_return;
-	} else if (command_trial != 'z'){
+	} else if ( (command_operation == 'i') || (command_operation == 'd') ){
+		// It removes sub-directory from PAR filename when using "PAR inside" feature.
+		tmp_p = offset_file_name(par3_ctx->par_filename);
+		if (tmp_p > par3_ctx->par_filename){
+			strcpy(file_name, tmp_p);
+			tmp_p[-1] = 0;
+			strcpy(par3_ctx->base_path, par3_ctx->par_filename);
+			strcpy(par3_ctx->par_filename, file_name);
+		}
+	}
+	if (command_trial != 'z'){
 		tmp_p = par3_ctx->par_filename;
 		len = strlen(tmp_p);
 		// add standard extension

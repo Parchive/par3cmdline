@@ -171,6 +171,7 @@
     <ClCompile Include="libpar3_inside.c" />
     <ClCompile Include="libpar3_verify.c" />
     <ClCompile Include="map.c" />
+    <ClCompile Include="map_inside.c" />
     <ClCompile Include="map_simple.c" />
     <ClCompile Include="map_slide.c" />
     <ClCompile Include="hash.c" />

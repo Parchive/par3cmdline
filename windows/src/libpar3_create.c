@@ -213,7 +213,7 @@ int par3_create(PAR3_CTX *par3_ctx)
 {
 	int ret;
 
-	// Load input blocks on memory.
+	// Map input file slices into input blocks.
 	if (par3_ctx->block_count == 0){
 		ret = map_chunk_tail(par3_ctx);
 	} else if (par3_ctx->deduplication == '1'){	// Simple deduplication

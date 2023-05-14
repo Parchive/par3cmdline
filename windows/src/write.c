@@ -349,7 +349,7 @@ static int write_data_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t each_s
 			// At creating time, CRC of a block was set, even when the block includes multiple chunk tails.
 			// It appends chunk tails as tail packing, and calculates their total CRC for the block.
 			// But, after verification, a block without full size data doesn't have valid CRC value.
-			if ( ((block_list[block_index].state & 1) != 0) || (block_list[block_index].crc != 0) ){
+			if (block_list[block_index].state & 64){
 				// Calculate checksum of block to confirm that input file was not changed.
 				if (crc64(work_buf, write_size, 0) != block_list[block_index].crc){
 					printf("Checksum of block[%I64u] is different.\n", block_index);
