@@ -13,6 +13,8 @@
 #include "common.h"
 #include "map.h"
 #include "packet.h"
+#include "block.h"
+#include "write.h"
 
 
 static uint64_t initial_block_size(uint64_t data_size)
@@ -50,6 +52,7 @@ static uint64_t initial_block_size(uint64_t data_size)
 int par3_insert_zip(PAR3_CTX *par3_ctx)
 {
 	int ret, format_type;
+	int repeat_count, best_repeat_count;
 	uint32_t copy_size;
 	uint64_t original_file_size;
 	uint64_t block_size, best_block_size;
@@ -66,23 +69,18 @@ int par3_insert_zip(PAR3_CTX *par3_ctx)
 
 	original_file_size = par3_ctx->total_file_size;
 	block_size = initial_block_size(original_file_size);
-	/*
-	// for debug
-	block_size = 200;
-	copy_size = 300;
-	*/
 	if (par3_ctx->noise_level >= 2){
 		printf("Start block size = %I64d\n\n", block_size);
 	}
 	best_block_size = block_size;
-	best_total_size = inside_zip_size(par3_ctx, block_size, copy_size, &best_block_count, &best_recv_block_count);
+	best_total_size = inside_zip_size(par3_ctx, block_size, copy_size, &best_block_count, &best_recv_block_count, &best_repeat_count);
 	if (block_size == 40){
 		block_size = 64;
 	} else {
 		block_size *= 2;
 	}
-	while (block_size * 2 <= original_file_size){
-		total_packet_size = inside_zip_size(par3_ctx, block_size, copy_size, &block_count, &recv_block_count);
+	while (block_size * 2 <= original_file_size){	// Try to find better block size
+		total_packet_size = inside_zip_size(par3_ctx, block_size, copy_size, &block_count, &recv_block_count, &repeat_count);
 		// When the difference is very small (like 1.6%), selecting more blocks would be safe.
 		// (original_file_size + total_packet_size) < (original_file_size + best_total_size) * 63 / 64
 		if ((original_file_size + total_packet_size) * 64 < (original_file_size + best_total_size) * 63){
@@ -91,6 +89,7 @@ int par3_insert_zip(PAR3_CTX *par3_ctx)
 			best_block_size = block_size;
 			best_block_count = block_count;
 			best_recv_block_count = recv_block_count;
+			best_repeat_count = repeat_count;
 		} else {
 			break;
 		}
@@ -100,8 +99,10 @@ int par3_insert_zip(PAR3_CTX *par3_ctx)
 	par3_ctx->block_count = best_block_count;
 	par3_ctx->recovery_block_count = best_recv_block_count;
 	par3_ctx->max_recovery_block = best_recv_block_count;
+	repeat_count = best_repeat_count;
 	if (par3_ctx->noise_level >= 2){
-		printf("Best block size = %I64d, block count = %I64d, recvory block count = %I64d\n", best_block_size, best_block_count, best_recv_block_count);
+		printf("Best block size = %I64d, block count = %I64d, recvory block count = %I64d, repeat count = %d\n",
+				best_block_size, best_block_count, best_recv_block_count, repeat_count);
 	}
 
 	// Map input file slices into input blocks.
@@ -148,7 +149,39 @@ int par3_insert_zip(PAR3_CTX *par3_ctx)
 	if (ret != 0)
 		return ret;
 
+	ret = duplicate_common_packet(par3_ctx);
+	if (ret != 0)
+		return ret;
 
+	// When it uses Reed-Solomon Erasure Codes, it tries to keep all recovery blocks on memory.
+	if (par3_ctx->ecc_method & 1){
+		ret = allocate_recovery_block(par3_ctx);
+		if (ret != 0)
+			return ret;
+	}
+
+	// If there are enough memory to keep all recovery blocks,
+	// it calculates recovery blocks before writing Recovery Data Packets.
+	if (par3_ctx->ecc_method & 0x8000){
+		ret = create_recovery_block(par3_ctx);
+		if (ret < 0){
+			par3_ctx->ecc_method &= ~0x8000;
+		} else if (ret > 0){
+			return ret;
+		}
+	}
+
+	// Insert space (unprotected chunks) into outside file
+	ret = insert_space_zip(par3_ctx, copy_size, repeat_count);
+	if (ret != 0)
+		return ret;
+
+	// When recovery blocks were not created yet, calculate and write at here.
+	if ((par3_ctx->ecc_method & 0x8000) == 0){
+		ret = create_recovery_block_split(par3_ctx);
+		if (ret != 0)
+			return ret;
+	}
 
 	return 0;
 }

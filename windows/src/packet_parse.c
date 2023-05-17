@@ -197,16 +197,21 @@ static int parse_chunk_description(PAR3_CTX *par3_ctx, uint8_t *chunk, size_t de
 	while (offset < description_size){
 		memcpy(&chunk_size, chunk + offset, 8);
 		offset += 8;	// length of chunk
-		file_size += chunk_size;
 		chunk_p->size = chunk_size;
 		if (chunk_size == 0){	// zeros if not protected
+			// Unprotected Chunk Description
+			file_p->state |= 0x80000000;
 			memcpy(&(chunk_p->block), chunk + offset, 8);	// length of chunk
 			offset += 8;
-		} else {	// Protected Chunk Description 
+			file_size += chunk_p->block;
+
+		} else {
+			// Protected Chunk Description 
 			if (block_size == 0){
 				printf("Block size must be larger than 0 for chunk.\n");
 				return RET_LOGIC_ERROR;
 			}
+			file_size += chunk_size;
 			if (chunk_size >= block_size){
 				memcpy(&(chunk_p->block), chunk + offset, 8);
 				if (chunk_p->block >= block_count){
@@ -347,6 +352,7 @@ static int construct_directory_tree(PAR3_CTX *par3_ctx, uint8_t *checksum, size_
 						file_p->size = 0;
 						file_p->chunk = par3_ctx->chunk_count;
 						file_p->chunk_num = 0;
+						file_p->state = 0;
 						offset += 1 + 16 * num;
 						if (offset < packet_size){	// When there are chunk descriptions.
 							ret = parse_chunk_description(par3_ctx, file_packet + packet_offset + offset, packet_size - offset);

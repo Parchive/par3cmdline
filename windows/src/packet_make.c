@@ -546,7 +546,7 @@ int make_file_packet(PAR3_CTX *par3_ctx)
 	num = par3_ctx->input_file_count;
 	if (num > 0){
 		uint8_t buf_tail[40];
-		uint32_t chunk_index, chunk_num, unprotect_num;
+		uint32_t chunk_index, chunk_num;
 		uint64_t block_size, tail_size, total_size;
 		PAR3_CHUNK_CTX *chunk_p;
 
@@ -602,14 +602,13 @@ int make_file_packet(PAR3_CTX *par3_ctx)
 			tmp_p[option_offset] = option_num;	// Value is saved in 1-byte.
 
 			if (file_p->size > 0){	// chunk descriptions
-				unprotect_num = 0;
 				total_size = 0;
 				chunk_index = file_p->chunk;
 				chunk_num = file_p->chunk_num;
 				while (chunk_num > 0){
 					// If the first field is zero, it means Unprotected Chunk Description.
 					if (chunk_p[chunk_index].size == 0){	// Unprotected Chunk Description
-						unprotect_num++;
+						file_p->state |= 0x80000000;
 						// zeros
 						memset(tmp_p + packet_size, 0, 8);
 						packet_size += 8;
@@ -659,7 +658,7 @@ int make_file_packet(PAR3_CTX *par3_ctx)
 				}
 
 				// When all chunks are protected, check total size of chunks.
-				if ( (unprotect_num == 0) && (total_size != file_p->size) ){
+				if ( ((file_p->state & 0x80000000) == 0) && (total_size != file_p->size) ){
 					printf("Error: total size of chunks = %I64u, file size = %I64u\n", total_size, file_p->size);
 					return RET_LOGIC_ERROR;
 				}

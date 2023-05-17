@@ -187,6 +187,7 @@
     <ClCompile Include="repair.c" />
     <ClCompile Include="verify.c" />
     <ClCompile Include="verify_check.c" />
+    <ClCompile Include="write_inside.c" />
     <ClCompile Include="write_trial.c" />
     <ClCompile Include="write.c" />
   </ItemGroup>

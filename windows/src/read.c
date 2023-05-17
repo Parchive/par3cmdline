@@ -271,6 +271,8 @@ void show_read_result(PAR3_CTX *par3_ctx, int flag_detail)
 				printf("\"%s\"\n", file_p->name);
 			} else if (flag_detail == 1){
 				printf("%13I64u \"%s\"\n", file_p->size, file_p->name);
+			} else if (file_p->state & 0x80000000){
+				printf("%13I64u   Unknown by unprotected chunk   \"%s\"\n", file_p->size, file_p->name);
 			} else {
 				printf("%13I64u ", file_p->size);
 				printf("%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x ",

@@ -51,6 +51,9 @@ typedef struct {
 						// 4 = misnamed, higher bit is (extra_id << 3).
 						// 0x0100 = repaired, 0x0200 = repairable
 						// 0x8000 = not file
+						// 0x10000 = different timestamp
+						// 0x20000 = different permissions
+						// 0x80000000 = Unprotected Chunk Description
 } PAR3_FILE_CTX;
 
 typedef struct {
@@ -256,8 +259,8 @@ int add_creator_text(PAR3_CTX *par3_ctx, char *text);
 int add_comment_text(PAR3_CTX *par3_ctx, char *text);
 
 // For creation
-int par3_trial(PAR3_CTX *par3_ctx);
-int par3_create(PAR3_CTX *par3_ctx);
+int par3_trial(PAR3_CTX *par3_ctx, char *temp_path);
+int par3_create(PAR3_CTX *par3_ctx, char *temp_path);
 
 
 // About par files
@@ -271,7 +274,7 @@ int par3_repair(PAR3_CTX *par3_ctx, char *temp_path);
 
 
 // For creation after verification
-int par3_extend(PAR3_CTX *par3_ctx, char command_trial);
+int par3_extend(PAR3_CTX *par3_ctx, char command_trial, char *temp_path);
 
 
 // Release internal allocated memory

@@ -879,10 +879,10 @@ int main(int argc, char *argv[])
 
 		if (command_trial == 0){
 			// create recovery files
-			ret = par3_create(par3_ctx);
+			ret = par3_create(par3_ctx, file_name);
 		} else {
 			// try to create recovery files
-			ret = par3_trial(par3_ctx);
+			ret = par3_trial(par3_ctx, file_name);
 		}
 		if (ret != 0){
 			printf("Failed to create PAR file\n");
@@ -1034,7 +1034,7 @@ int main(int argc, char *argv[])
 			utf8_argv_buf = NULL;
 		}
 
-		ret = par3_extend(par3_ctx, command_trial);
+		ret = par3_extend(par3_ctx, command_trial, file_name);
 		if (ret != 0){
 			printf("Failed to extend PAR file\n");
 			goto prepare_return;

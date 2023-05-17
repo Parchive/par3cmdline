@@ -219,7 +219,7 @@ int verify_input_file(PAR3_CTX *par3_ctx, uint32_t *missing_file_count, uint32_t
 	for (num = 0; num < par3_ctx->input_file_count; num++){
 		ret = check_file(par3_ctx, file_p->name, &current_size, file_p->offset);
 		//printf("check_file = 0x%x, size = %I64u\n", ret, current_size);
-		file_p->state = ret;
+		file_p->state |= ret;
 		if ( ((ret & 0xFFFF) == 0) && ( (file_p->size > 0) || (current_size > 0) ) ){
 			if (par3_ctx->noise_level >= 0){
 				printf("Opening: \"%s\"\n", file_p->name);
@@ -230,12 +230,12 @@ int verify_input_file(PAR3_CTX *par3_ctx, uint32_t *missing_file_count, uint32_t
 			if (ret > 0)
 				return ret;	// error
 			if (ret == 0){
-				if (file_p->state & 0xFFFF0000){
+				if (file_p->state & 0x7FFF0000){
 					*bad_file_count += 1;
 					if (par3_ctx->noise_level >= -1){
-						if ((file_p->state & 0xFFFF0000) == 0x10000){
+						if ((file_p->state & 0x7FFF0000) == 0x10000){
 							printf("Target: \"%s\" - different timestamp.\n", file_p->name);
-						} else if ((file_p->state & 0xFFFF0000) == 0x20000){
+						} else if ((file_p->state & 0x7FFF0000) == 0x20000){
 							printf("Target: \"%s\" - different permissions.\n", file_p->name);
 						} else {
 							printf("Target: \"%s\" - different property.\n", file_p->name);

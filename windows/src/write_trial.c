@@ -302,7 +302,7 @@ uint32_t calculate_digit_max(PAR3_CTX *par3_ctx,
 }
 
 
-static uint64_t try_data_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t each_start, uint64_t each_count)
+static uint64_t try_data_packet(PAR3_CTX *par3_ctx, char *file_name, uint64_t each_start, uint64_t each_count)
 {
 	uint8_t *common_packet;
 	uint32_t cohort_count, write_count;
@@ -409,15 +409,14 @@ static uint64_t try_data_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t eac
 	file_size += par3_ctx->comment_packet_size;
 
 	if (par3_ctx->noise_level >= -1)
-		printf("Size of archive file = %I64u, %s\n", file_size, offset_file_name(filename));
+		printf("Size of archive file = %I64u, %s\n", file_size, offset_file_name(file_name));
 
 	return file_size;
 }
 
 // Write PAR3 files with Data packets (input blocks)
-int try_archive_file(PAR3_CTX *par3_ctx, uint64_t *recovery_file_size)
+int try_archive_file(PAR3_CTX *par3_ctx, char *file_name, uint64_t *recovery_file_size)
 {
-	char filename[_MAX_PATH];
 	int digit_num1, digit_num2;
 	uint32_t file_count;
 	int64_t recovery_file_scheme;
@@ -433,12 +432,12 @@ int try_archive_file(PAR3_CTX *par3_ctx, uint64_t *recovery_file_size)
 		recovery_file_scheme = par3_ctx->max_file_size;
 
 	// Remove the last ".par3" from base PAR3 filename.
-	strcpy(filename, par3_ctx->par_filename);
-	len = strlen(filename);
-	if (strcmp(filename + len - 5, ".par3") == 0){
+	strcpy(file_name, par3_ctx->par_filename);
+	len = strlen(file_name);
+	if (strcmp(file_name + len - 5, ".par3") == 0){
 		len -= 5;
-		filename[len] = 0;
-		//printf("len = %zu, base name = %s\n", len, filename);
+		file_name[len] = 0;
+		//printf("len = %zu, base name = %s\n", len, file_name);
 	}
 
 	// Set count for each cohort
@@ -498,8 +497,8 @@ int try_archive_file(PAR3_CTX *par3_ctx, uint64_t *recovery_file_size)
 			}
 		}
 
-		sprintf(filename + len, ".part%0*I64u+%0*I64u.par3", digit_num1, each_start, digit_num2, each_count);
-		*recovery_file_size += try_data_packet(par3_ctx, filename, each_start, each_count);
+		sprintf(file_name + len, ".part%0*I64u+%0*I64u.par3", digit_num1, each_start, digit_num2, each_count);
+		*recovery_file_size += try_data_packet(par3_ctx, file_name, each_start, each_count);
 
 		each_start += each_count;
 		block_count -= each_count;
@@ -509,7 +508,7 @@ int try_archive_file(PAR3_CTX *par3_ctx, uint64_t *recovery_file_size)
 }
 
 
-static uint64_t try_recovery_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t each_start, uint64_t each_count)
+static uint64_t try_recovery_packet(PAR3_CTX *par3_ctx, char *file_name, uint64_t each_start, uint64_t each_count)
 {
 	uint8_t *common_packet;
 	uint32_t cohort_count;
@@ -589,15 +588,14 @@ static uint64_t try_recovery_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t
 	file_size += par3_ctx->comment_packet_size;
 
 	if (par3_ctx->noise_level >= -1)
-		printf("Size of recovery file = %I64u, %s\n", file_size, offset_file_name(filename));
+		printf("Size of recovery file = %I64u, %s\n", file_size, offset_file_name(file_name));
 
 	return file_size;
 }
 
 // Write PAR3 files with Recovery Data packets (recovery blocks are not written yet)
-int try_recovery_file(PAR3_CTX *par3_ctx, uint64_t *recovery_file_size)
+int try_recovery_file(PAR3_CTX *par3_ctx, char *file_name, uint64_t *recovery_file_size)
 {
-	char filename[_MAX_PATH];
 	int digit_num1, digit_num2;
 	uint32_t file_count;
 	int64_t recovery_file_scheme;
@@ -614,12 +612,12 @@ int try_recovery_file(PAR3_CTX *par3_ctx, uint64_t *recovery_file_size)
 	first_num = par3_ctx->first_recovery_block;
 
 	// Remove the last ".par3" from base PAR3 filename.
-	strcpy(filename, par3_ctx->par_filename);
-	len = strlen(filename);
-	if (strcmp(filename + len - 5, ".par3") == 0){
+	strcpy(file_name, par3_ctx->par_filename);
+	len = strlen(file_name);
+	if (strcmp(file_name + len - 5, ".par3") == 0){
 		len -= 5;
-		filename[len] = 0;
-		//printf("len = %zu, base name = %s\n", len, filename);
+		file_name[len] = 0;
+		//printf("len = %zu, base name = %s\n", len, file_name);
 	}
 
 	// Set count for each cohort
@@ -680,8 +678,8 @@ int try_recovery_file(PAR3_CTX *par3_ctx, uint64_t *recovery_file_size)
 			}
 		}
 
-		sprintf(filename + len, ".vol%0*I64u+%0*I64u.par3", digit_num1, each_start, digit_num2, each_count);
-		*recovery_file_size += try_recovery_packet(par3_ctx, filename, each_start, each_count);
+		sprintf(file_name + len, ".vol%0*I64u+%0*I64u.par3", digit_num1, each_start, digit_num2, each_count);
+		*recovery_file_size += try_recovery_packet(par3_ctx, file_name, each_start, each_count);
 
 		each_start += each_count;
 		block_count -= each_count;
@@ -691,9 +689,8 @@ int try_recovery_file(PAR3_CTX *par3_ctx, uint64_t *recovery_file_size)
 }
 
 // Erase created PAR3 files, when error occured.
-void remove_recovery_file(PAR3_CTX *par3_ctx)
+void remove_recovery_file(PAR3_CTX *par3_ctx, char *file_name)
 {
-	char filename[_MAX_PATH];
 	int digit_num1, digit_num2;
 	uint32_t file_count;
 	int64_t recovery_file_scheme;
@@ -716,12 +713,12 @@ void remove_recovery_file(PAR3_CTX *par3_ctx)
 	first_num = par3_ctx->first_recovery_block;
 
 	// Remove the last ".par3" from base PAR3 filename.
-	strcpy(filename, par3_ctx->par_filename);
-	len = strlen(filename);
-	if (strcmp(filename + len - 5, ".par3") == 0){
+	strcpy(file_name, par3_ctx->par_filename);
+	len = strlen(file_name);
+	if (strcmp(file_name + len - 5, ".par3") == 0){
 		len -= 5;
-		filename[len] = 0;
-		//printf("len = %zu, base name = %s\n", len, filename);
+		file_name[len] = 0;
+		//printf("len = %zu, base name = %s\n", len, file_name);
 	}
 
 	// Set count for each cohort
@@ -771,8 +768,8 @@ void remove_recovery_file(PAR3_CTX *par3_ctx)
 			}
 		}
 
-		sprintf(filename + len, ".vol%0*I64u+%0*I64u.par3", digit_num1, each_start, digit_num2, each_count);
-		if (remove(filename) != 0){
+		sprintf(file_name + len, ".vol%0*I64u+%0*I64u.par3", digit_num1, each_start, digit_num2, each_count);
+		if (remove(file_name) != 0){
 			if (errno != ENOENT)
 				return;	// Failed to remove PAR3 file
 		}

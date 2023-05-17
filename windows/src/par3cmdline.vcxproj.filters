@@ -156,6 +156,9 @@
     <ClCompile Include="map_inside.c">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
+    <ClCompile Include="write_inside.c">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="libpar3.h">

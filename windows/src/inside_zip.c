@@ -39,8 +39,7 @@ int check_outside_format(PAR3_CTX *par3_ctx, int *format_type, uint32_t *copy_si
 	// zip = local file header signature (starting 4-bytes) and
 	//       end of central directory record (last 22-bytes)
 	footer_size = 0;
-	byte8 = fread(buf, 1, 32, fp);
-	if (byte8 != 32){
+	if (fread(buf, 1, 32, fp) != 32){
 		perror("Failed to read ZIP file");
 		fclose(fp);
 		return RET_FILE_IO_ERROR;
@@ -48,24 +47,16 @@ int check_outside_format(PAR3_CTX *par3_ctx, int *format_type, uint32_t *copy_si
 	if (((uint32_t *)buf)[0] == 0x04034b50){	// ZIP archive
 		*format_type = 2;
 
-		// Seek to end of file
-		if (_fseeki64(fp, 0, SEEK_END) != 0){
-			perror("Failed to seek ZIP file");
-			fclose(fp);
-			return RET_FILE_IO_ERROR;
-		}
-
 		// Read some bytes from the last of ZIP file
 		read_size = ZIP_SEARCH_SIZE;
 		if (read_size > file_size)
 			read_size = file_size;
-		if (_fseeki64(fp, - read_size, SEEK_END) != 0){
+		if (_fseeki64(fp, - read_size, SEEK_END) != 0){	// Seek from end of file
 			perror("Failed to seek ZIP file");
 			fclose(fp);
 			return RET_FILE_IO_ERROR;
 		}
-		byte8 = fread(buf, 1, read_size, fp);
-		if (byte8 != read_size){
+		if (fread(buf, 1, read_size, fp) != read_size){
 			perror("Failed to read ZIP file");
 			fclose(fp);
 			return RET_FILE_IO_ERROR;
@@ -120,7 +111,7 @@ int check_outside_format(PAR3_CTX *par3_ctx, int *format_type, uint32_t *copy_si
 
 	if (fclose(fp) != 0){
 		perror("Failed to close ZIP file");
-		return - RET_FILE_IO_ERROR;
+		return RET_FILE_IO_ERROR;
 	}
 
 	*copy_size = (uint32_t)footer_size;
@@ -135,7 +126,8 @@ uint64_t inside_zip_size(PAR3_CTX *par3_ctx,
 		uint64_t block_size,	// Block size to calculate total packet size
 		uint32_t footer_size,	// Copy size after appending recovery data
 		uint64_t *block_count,
-		uint64_t *recv_block_count)
+		uint64_t *recv_block_count,
+		int *packet_repeat_count)
 {
 	int repeat_count, redundancy_percent;
 	int footer_block_count, tail_block_count;
@@ -334,6 +326,7 @@ uint64_t inside_zip_size(PAR3_CTX *par3_ctx,
 
 	*block_count = input_block_count;
 	*recv_block_count = recovery_block_count;
+	*packet_repeat_count = repeat_count;
 	return total_packet_size;
 }
 

@@ -79,9 +79,9 @@ int check_complete_file(PAR3_CTX *par3_ctx, char *filename, uint32_t file_id,
 		return RET_FILE_IO_ERROR;
 	}
 
-	// Only when stored CRC-64 isn't zero, check the first 16 KB.
+	// Only when stored CRC-64 is valid, check the first 16 KB.
 	crc16k = 0;
-	if (file_p->crc == 0){	// // When CRC is zero, ignore the case. Such like "par inside".
+	if (file_p->state & 0x80000000){	// There is Unprotected Chunk Description. Such like "PAR inside".
 		size16k = 0;
 	} else if (file_size < 16384){
 		size16k = file_size;
@@ -100,9 +100,26 @@ int check_complete_file(PAR3_CTX *par3_ctx, char *filename, uint32_t file_id,
 	flag_unknown = 0;
 
 	file_offset = 0;
+	while (chunk_size == 0){	// zeros if not protected
+		// Seek to end of unprotected chunk
+		if (_fseeki64(fp, block_index, SEEK_CUR) != 0){
+			perror("Failed to seek ZIP file");
+			fclose(fp);
+			return RET_FILE_IO_ERROR;
+		}
+		file_offset += block_index;
+		chunk_num--;
+		if (chunk_num > 0){
+			chunk_index++;
+			chunk_size = chunk_list[chunk_index].size;
+			block_index = chunk_list[chunk_index].block;
+			if (par3_ctx->noise_level >= 3){
+				printf("next chunk = %u, size = %I64u, block index = %I64d\n", chunk_index, chunk_size, block_index);
+			}
+		}
+	}
 	while ( (file_offset < current_size) && (file_offset < file_size) ){
 		if (chunk_size > 0){	// read chunk data
-			//printf("chunk_size = %I64u\n", chunk_size);
 			if (chunk_size >= block_size){
 				if (file_offset + block_size > current_size){	// Not enough data
 					fclose(fp);
@@ -191,7 +208,8 @@ int check_complete_file(PAR3_CTX *par3_ctx, char *filename, uint32_t file_id,
 					flag_unknown = 1;	// sign of unknown checksum
 				}
 
-				blake3_hasher_update(&hasher, work_buf, (size_t)block_size);
+				if ((file_p->state & 0x80000000) == 0)
+					blake3_hasher_update(&hasher, work_buf, (size_t)block_size);
 				block_index++;
 				slice_index++;
 				chunk_size -= block_size;
@@ -271,7 +289,8 @@ int check_complete_file(PAR3_CTX *par3_ctx, char *filename, uint32_t file_id,
 					fclose(fp);
 					return -5;
 				}
-				blake3_hasher_update(&hasher, work_buf, (size_t)tail_size);
+				if ((file_p->state & 0x80000000) == 0)
+					blake3_hasher_update(&hasher, work_buf, (size_t)tail_size);
 				slice_index++;
 				chunk_size -= tail_size;
 				file_offset += tail_size;
@@ -323,7 +342,8 @@ int check_complete_file(PAR3_CTX *par3_ctx, char *filename, uint32_t file_id,
 					return -6;
 				}
 
-				blake3_hasher_update(&hasher, work_buf, (size_t)tail_size);
+				if ((file_p->state & 0x80000000) == 0)
+					blake3_hasher_update(&hasher, work_buf, (size_t)tail_size);
 				chunk_size -= tail_size;
 				file_offset += tail_size;
 				if ( (flag_unknown == 0) && (offset_next != NULL) )
@@ -341,6 +361,15 @@ int check_complete_file(PAR3_CTX *par3_ctx, char *filename, uint32_t file_id,
 			if (par3_ctx->noise_level >= 3){
 				printf("next chunk = %u, size = %I64u, block index = %I64d\n", chunk_index, chunk_size, block_index);
 			}
+			if (chunk_size == 0){	// zeros if not protected
+				// Seek to end of unprotected chunk
+				if (_fseeki64(fp, block_index, SEEK_CUR) != 0){
+					perror("Failed to seek ZIP file");
+					fclose(fp);
+					return RET_FILE_IO_ERROR;
+				}
+				file_offset += block_index;
+			}
 		}
 	}
 
@@ -354,57 +383,59 @@ int check_complete_file(PAR3_CTX *par3_ctx, char *filename, uint32_t file_id,
 		return -1;
 	}
 
-	// Check file's hash at the last.
-	blake3_hasher_finalize(&hasher, buf_hash, 16);
-	if (memcmp(buf_hash, file_p->hash, 16) != 0){
-		if (mem_or16(file_p->hash) != 0){	// Ignore case of zero bytes, as it was not calculated.
-			// File hash is different.
-			return -7;
-		}
-
-	} else if (flag_unknown != 0){
-		// Even when checksum is unknown, file data is complete.
-		if (offset_next != NULL)
-			*offset_next = file_size;
-		file_offset = 0;
-
-		// Set block info
-		chunk_index = file_p->chunk;
-		chunk_num = file_p->chunk_num;
-		slice_index = file_p->slice;
-		while (chunk_num > 0){
-			chunk_size = chunk_list[chunk_index].size;
-			block_index = chunk_list[chunk_index].block;
-
-			// Check all blocks in the chunk
-			while (chunk_size >= block_size){
-				if (slice_list[slice_index].find_name == NULL){	// When this slice was not found.
-					if (par3_ctx->noise_level >= 3){
-						printf("full block[%2I64d] : slice[%2I64u] chunk[%2u] file %d, offset = %I64u, no checksum\n",
-								block_index, slice_index, chunk_index, file_id, file_offset);
-					}
-					slice_list[slice_index].find_name = file_p->name;
-					slice_list[slice_index].find_offset = file_offset;	// Set slice at ordinary position.
-
-					if ((block_list[block_index].state & 64) == 0){	// There was no checksum for this block.
-						block_list[block_index].state |= (4 | 64);	// Found block and calculated its checksum.
-
-						// It's possible to use this checksum for later search.
-						crc_list_replace(par3_ctx, block_list[block_index].crc, block_index);
-					}
-				}
-
-				slice_index++;
-				block_index++;
-				file_offset += block_size;
-				chunk_size -= block_size;
+	if ((file_p->state & 0x80000000) == 0){
+		// Check file's hash at the last.
+		blake3_hasher_finalize(&hasher, buf_hash, 16);
+		if (memcmp(buf_hash, file_p->hash, 16) != 0){
+			if (mem_or16(file_p->hash) != 0){	// Ignore case of zero bytes, as it was not calculated.
+				// File hash is different.
+				return -7;
 			}
-			if (chunk_size >= 40)
-				slice_index++;
-			file_offset += chunk_size;
 
-			chunk_index++;	// goto next chunk
-			chunk_num--;
+		} else if (flag_unknown != 0){
+			// Even when checksum is unknown, file data is complete.
+			if (offset_next != NULL)
+				*offset_next = file_size;
+			file_offset = 0;
+
+			// Set block info
+			chunk_index = file_p->chunk;
+			chunk_num = file_p->chunk_num;
+			slice_index = file_p->slice;
+			while (chunk_num > 0){
+				chunk_size = chunk_list[chunk_index].size;
+				block_index = chunk_list[chunk_index].block;
+
+				// Check all blocks in the chunk
+				while (chunk_size >= block_size){
+					if (slice_list[slice_index].find_name == NULL){	// When this slice was not found.
+						if (par3_ctx->noise_level >= 3){
+							printf("full block[%2I64d] : slice[%2I64u] chunk[%2u] file %d, offset = %I64u, no checksum\n",
+									block_index, slice_index, chunk_index, file_id, file_offset);
+						}
+						slice_list[slice_index].find_name = file_p->name;
+						slice_list[slice_index].find_offset = file_offset;	// Set slice at ordinary position.
+
+						if ((block_list[block_index].state & 64) == 0){	// There was no checksum for this block.
+							block_list[block_index].state |= (4 | 64);	// Found block and calculated its checksum.
+
+							// It's possible to use this checksum for later search.
+							crc_list_replace(par3_ctx, block_list[block_index].crc, block_index);
+						}
+					}
+
+					slice_index++;
+					block_index++;
+					file_offset += block_size;
+					chunk_size -= block_size;
+				}
+				if (chunk_size >= 40)
+					slice_index++;
+				file_offset += chunk_size;
+
+				chunk_index++;	// goto next chunk
+				chunk_num--;
+			}
 		}
 	}
 

@@ -149,7 +149,7 @@ number of blocks = 8192 ~ 16383 : number of copies = 14
 number of blocks = 16384 ~ 32767 : number of copies = 15
 number of blocks = 32768 ~ 65535 : number of copies = 16
 */
-static int write_data_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t each_start, uint64_t each_count)
+static int write_data_packet(PAR3_CTX *par3_ctx, char *file_name, uint64_t each_start, uint64_t each_count)
 {
 	uint8_t *work_buf, *common_packet, packet_header[56];
 	uint32_t file_index, file_prev;
@@ -189,7 +189,7 @@ static int write_data_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t each_s
 	packet_count *= par3_ctx->common_packet_count;
 	//printf("number of repeated packets = %zu\n", packet_count);
 
-	fp_write = fopen(filename, "wb");
+	fp_write = fopen(file_name, "wb");
 	if (fp_write == NULL){
 		perror("Failed to open Archive File");
 		return RET_FILE_IO_ERROR;
@@ -457,9 +457,8 @@ static int write_data_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t each_s
 }
 
 // Write PAR3 files with Data packets (input blocks)
-int write_archive_file(PAR3_CTX *par3_ctx)
+int write_archive_file(PAR3_CTX *par3_ctx, char *file_name)
 {
-	char filename[_MAX_PATH];
 	int digit_num1, digit_num2;
 	uint32_t file_count;
 	size_t len, region_size;
@@ -483,12 +482,12 @@ int write_archive_file(PAR3_CTX *par3_ctx)
 	}
 
 	// Remove the last ".par3" from base PAR3 filename.
-	strcpy(filename, par3_ctx->par_filename);
-	len = strlen(filename);
-	if (strcmp(filename + len - 5, ".par3") == 0){
+	strcpy(file_name, par3_ctx->par_filename);
+	len = strlen(file_name);
+	if (strcmp(file_name + len - 5, ".par3") == 0){
 		len -= 5;
-		filename[len] = 0;
-		//printf("len = %zu, base name = %s\n", len, filename);
+		file_name[len] = 0;
+		//printf("len = %zu, base name = %s\n", len, file_name);
 	}
 
 	// Set count for each cohort
@@ -548,12 +547,12 @@ int write_archive_file(PAR3_CTX *par3_ctx)
 			}
 		}
 
-		sprintf(filename + len, ".part%0*I64u+%0*I64u.par3", digit_num1, each_start, digit_num2, each_count);
-		if (write_data_packet(par3_ctx, filename, each_start, each_count) != 0){
+		sprintf(file_name + len, ".part%0*I64u+%0*I64u.par3", digit_num1, each_start, digit_num2, each_count);
+		if (write_data_packet(par3_ctx, file_name, each_start, each_count) != 0){
 			return RET_FILE_IO_ERROR;
 		}
 		if (par3_ctx->noise_level >= -1)
-			printf("Wrote archive file, %s\n", offset_file_name(filename));
+			printf("Wrote archive file, %s\n", offset_file_name(file_name));
 
 		each_start += each_count;
 		block_count -= each_count;
@@ -567,7 +566,7 @@ int write_archive_file(PAR3_CTX *par3_ctx)
 
 
 // Recovery Data packet with dummy recovery block
-static int write_recovery_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t each_start, uint64_t each_count)
+static int write_recovery_packet(PAR3_CTX *par3_ctx, char *file_name, uint64_t each_start, uint64_t each_count)
 {
 	uint8_t *buf_p, *common_packet, packet_header[88];
 	uint8_t gf_size;
@@ -607,7 +606,7 @@ static int write_recovery_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t ea
 	packet_count *= par3_ctx->common_packet_count;
 	//printf("number of repeated packets = %zu\n", packet_count);
 
-	fp = fopen(filename, "wb");
+	fp = fopen(file_name, "wb");
 	if (fp == NULL){
 		perror("Failed to open Recovery File");
 		return RET_FILE_IO_ERROR;
@@ -695,7 +694,7 @@ static int write_recovery_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t ea
 			// When there isn't enough memory to keep all blocks, zero fill the block area.
 			} else {
 				// Save position of each recovery block for later wariting.
-				position_list[block_index - first_num].name = par3_ctx->par_file_name + par3_ctx->par_file_name_len - strlen(filename) - 1;
+				position_list[block_index - first_num].name = par3_ctx->par_file_name + par3_ctx->par_file_name_len - strlen(file_name) - 1;
 				position_list[block_index - first_num].offset = _ftelli64(fp);
 				if (position_list[block_index - first_num].offset < 0){
 					perror("Failed to get current position of Recovery File");
@@ -795,9 +794,8 @@ static int write_recovery_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t ea
 }
 
 // Write PAR3 files with Recovery Data packets (recovery blocks are not written yet)
-int write_recovery_file(PAR3_CTX *par3_ctx)
+int write_recovery_file(PAR3_CTX *par3_ctx, char *file_name)
 {
-	char filename[_MAX_PATH];
 	int digit_num1, digit_num2;
 	uint32_t file_count;
 	int64_t recovery_file_scheme;
@@ -814,12 +812,12 @@ int write_recovery_file(PAR3_CTX *par3_ctx)
 	first_num = par3_ctx->first_recovery_block;
 
 	// Remove the last ".par3" from base PAR3 filename.
-	strcpy(filename, par3_ctx->par_filename);
-	len = strlen(filename);
-	if (strcmp(filename + len - 5, ".par3") == 0){
+	strcpy(file_name, par3_ctx->par_filename);
+	len = strlen(file_name);
+	if (strcmp(file_name + len - 5, ".par3") == 0){
 		len -= 5;
-		filename[len] = 0;
-		//printf("len = %zu, base name = %s\n", len, filename);
+		file_name[len] = 0;
+		//printf("len = %zu, base name = %s\n", len, file_name);
 	}
 
 	// When recovery blocks were not created yet, allocate memory to store packet position.
@@ -889,19 +887,19 @@ int write_recovery_file(PAR3_CTX *par3_ctx)
 			}
 		}
 
-		sprintf(filename + len, ".vol%0*I64u+%0*I64u.par3", digit_num1, each_start, digit_num2, each_count);
+		sprintf(file_name + len, ".vol%0*I64u+%0*I64u.par3", digit_num1, each_start, digit_num2, each_count);
 		if ((par3_ctx->ecc_method & 0x8000) == 0){
 			// When recovery blocks were not created yet, keep list of PAR filename.
-			if ( namez_add(&(par3_ctx->par_file_name), &(par3_ctx->par_file_name_len), &(par3_ctx->par_file_name_max), filename) != 0){
+			if ( namez_add(&(par3_ctx->par_file_name), &(par3_ctx->par_file_name_len), &(par3_ctx->par_file_name_max), file_name) != 0){
 				perror("Failed to allocate memory for PAR filename");
 				return RET_MEMORY_ERROR;
 			}
 		}
-		if (write_recovery_packet(par3_ctx, filename, each_start, each_count) != 0){
+		if (write_recovery_packet(par3_ctx, file_name, each_start, each_count) != 0){
 			return RET_FILE_IO_ERROR;
 		}
 		if (par3_ctx->noise_level >= -1)
-			printf("Wrote recovery file, %s\n", offset_file_name(filename));
+			printf("Wrote recovery file, %s\n", offset_file_name(file_name));
 
 		each_start += each_count;
 		block_count -= each_count;

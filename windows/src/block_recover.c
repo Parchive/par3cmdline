@@ -481,49 +481,54 @@ int recover_lost_block(PAR3_CTX *par3_ctx, char *temp_path, int lost_count)
 			//printf("file[%d]: chunk = %u+%u, %s\n", file_index, chunk_index, chunk_num, file_list[file_index].name);
 			while (chunk_num > 0){
 				chunk_size = chunk_list[chunk_index].size;
-				while ( (chunk_size >= block_size) || (chunk_size >= 40) ){	// full size slice or chunk tail slice
-					slice_size = slice_list[slice_index].size;
-					slice_index++;
-					file_size += slice_size;
-					chunk_size -= slice_size;
-				}
-				if (chunk_size > 0){	// tiny chunk tail
-					file_offset = file_size;	// Offset of chunk tail
-					slice_size = chunk_size;	// Tiny chunk tail was stored in File Packet.
-					file_size += slice_size;
-
-					// copy 1 ~ 39 bytes
-					memcpy(buf_tail, &(chunk_list[chunk_index].tail_crc), 8);
-					memcpy(buf_tail + 8, chunk_list[chunk_index].tail_hash, 16);
-					memcpy(buf_tail + 24, &(chunk_list[chunk_index].tail_block), 8);
-					memcpy(buf_tail + 32, &(chunk_list[chunk_index].tail_offset), 8);
-
-					// Write tail slice on temporary file.
-					if (par3_ctx->noise_level >= 3){
-						printf("Writing %zu bytes of chunk[%u] tail on file[%u]:%I64d\n", slice_size, chunk_index, file_index, file_offset);
+				if (chunk_size == 0){	// Unprotected Chunk Description
+					// Unprotected chunk will be filled by zeros after repair.
+					file_size += chunk_list[chunk_index].block;
+				} else {	// Protected Chunk Description 
+					while ( (chunk_size >= block_size) || (chunk_size >= 40) ){	// full size slice or chunk tail slice
+						slice_size = slice_list[slice_index].size;
+						slice_index++;
+						file_size += slice_size;
+						chunk_size -= slice_size;
 					}
-					if ( (fp_write == NULL) || (file_index != file_prev) ){
-						if (fp_write != NULL){	// Close previous temporary file.
-							fclose(fp_write);
-							fp_write = NULL;
+					if (chunk_size > 0){	// tiny chunk tail
+						file_offset = file_size;	// Offset of chunk tail
+						slice_size = chunk_size;	// Tiny chunk tail was stored in File Packet.
+						file_size += slice_size;
+
+						// copy 1 ~ 39 bytes
+						memcpy(buf_tail, &(chunk_list[chunk_index].tail_crc), 8);
+						memcpy(buf_tail + 8, chunk_list[chunk_index].tail_hash, 16);
+						memcpy(buf_tail + 24, &(chunk_list[chunk_index].tail_block), 8);
+						memcpy(buf_tail + 32, &(chunk_list[chunk_index].tail_offset), 8);
+
+						// Write tail slice on temporary file.
+						if (par3_ctx->noise_level >= 3){
+							printf("Writing %zu bytes of chunk[%u] tail on file[%u]:%I64d\n", slice_size, chunk_index, file_index, file_offset);
 						}
-						sprintf(temp_path + 22, "%u.tmp", file_index);
-						fp_write = fopen(temp_path, "r+b");
-						if (fp_write == NULL){
-							perror("Failed to open temporary file");
+						if ( (fp_write == NULL) || (file_index != file_prev) ){
+							if (fp_write != NULL){	// Close previous temporary file.
+								fclose(fp_write);
+								fp_write = NULL;
+							}
+							sprintf(temp_path + 22, "%u.tmp", file_index);
+							fp_write = fopen(temp_path, "r+b");
+							if (fp_write == NULL){
+								perror("Failed to open temporary file");
+								return RET_FILE_IO_ERROR;
+							}
+							file_prev = file_index;
+						}
+						if (_fseeki64(fp_write, file_offset, SEEK_SET) != 0){
+							perror("Failed to seek temporary file");
+							fclose(fp_write);
 							return RET_FILE_IO_ERROR;
 						}
-						file_prev = file_index;
-					}
-					if (_fseeki64(fp_write, file_offset, SEEK_SET) != 0){
-						perror("Failed to seek temporary file");
-						fclose(fp_write);
-						return RET_FILE_IO_ERROR;
-					}
-					if (fwrite(buf_tail, 1, slice_size, fp_write) != slice_size){
-						perror("Failed to write tiny slice on temporary file");
-						fclose(fp_write);
-						return RET_FILE_IO_ERROR;
+						if (fwrite(buf_tail, 1, slice_size, fp_write) != slice_size){
+							perror("Failed to write tiny slice on temporary file");
+							fclose(fp_write);
+							return RET_FILE_IO_ERROR;
+						}
 					}
 				}
 

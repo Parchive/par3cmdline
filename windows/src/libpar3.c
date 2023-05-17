@@ -555,6 +555,7 @@ int get_file_status(PAR3_CTX *par3_ctx)
 		file_p->name = list_name;	// pointer to the file name
 		file_p->size = file_size;	// 64-bit unsigned integer
 		file_p->crc = 0;
+		file_p->state = 0;
 
 		par3_ctx->total_file_size += file_size;
 		if (par3_ctx->max_file_size < file_size)

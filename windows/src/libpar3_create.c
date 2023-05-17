@@ -88,7 +88,7 @@ int add_comment_text(PAR3_CTX *par3_ctx, char *text)
 }
 
 
-int par3_trial(PAR3_CTX *par3_ctx)
+int par3_trial(PAR3_CTX *par3_ctx, char *temp_path)
 {
 	int ret;
 	uint64_t total_par_size;	// Total size of Index File, Archive Files, and Recovery Files.
@@ -149,14 +149,14 @@ int par3_trial(PAR3_CTX *par3_ctx)
 
 		// Write PAR3 files with input blocks
 		if (par3_ctx->data_packet != 0){
-			ret = try_archive_file(par3_ctx, &total_par_size);
+			ret = try_archive_file(par3_ctx, temp_path, &total_par_size);
 			if (ret != 0)
 				return ret;
 		}
 
 		// Write PAR3 files with recovery blocks
 		if (par3_ctx->recovery_block_count > 0){
-			ret = try_recovery_file(par3_ctx, &total_par_size);
+			ret = try_recovery_file(par3_ctx, temp_path, &total_par_size);
 			if (ret != 0)
 				return ret;
 		}
@@ -209,7 +209,7 @@ int par3_trial(PAR3_CTX *par3_ctx)
 	return 0;
 }
 
-int par3_create(PAR3_CTX *par3_ctx)
+int par3_create(PAR3_CTX *par3_ctx, char *temp_path)
 {
 	int ret;
 
@@ -273,7 +273,7 @@ int par3_create(PAR3_CTX *par3_ctx)
 
 		// Write PAR3 files with input blocks
 		if (par3_ctx->data_packet != 0){
-			ret = write_archive_file(par3_ctx);
+			ret = write_archive_file(par3_ctx, temp_path);
 			if (ret != 0)
 				return ret;
 		}
@@ -291,7 +291,7 @@ int par3_create(PAR3_CTX *par3_ctx)
 
 		// Write PAR3 files with recovery blocks
 		if (par3_ctx->recovery_block_count > 0){
-			ret = write_recovery_file(par3_ctx);
+			ret = write_recovery_file(par3_ctx, temp_path);
 			if (ret != 0){
 				//remove_recovery_file(par3_ctx);	// Remove partially created files
 				return ret;
