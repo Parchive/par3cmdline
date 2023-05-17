@@ -10,7 +10,6 @@
 
 #include "blake3/blake3.h"
 #include "libpar3.h"
-//#include "common.h"
 #include "galois.h"
 #include "hash.h"
 #include "packet.h"
@@ -157,7 +156,7 @@ int insert_space_zip(PAR3_CTX *par3_ctx, int footer_size, int repeat_count)
 			// Write zero bytes as dummy
 			if (block_size > 1){
 				if (_fseeki64(fp, block_size - 1, SEEK_CUR) != 0){
-					perror("Failed to seek Recovery File");
+					perror("Failed to seek ZIP file");
 					fclose(fp);
 					return RET_FILE_IO_ERROR;
 				}
