@@ -41,6 +41,23 @@ New construction is below.
 
 
 
+##### External Data Packet
+
+When an input block doesn't contain full size data such like a chunk tail,
+it's rolling checksum and fingerprint hash are calculated for the tail data.
+For example, a chunk tail is 20 KB in the input block, while block size is 100 KB.
+It calculates checksum and hash values for the first 20 KB,
+and it ignores following 80 KB zeros.
+
+When an input block contains multiple chunk tails,
+it's rolling checksum and fingerprint hash are calculated for total used size.
+For example, a chunk tail is 20 KB and another chunk tail is 50 KB.
+It may store them in an input block as "Tail packing" feature.
+If 20 + 50 = 70 KB is used in the input block,
+it calculates checksum and hash values for the first 70 KB.
+
+
+
 #### File Packet
 
  It will be possible to use other fingerprint hashes as options in future.
