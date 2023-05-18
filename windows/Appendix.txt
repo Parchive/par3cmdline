@@ -43,18 +43,51 @@ New construction is below.
 
 ##### External Data Packet
 
-When an input block doesn't contain full size data such like a chunk tail,
-it's rolling checksum and fingerprint hash are calculated for the tail data.
-For example, a chunk tail is 20 KB in the input block, while block size is 100 KB.
-It calculates checksum and hash values for the first 20 KB,
-and it ignores following 80 KB zeros.
+ External Data Packet should exclude input blocks of chunk tails.
+Because File Packet includes fingerprint hash of every chunk tails,
+External Data Packet doesn't need to contain checksums of blocks for chunk tails.
+When a PAR3 client omits checksums of such input blocks,
+it makes multiple External Data Packets to contain full size blocks only.
 
-When an input block contains multiple chunk tails,
-it's rolling checksum and fingerprint hash are calculated for total used size.
-For example, a chunk tail is 20 KB and another chunk tail is 50 KB.
-It may store them in an input block as "Tail packing" feature.
-If 20 + 50 = 70 KB is used in the input block,
-it calculates checksum and hash values for the first 70 KB.
+ Even when a PAR3 client stores checksums of all input blocks,
+other PAR3 clients may ignore blocks of chunk tails.
+It's difficult to verify checksums of blocks for chunk tails.
+
+ When an input block contains a chunk tail, it may store the tail data in any position.
+(Normally, it would put chunk tail with offset = 0.)
+To calculate rolling checksum and fingerprint hash for this kind of blocks,
+the block's non-used area is filled by zeros.
+
+ For example, a chunk tail occupies 20 KB in an input block, while block size is 100 KB.
+It calculates checksum and hash values for the whole 100 KB block data,
+which consists of 20 KB tail data and 80 KB zeros.
+The resulting checksum differs by the tail data's offset.
+
+[  example of full block data   ]
+[ tail data ] [      zeros      ] : It puts chunk tail before zeros.
+[      zeros      ] [ tail data ] : It puts chunk tail after zeros.
+[ zeros ] [ tail data ] [ zeros ] : It puts chunk tail between zeros.
+
+ When an input block contains multiple chunk tails,
+it will be difficult to use their checksums at verification time.
+The layout of chunk tails is unpredictable.
+Some chunk tails may overlap each other.
+There may be space between chunk tails.
+Thus, External Data Packet isn't good to include such input blocks,
+which contain multiple chunk tails.
+
+ But, if External Data Packet includes this kind of blocks,
+the block's non-used area is filled by zeros.
+To check the checksum of the input block,
+it needs to put all chunk tails on their position,
+and it calculates checksum of the whole data.
+It requires temporary buffer to keep the block data.
+
+[    example of full block data     ]
+[ tail data ] [ tail data ] [ zeros ] : It puts chunk tails before zeros.
+[ zeros ] [ tail data ] [ tail data ] : It puts chunk tails after zeros.
+[ tail data ] [ zeros ] [ tail data ] : It puts chunk tails before and after zeros.
+[ tail data  [ overlap ]  tail data ] : It puts chunk tails by overlaping them.
 
 
 
