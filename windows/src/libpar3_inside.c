@@ -51,9 +51,8 @@ static uint64_t initial_block_size(uint64_t data_size)
 // Insert PAR3 packets to ZIP file
 int par3_insert_zip(PAR3_CTX *par3_ctx)
 {
-	int ret, format_type;
+	int ret, format_type, copy_size;
 	int repeat_count, best_repeat_count;
-	uint32_t copy_size;
 	uint64_t original_file_size;
 	uint64_t block_size, best_block_size;
 	uint64_t block_count, best_block_count;
@@ -69,6 +68,11 @@ int par3_insert_zip(PAR3_CTX *par3_ctx)
 
 	original_file_size = par3_ctx->total_file_size;
 	block_size = initial_block_size(original_file_size);
+/*
+	// to test rare case for debug
+	block_size = 150;
+	copy_size = 350;
+*/
 	if (par3_ctx->noise_level >= 2){
 		printf("Start block size = %I64d\n\n", block_size);
 	}

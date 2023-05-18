@@ -1,6 +1,7 @@
 
 // CRC-64-ISO
 uint64_t crc64(const uint8_t *buf, size_t size, uint64_t crc);
+uint64_t crc64_zero(size_t size, uint64_t crc);
 
 // table setup for slide window search
 void init_crc_slide_table(PAR3_CTX *par3_ctx, int flag_usage);

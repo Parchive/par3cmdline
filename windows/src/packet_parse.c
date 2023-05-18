@@ -206,7 +206,7 @@ static int parse_chunk_description(PAR3_CTX *par3_ctx, uint8_t *chunk, size_t de
 			file_size += chunk_p->block;
 
 		} else {
-			// Protected Chunk Description 
+			// Protected Chunk Description
 			if (block_size == 0){
 				printf("Block size must be larger than 0 for chunk.\n");
 				return RET_LOGIC_ERROR;

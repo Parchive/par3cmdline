@@ -14,7 +14,7 @@
 
 
 // map input file slices into input blocks for outside ZIP file
-int map_input_block_zip(PAR3_CTX *par3_ctx, uint32_t footer_size, uint64_t unprotected_size)
+int map_input_block_zip(PAR3_CTX *par3_ctx, int footer_size, uint64_t unprotected_size)
 {
 	uint8_t *work_buf, buf_tail[40];
 	int progress_old, progress_now;
@@ -29,7 +29,7 @@ int map_input_block_zip(PAR3_CTX *par3_ctx, uint32_t footer_size, uint64_t unpro
 	PAR3_SLICE_CTX *slice_p, *slice_list;
 	PAR3_BLOCK_CTX *block_p, *block_list;
 	FILE *fp;
-	blake3_hasher hasher, tail_hasher;
+	blake3_hasher hasher;
 	time_t time_old, time_now;
 	clock_t clock_now;
 
@@ -160,7 +160,7 @@ int map_input_block_zip(PAR3_CTX *par3_ctx, uint32_t footer_size, uint64_t unpro
 		block_p->size = block_size;
 		block_p->crc = crc64(work_buf, (size_t)block_size, 0);
 		blake3(work_buf, (size_t)block_size, block_p->hash);
-		block_p->state = 1 | 64 | 128;
+		block_p->state = 1 | 64;
 
 		// set slice info
 		slice_p->chunk = chunk_index;
@@ -227,17 +227,11 @@ int map_input_block_zip(PAR3_CTX *par3_ctx, uint32_t footer_size, uint64_t unpro
 		chunk_p->tail_block = block_index;
 		chunk_p->tail_offset = 0;
 
-		// set block info
+		// set block info (block for tails don't store checksum)
 		block_p->slice = slice_index;
 		block_p->size = tail_size;
 		block_p->crc = crc64(work_buf, (size_t)tail_size, 0);
-		blake3_hasher_init(&tail_hasher);
-		blake3_hasher_update(&tail_hasher, work_buf, (size_t)tail_size);
-		if (footer_size == 0){
-			// If there is no footer, finish calculation here.
-			blake3_hasher_finalize(&tail_hasher, block_p->hash, 16);
-		}
-		block_p->state = 2 | 64 | 128;
+		block_p->state = 2 | 64;
 		block_p++;
 		block_index++;
 
@@ -345,7 +339,7 @@ int map_input_block_zip(PAR3_CTX *par3_ctx, uint32_t footer_size, uint64_t unpro
 			block_p->size = block_size;
 			block_p->crc = crc64(work_buf, (size_t)block_size, 0);
 			blake3(work_buf, (size_t)block_size, block_p->hash);
-			block_p->state = 1 | 64 | 128;
+			block_p->state = 1 | 64;
 
 			// set slice info
 			slice_p->chunk = chunk_index;
@@ -410,16 +404,11 @@ int map_input_block_zip(PAR3_CTX *par3_ctx, uint32_t footer_size, uint64_t unpro
 				chunk_p->tail_block = block_index;
 				chunk_p->tail_offset = 0;
 
-				// set block info
+				// set block info (block for tails don't store checksum)
 				block_p->slice = slice_index;
 				block_p->size = tail_size;
 				block_p->crc = crc64(work_buf, (size_t)tail_size, 0);
-				if (tail_offset > 0){	// Finish checksum of the last chunk tail
-					blake3_hasher_finalize(&tail_hasher, block_list[slice_list[tail_index].block].hash, 16);
-				}
-				blake3_hasher_init(&tail_hasher);
-				blake3_hasher_update(&tail_hasher, work_buf, (size_t)tail_size);
-				block_p->state = 2 | 64 | 128;
+				block_p->state = 2 | 64;
 				block_p++;
 				block_index++;
 
@@ -442,8 +431,6 @@ int map_input_block_zip(PAR3_CTX *par3_ctx, uint32_t footer_size, uint64_t unpro
 				// update block info
 				block_list[slice_p->block].size = tail_offset + tail_size;
 				block_list[slice_p->block].crc = crc64(work_buf, (size_t)tail_size, block_list[slice_p->block].crc);
-				blake3_hasher_update(&tail_hasher, work_buf, (size_t)tail_size);
-				blake3_hasher_finalize(&tail_hasher, block_list[slice_p->block].hash, 16);	// Finish checksum of packed tails
 			}
 
 			// calculate CRC-64 of the first 16 KB
@@ -490,9 +477,6 @@ int map_input_block_zip(PAR3_CTX *par3_ctx, uint32_t footer_size, uint64_t unpro
 					}
 				}
 			}
-
-			if (tail_offset > 0)	// Finish checksum of the last chunk tail
-				blake3_hasher_finalize(&tail_hasher, block_list[slice_list[tail_index].block].hash, 16);
 
 			// calculate CRC-64 of the first 16 KB
 			if (file_offset + tail_size < 16384){

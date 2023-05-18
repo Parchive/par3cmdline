@@ -17,7 +17,7 @@
 // Check ZIP file and return total size of footer sections.
 // format_type : 0 = Unknown, 1 = PAR3, 2 = ZIP, 3 = 7-Zip
 // copy_size   : 0 = 7-Zip, 22 or 98 or more = ZIP
-int check_outside_format(PAR3_CTX *par3_ctx, int *format_type, uint32_t *copy_size)
+int check_outside_format(PAR3_CTX *par3_ctx, int *format_type, int *copy_size)
 {
 	unsigned char buf[ZIP_SEARCH_SIZE];
 	uint32_t byte4;
@@ -114,7 +114,7 @@ int check_outside_format(PAR3_CTX *par3_ctx, int *format_type, uint32_t *copy_si
 		return RET_FILE_IO_ERROR;
 	}
 
-	*copy_size = (uint32_t)footer_size;
+	*copy_size = (int)footer_size;
 	return 0;
 }
 
@@ -124,7 +124,7 @@ int check_outside_format(PAR3_CTX *par3_ctx, int *format_type, uint32_t *copy_si
 // [ Original ZIP file ] [ PAR3 packets ] [ Duplicated ZIP section ]
 uint64_t inside_zip_size(PAR3_CTX *par3_ctx,
 		uint64_t block_size,	// Block size to calculate total packet size
-		uint32_t footer_size,	// Copy size after appending recovery data
+		int footer_size,		// Copy size after appending recovery data
 		uint64_t *block_count,
 		uint64_t *recv_block_count,
 		int *packet_repeat_count)
@@ -205,9 +205,10 @@ uint64_t inside_zip_size(PAR3_CTX *par3_ctx,
 	}
 
 	// External Data Packet
-	// All input blocks make checksum for "PAR inside" feature.
-	// Even when it packs chunk tails, it stores the block's checksum of packed tails.
-	ext_data_packet_size = 48 + 8 + 24 * input_block_count;
+	// Count full size blocks only in each protected chunk
+	ext_data_packet_size = 48 + 8 + 24 * data_block_count;	// 1st chunk
+	if (footer_block_count > 0)
+		ext_data_packet_size += 48 + 8 + 24 * footer_block_count;	// 2nd chunk
 	common_packet_size += ext_data_packet_size;
 	if (par3_ctx->noise_level >= 1){
 		printf("External Data Packet size = %I64d\n", ext_data_packet_size);

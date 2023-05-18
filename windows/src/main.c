@@ -527,9 +527,11 @@ int main(int argc, char *argv[])
 					goto prepare_return;
 				} else {
 					par3_ctx->deduplication = tmp_p[1];
-					if (add_creator_text(par3_ctx, tmp_p - 1) != 0){	// Store this option for debug
-						ret = RET_MEMORY_ERROR;
-						goto prepare_return;
+					if (par3_ctx->deduplication != '0'){
+						if (add_creator_text(par3_ctx, tmp_p - 1) != 0){	// Store this option for debug
+							ret = RET_MEMORY_ERROR;
+							goto prepare_return;
+						}
 					}
 				}
 
@@ -562,7 +564,7 @@ int main(int argc, char *argv[])
 				} else {
 					par3_ctx->interleave = strtoul(tmp_p + 1, NULL, 10);
 /*
-					if (par3_ctx->interleave > 0){
+					if (par3_ctx->interleave != 0){
 						if (add_creator_text(par3_ctx, tmp_p - 1) != 0){	// Store this option for debug
 							ret = RET_MEMORY_ERROR;
 							goto prepare_return;

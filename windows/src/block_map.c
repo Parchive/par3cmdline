@@ -145,9 +145,17 @@ int set_slice_info(PAR3_CTX *par3_ctx)
 			}
 			chunk_p = par3_ctx->chunk_list + chunk_index;
 			chunk_size = chunk_p->size;
-			if (chunk_size != 0){
+			if (chunk_size == 0){	// Unprotected Chunk Description
+				file_offset += chunk_p->block;
+				if (par3_ctx->noise_level >= 3){
+					printf("unprotected chunk size = %I64u\n", chunk_p->block);
+				}
+
+			} else {	// Protected Chunk Description
 				block_index = chunk_p->block;	// index of first input block holding chunk
-				//printf("chunk size = %I64u, first block = %I64u\n", chunk_size, block_index);
+				if (par3_ctx->noise_level >= 3){
+					printf("chunk size = %I64u, first block = %I64u\n", chunk_size, block_index);
+				}
 
 				while (chunk_size >= block_size){
 					if (slice_index >= slice_count){

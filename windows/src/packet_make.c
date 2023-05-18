@@ -1063,7 +1063,7 @@ int make_ext_data_packet(PAR3_CTX *par3_ctx)
 	find_block_count = 0;
 	write_packet_count = 0;
 	while (block_count > 0){
-		if (block_p->state & 128){	// block of full size data, or partial data with BLAKE3 hash
+		if (block_p->state & 1){	// block of full size data
 			if (find_block_count < 0)
 				find_block_count *= -1;
 			find_block_count++;
@@ -1085,7 +1085,7 @@ int make_ext_data_packet(PAR3_CTX *par3_ctx)
 
 	// If there is no full size blocks, checksums are saved in File Packets.
 	if (par3_ctx->noise_level >= 2){
-		printf("Number of External Data Packet = %zu (number of checksum = %I64d)\n", write_packet_count, find_block_count);
+		printf("Number of External Data Packet = %zu (number of full size blocks = %I64d)\n", write_packet_count, find_block_count);
 	}
 	if (write_packet_count == 0)
 		return 0;
@@ -1113,7 +1113,7 @@ int make_ext_data_packet(PAR3_CTX *par3_ctx)
 	find_block_count = 0;
 	write_packet_count = 0;
 	while (block_count > 0){
-		if (block_p->state & 128){	// block of full size data, or partial data with BLAKE3 hash
+		if (block_p->state & 1){	// block of full size data
 			if (write_packet_count == 0){
 				tmp_p += 48;	// skip packet header
 				memcpy(tmp_p, &find_block_count, 8);	// Index of the first input block

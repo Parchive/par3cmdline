@@ -87,7 +87,7 @@ uint64_t crc64(const uint8_t *buf, size_t size, uint64_t crc)
 }
 
 // This updates CRC-64 of zeros without bit flipping.
-uint64_t crc64_update_zero(size_t size, uint64_t crc)
+static uint64_t crc64_update_zero(size_t size, uint64_t crc)
 {
 	uint64_t A;
 
@@ -110,6 +110,16 @@ uint64_t crc64_update_zero(size_t size, uint64_t crc)
 	}
 
 	return crc;
+}
+
+// Updates CRC-64 with zeros
+uint64_t crc64_zero(size_t size, uint64_t crc)
+{
+	crc = ~crc;	// bit flipping at first
+
+	crc = crc64_update_zero(size, crc);
+
+	return ~crc;	// bit flipping again
 }
 
 // This return window_mask.

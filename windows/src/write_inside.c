@@ -59,7 +59,7 @@ int insert_space_zip(PAR3_CTX *par3_ctx, int footer_size, int repeat_count)
 		// Insert mass of common packets between Recovery Data
 		each_max = (block_count + repeat_count - 2) / (repeat_count - 1);
 	}
-	printf("block_count = %I64u, repeat_count = %d, each_max = %I64u\n", block_count, repeat_count, each_max);
+	//printf("block_count = %I64u, repeat_count = %d, each_max = %I64u\n", block_count, repeat_count, each_max);
 
 	fp = fopen(par3_ctx->par_filename, "r+b");
 	if (fp == NULL){
@@ -68,7 +68,7 @@ int insert_space_zip(PAR3_CTX *par3_ctx, int footer_size, int repeat_count)
 	}
 
 	// Put the first mass of common packets
-	printf("first common packets\n");
+	//printf("first common packets\n");
 	if (_fseeki64(fp, 0, SEEK_END) != 0){
 		perror("Failed to seek ZIP file");
 		fclose(fp);
@@ -89,7 +89,7 @@ int insert_space_zip(PAR3_CTX *par3_ctx, int footer_size, int repeat_count)
 	// Recovery Data Packet and repeated common packets
 	each_count = 0;
 	for (block_index = 0; block_index < block_count; block_index++){
-		printf("block_index = %I64u\n", block_index);
+		//printf("block_index = %I64u\n", block_index);
 
 		// packet header
 		make_packet_header(packet_header, 88 + block_size, par3_ctx->set_id, "PAR REC\0", 0);
@@ -171,7 +171,7 @@ int insert_space_zip(PAR3_CTX *par3_ctx, int footer_size, int repeat_count)
 		// Put mass of common packets between Recovery Data Packets
 		each_count++;
 		if (each_count == each_max){
-			printf("common packets\n");
+			//printf("common packets\n");
 			write_size = common_packet_size;
 			if (fwrite(common_packet, 1, write_size, fp) != write_size){
 				perror("Failed to write common packets on ZIP file");
@@ -184,7 +184,7 @@ int insert_space_zip(PAR3_CTX *par3_ctx, int footer_size, int repeat_count)
 
 	// Put the last mass of common packets
 	if (each_count > 0){
-		printf("last common packets\n");
+		//printf("last common packets\n");
 		write_size = common_packet_size;
 		if (fwrite(common_packet, 1, write_size, fp) != write_size){
 			perror("Failed to write last common packets on ZIP file");

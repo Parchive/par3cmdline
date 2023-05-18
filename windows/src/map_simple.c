@@ -149,7 +149,7 @@ int map_input_block_simple(PAR3_CTX *par3_ctx)
 			block_p->size = block_size;
 			block_p->crc = crc64(work_buf, (size_t)block_size, 0);
 			blake3(work_buf, (size_t)block_size, block_p->hash);
-			block_p->state = 1 | 64 | 128;
+			block_p->state = 1 | 64;
 
 			// set slice info
 			slice_p->chunk = chunk_index;
