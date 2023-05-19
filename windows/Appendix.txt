@@ -95,28 +95,9 @@ It requires temporary buffer to keep the block data.
 
  It will be possible to use other fingerprint hashes as options in future.
 (For example, I may make a new packet type, Hash Packet.)
-If it doesn't use BLAKE3 for the input file, the fourth field is all zeroes.
+If it doesn't use BLAKE3 for the input file, the fourth field is all zeros.
 Even when this packet doesn't contain BLAKE3 hash for the protected data in the file,
 it may verify files by using checksums for input blocks in External Data Packet.
-
- When "Par inside" feature is used, some of the file's data may not be protected.
-Because this feature may modify file data to insert PAR3 packets inside the original file,
-it must calculate hash values for the original state of file data.
-They are "rolling hash of the first 16kB of the original file"
-and "fingerprint hash of the original data in the file".
-
- After inserting unprotected chunks,
-these hash values may become useless to detect damage of protected chunks.
-But, it won't be a problem.
-Because "Par inside" feature only protects a file itself,
-it won't use "rolling hash" to find another misnamed file.
-Because "Par inside" feature includes unprotected chunks always,
-it cannot use "fingerprint hash" to detect damage of the file anyway.
-
- Even when these hash values are useless after adapting "Par inside",
-it's important to remove the inserted PAR3 packets from outside file.
-It's possible to restore original form of file.
-It can use hash values to confirm that the original data is correct.
 
 -------------------------------------------------------------------------------
 Old construction was below.
@@ -142,8 +123,8 @@ New construction is below.
 |---------------:|:-----|:------------|
 |  2 | unsigned int | length of filename in bytes |
 |  ? | UTF-8 string | filename |
-|  8 | rolling hash | hash of the first 16kB of the original file |
-| 16 | fingerprint hash | hash of the original data in the file, or zeros if not used |
+|  8 | rolling hash | hash of the first 16kB of the file |
+| 16 | fingerprint hash | hash of the protected data in the file, or zeros if not used |
 |  1 | unsigned int | number of options (a.k.a. permissions) |
 | 16*? | fingerprint hashes | checksums of packets for options |
 | ?*?  | chunk descriptions |  see below. |
