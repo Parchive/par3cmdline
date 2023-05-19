@@ -208,8 +208,7 @@ int check_complete_file(PAR3_CTX *par3_ctx, char *filename, uint32_t file_id,
 					flag_unknown = 1;	// sign of unknown checksum
 				}
 
-				if ((file_p->state & 0x80000000) == 0)
-					blake3_hasher_update(&hasher, work_buf, (size_t)block_size);
+				blake3_hasher_update(&hasher, work_buf, (size_t)block_size);
 				block_index++;
 				slice_index++;
 				chunk_size -= block_size;
@@ -289,8 +288,7 @@ int check_complete_file(PAR3_CTX *par3_ctx, char *filename, uint32_t file_id,
 					fclose(fp);
 					return -5;
 				}
-				if ((file_p->state & 0x80000000) == 0)
-					blake3_hasher_update(&hasher, work_buf, (size_t)tail_size);
+				blake3_hasher_update(&hasher, work_buf, (size_t)tail_size);
 				slice_index++;
 				chunk_size -= tail_size;
 				file_offset += tail_size;
@@ -342,8 +340,7 @@ int check_complete_file(PAR3_CTX *par3_ctx, char *filename, uint32_t file_id,
 					return -6;
 				}
 
-				if ((file_p->state & 0x80000000) == 0)
-					blake3_hasher_update(&hasher, work_buf, (size_t)tail_size);
+				blake3_hasher_update(&hasher, work_buf, (size_t)tail_size);
 				chunk_size -= tail_size;
 				file_offset += tail_size;
 				if ( (flag_unknown == 0) && (offset_next != NULL) )
@@ -383,29 +380,32 @@ int check_complete_file(PAR3_CTX *par3_ctx, char *filename, uint32_t file_id,
 		return -1;
 	}
 
-	if ((file_p->state & 0x80000000) == 0){
-		// Check file's hash at the last.
-		blake3_hasher_finalize(&hasher, buf_hash, 16);
-		if (memcmp(buf_hash, file_p->hash, 16) != 0){
-			if (mem_or16(file_p->hash) != 0){	// Ignore case of zero bytes, as it was not calculated.
-				// File hash is different.
-				return -7;
-			}
+	// Check file's hash at the last.
+	blake3_hasher_finalize(&hasher, buf_hash, 16);
+	if (memcmp(buf_hash, file_p->hash, 16) != 0){
+		if (mem_or16(file_p->hash) != 0){	// Ignore case of zero bytes, as it was not calculated.
+			// File hash is different.
+			return -7;
+		}
 
-		} else if (flag_unknown != 0){
-			// Even when checksum is unknown, file data is complete.
-			if (offset_next != NULL)
-				*offset_next = file_size;
-			file_offset = 0;
+	} else if (flag_unknown != 0){
+		// Even when checksum is unknown, file data is complete.
+		if (offset_next != NULL)
+			*offset_next = file_size;
+		file_offset = 0;
 
-			// Set block info
-			chunk_index = file_p->chunk;
-			chunk_num = file_p->chunk_num;
-			slice_index = file_p->slice;
-			while (chunk_num > 0){
-				chunk_size = chunk_list[chunk_index].size;
-				block_index = chunk_list[chunk_index].block;
+		// Set block info
+		chunk_index = file_p->chunk;
+		chunk_num = file_p->chunk_num;
+		slice_index = file_p->slice;
+		while (chunk_num > 0){
+			chunk_size = chunk_list[chunk_index].size;
+			block_index = chunk_list[chunk_index].block;
 
+			if (chunk_size == 0){	// Unprotected Chunk Description
+				file_offset += block_index;
+
+			} else {	// Protected Chunk Description
 				// Check all blocks in the chunk
 				while (chunk_size >= block_size){
 					if (slice_list[slice_index].find_name == NULL){	// When this slice was not found.
@@ -432,10 +432,10 @@ int check_complete_file(PAR3_CTX *par3_ctx, char *filename, uint32_t file_id,
 				if (chunk_size >= 40)
 					slice_index++;
 				file_offset += chunk_size;
-
-				chunk_index++;	// goto next chunk
-				chunk_num--;
 			}
+
+			chunk_index++;	// goto next chunk
+			chunk_num--;
 		}
 	}
 

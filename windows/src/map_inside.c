@@ -20,7 +20,7 @@ int map_input_block_zip(PAR3_CTX *par3_ctx, int footer_size, uint64_t unprotecte
 	int progress_old, progress_now;
 	uint32_t num_pack, num_dedup;
 	uint32_t chunk_index, chunk_count;
-	uint64_t data_size, slice_count;
+	uint64_t original_file_size, data_size, slice_count;
 	uint64_t block_size, tail_size, file_offset, tail_offset;
 	uint64_t block_count, block_index, slice_index, tail_index;
 	uint64_t progress_total, progress_step;
@@ -39,15 +39,16 @@ int map_input_block_zip(PAR3_CTX *par3_ctx, int footer_size, uint64_t unprotecte
 	if ( (par3_ctx->input_file_count != 1) || (block_size == 0) || (block_count == 0) )
 		return RET_LOGIC_ERROR;
 
+	original_file_size = par3_ctx->total_file_size;
 	if (footer_size > 0){
 		// It splits original file into 2 chunks and appends 2 chunks.
 		// [ data chunk ] [ footer chunk ] [ unprotected chunk ] [ duplicated footer chunk ]
-		data_size = par3_ctx->total_file_size - footer_size;
+		data_size = original_file_size - footer_size;
 		chunk_count = 4;
 	} else {
 		// It appends 1 chunk.
 		// [ protected chunk ] [ unprotected chunk ]
-		data_size = par3_ctx->total_file_size;
+		data_size = original_file_size;
 		chunk_count = 2;
 	}
 
@@ -94,7 +95,7 @@ int map_input_block_zip(PAR3_CTX *par3_ctx, int footer_size, uint64_t unprotecte
 
 	if (par3_ctx->noise_level >= 0){
 		printf("Computing hash:\n");
-		progress_total = par3_ctx->total_file_size;
+		progress_total = original_file_size + footer_size;
 		progress_step = 0;
 		progress_old = 0;
 		time_old = time(NULL);
@@ -147,11 +148,13 @@ int map_input_block_zip(PAR3_CTX *par3_ctx, int footer_size, uint64_t unprotecte
 			}
 		}
 
-		// calculate CRC-64 of the first 16 KB
-		if (file_offset + block_size < 16384){
-			file_p->crc = crc64(work_buf, (size_t)block_size, file_p->crc);
-		} else if (file_offset < 16384){
-			file_p->crc = crc64(work_buf, (size_t)(16384 - file_offset), file_p->crc);
+		if (original_file_size >= 16384){
+			// calculate CRC-64 of the first 16 KB
+			if (file_offset + block_size < 16384){
+				file_p->crc = crc64(work_buf, (size_t)block_size, file_p->crc);
+			} else if (file_offset < 16384){
+				file_p->crc = crc64(work_buf, (size_t)(16384 - file_offset), file_p->crc);
+			}
 		}
 		blake3_hasher_update(&hasher, work_buf, (size_t)block_size);
 
@@ -184,7 +187,7 @@ int map_input_block_zip(PAR3_CTX *par3_ctx, int footer_size, uint64_t unprotecte
 
 	// Calculate size of chunk tail, and read it.
 	tail_size = data_size - file_offset;
-	//printf("tail_size = %I64u, file size = %I64u, offset %I64u\n", tail_size, file_p->size, file_offset);
+	//printf("tail_size = %I64u, file size = %I64u, offset %I64u\n", tail_size, original_file_size, file_offset);
 	if (tail_size >= 40){
 		// read chunk tail from input file
 		if (fread(work_buf, 1, (size_t)tail_size, fp) != (size_t)tail_size){
@@ -235,11 +238,13 @@ int map_input_block_zip(PAR3_CTX *par3_ctx, int footer_size, uint64_t unprotecte
 		block_p++;
 		block_index++;
 
-		// calculate CRC-64 of the first 16 KB
-		if (file_offset + tail_size < 16384){
-			file_p->crc = crc64(work_buf, (size_t)tail_size, file_p->crc);
-		} else if (file_offset < 16384){
-			file_p->crc = crc64(work_buf, (size_t)(16384 - file_offset), file_p->crc);
+		if (original_file_size >= 16384){
+			// calculate CRC-64 of the first 16 KB
+			if (file_offset + tail_size < 16384){
+				file_p->crc = crc64(work_buf, (size_t)tail_size, file_p->crc);
+			} else if (file_offset < 16384){
+				file_p->crc = crc64(work_buf, (size_t)(16384 - file_offset), file_p->crc);
+			}
 		}
 		blake3_hasher_update(&hasher, work_buf, (size_t)tail_size);
 
@@ -279,11 +284,13 @@ int map_input_block_zip(PAR3_CTX *par3_ctx, int footer_size, uint64_t unprotecte
 			}
 		}
 
-		// calculate CRC-64 of the first 16 KB
-		if (file_offset + tail_size < 16384){
-			file_p->crc = crc64(buf_tail, (size_t)tail_size, file_p->crc);
-		} else if (file_offset < 16384){
-			file_p->crc = crc64(buf_tail, (size_t)(16384 - file_offset), file_p->crc);
+		if (original_file_size >= 16384){
+			// calculate CRC-64 of the first 16 KB
+			if (file_offset + tail_size < 16384){
+				file_p->crc = crc64(buf_tail, (size_t)tail_size, file_p->crc);
+			} else if (file_offset < 16384){
+				file_p->crc = crc64(buf_tail, (size_t)(16384 - file_offset), file_p->crc);
+			}
 		}
 		blake3_hasher_update(&hasher, buf_tail, (size_t)tail_size);
 
@@ -304,7 +311,7 @@ int map_input_block_zip(PAR3_CTX *par3_ctx, int footer_size, uint64_t unprotecte
 		chunk_p->block = block_index;
 
 		// Read full size blocks
-		while (file_offset + block_size <= file_p->size){
+		while (file_offset + block_size <= original_file_size){
 			// read full block from input file
 			if (fread(work_buf, 1, (size_t)block_size, fp) != (size_t)block_size){
 				perror("Failed to read full size chunk on input file");
@@ -326,11 +333,13 @@ int map_input_block_zip(PAR3_CTX *par3_ctx, int footer_size, uint64_t unprotecte
 				}
 			}
 
-			// calculate CRC-64 of the first 16 KB
-			if (file_offset + block_size < 16384){
-				file_p->crc = crc64(work_buf, (size_t)block_size, file_p->crc);
-			} else if (file_offset < 16384){
-				file_p->crc = crc64(work_buf, (size_t)(16384 - file_offset), file_p->crc);
+			if (original_file_size >= 16384){
+				// calculate CRC-64 of the first 16 KB
+				if (file_offset + block_size < 16384){
+					file_p->crc = crc64(work_buf, (size_t)block_size, file_p->crc);
+				} else if (file_offset < 16384){
+					file_p->crc = crc64(work_buf, (size_t)(16384 - file_offset), file_p->crc);
+				}
 			}
 			blake3_hasher_update(&hasher, work_buf, (size_t)block_size);
 
@@ -362,8 +371,8 @@ int map_input_block_zip(PAR3_CTX *par3_ctx, int footer_size, uint64_t unprotecte
 		}
 
 		// Calculate size of chunk tail, and read it.
-		tail_size = file_p->size - file_offset;
-		//printf("tail_size = %I64u, file size = %I64u, offset %I64u\n", tail_size, file_p->size, file_offset);
+		tail_size = original_file_size - file_offset;
+		//printf("tail_size = %I64u, file size = %I64u, offset %I64u\n", tail_size, original_file_size, file_offset);
 		if (tail_size >= 40){
 			// read chunk tail from input file
 			if (fread(work_buf, 1, (size_t)tail_size, fp) != (size_t)tail_size){
@@ -433,11 +442,13 @@ int map_input_block_zip(PAR3_CTX *par3_ctx, int footer_size, uint64_t unprotecte
 				block_list[slice_p->block].crc = crc64(work_buf, (size_t)tail_size, block_list[slice_p->block].crc);
 			}
 
-			// calculate CRC-64 of the first 16 KB
-			if (file_offset + tail_size < 16384){
-				file_p->crc = crc64(work_buf, (size_t)tail_size, file_p->crc);
-			} else if (file_offset < 16384){
-				file_p->crc = crc64(work_buf, (size_t)(16384 - file_offset), file_p->crc);
+			if (original_file_size >= 16384){
+				// calculate CRC-64 of the first 16 KB
+				if (file_offset + tail_size < 16384){
+					file_p->crc = crc64(work_buf, (size_t)tail_size, file_p->crc);
+				} else if (file_offset < 16384){
+					file_p->crc = crc64(work_buf, (size_t)(16384 - file_offset), file_p->crc);
+				}
 			}
 			blake3_hasher_update(&hasher, work_buf, (size_t)tail_size);
 
@@ -478,11 +489,13 @@ int map_input_block_zip(PAR3_CTX *par3_ctx, int footer_size, uint64_t unprotecte
 				}
 			}
 
-			// calculate CRC-64 of the first 16 KB
-			if (file_offset + tail_size < 16384){
-				file_p->crc = crc64(buf_tail, (size_t)tail_size, file_p->crc);
-			} else if (file_offset < 16384){
-				file_p->crc = crc64(buf_tail, (size_t)(16384 - file_offset), file_p->crc);
+			if (original_file_size >= 16384){
+				// calculate CRC-64 of the first 16 KB
+				if (file_offset + tail_size < 16384){
+					file_p->crc = crc64(buf_tail, (size_t)tail_size, file_p->crc);
+				} else if (file_offset < 16384){
+					file_p->crc = crc64(buf_tail, (size_t)(16384 - file_offset), file_p->crc);
+				}
 			}
 			blake3_hasher_update(&hasher, buf_tail, (size_t)tail_size);
 
@@ -514,9 +527,39 @@ int map_input_block_zip(PAR3_CTX *par3_ctx, int footer_size, uint64_t unprotecte
 		chunk_p->tail_block = chunk_list[1].tail_block;
 		chunk_p->tail_offset = chunk_list[1].tail_offset;
 
-		// set slice info
-		file_offset = file_p->size + unprotected_size;
-		while (file_offset + block_size <= file_p->size + unprotected_size + footer_size){
+		// Seek to the start of 2nd chunk
+		if (_fseeki64(fp, data_size, SEEK_SET) != 0){
+			perror("Failed to seek input file");
+			fclose(fp);
+			return RET_FILE_IO_ERROR;
+		}
+
+		file_offset = original_file_size + unprotected_size;
+		while (file_offset + block_size <= original_file_size + unprotected_size + footer_size){
+			// read full block from input file
+			if (fread(work_buf, 1, (size_t)block_size, fp) != (size_t)block_size){
+				perror("Failed to read full size chunk on input file");
+				fclose(fp);
+				return RET_FILE_IO_ERROR;
+			}
+
+			// Print progress percent
+			if ( (par3_ctx->noise_level >= 0) && (par3_ctx->noise_level <= 2) ){
+				progress_step += block_size;
+				time_now = time(NULL);
+				if (time_now != time_old){
+					time_old = time_now;
+					progress_now = (int)((progress_step * 1000) / progress_total);
+					if (progress_now != progress_old){
+						progress_old = progress_now;
+						printf("%d.%d%%\r", progress_now / 10, progress_now % 10);	// 0.0% ~ 100.0%
+					}
+				}
+			}
+
+			blake3_hasher_update(&hasher, work_buf, (size_t)block_size);
+
+			// set slice info
 			slice_p->chunk = chunk_index;
 			slice_p->file = 0;
 			slice_p->offset = file_offset;
@@ -534,6 +577,30 @@ int map_input_block_zip(PAR3_CTX *par3_ctx, int footer_size, uint64_t unprotecte
 			num_dedup++;
 		}
 		tail_size = footer_size % block_size;
+		if (tail_size > 0){
+			// read chunk tail from input file
+			if (fread(work_buf, 1, (size_t)tail_size, fp) != (size_t)tail_size){
+				perror("Failed to read tail chunk on input file");
+				fclose(fp);
+				return RET_FILE_IO_ERROR;
+			}
+
+			// Print progress percent
+			if ( (par3_ctx->noise_level >= 0) && (par3_ctx->noise_level <= 2) ){
+				progress_step += tail_size;
+				time_now = time(NULL);
+				if (time_now != time_old){
+					time_old = time_now;
+					progress_now = (int)((progress_step * 1000) / progress_total);
+					if (progress_now != progress_old){
+						progress_old = progress_now;
+						printf("%d.%d%%\r", progress_now / 10, progress_now % 10);	// 0.0% ~ 100.0%
+					}
+				}
+			}
+
+			blake3_hasher_update(&hasher, work_buf, (size_t)tail_size);
+		}
 		if (tail_size >= 40){
 			slice_p->chunk = chunk_index;
 			slice_p->file = 0;
