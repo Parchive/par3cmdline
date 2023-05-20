@@ -644,6 +644,17 @@ int main(int argc, char *argv[])
 		}
 	}
 
+	if ( (command_operation == 'c') || (command_operation == 'i') ){
+		// Erase return code at the end of Creator text
+		tmp_p = par3_ctx->creator_packet;
+		len = par3_ctx->creator_packet_size;
+		while ( (len > 0) && ( (tmp_p[len - 1] == '\n') || (tmp_p[len - 1] == '\r') ) ){
+			tmp_p[len - 1] = 0;
+			len--;
+		}
+		par3_ctx->creator_packet_size = len;
+	}
+
 	// read PAR filename
 	if (argi < argc){
 		if (utf8_argv != NULL){

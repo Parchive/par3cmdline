@@ -490,12 +490,12 @@ int parse_vital_packet(PAR3_CTX *par3_ctx)
 				if (tmp_p != NULL){
 					memcpy(tmp_p, par3_ctx->creator_packet + 48, len);
 					tmp_p[len] = 0;
-					printf("\nCreator text:\n");
-					if (tmp_p[len - 1] == '\n'){
-						printf("%s", tmp_p);
-					} else {
-						printf("%s\n", tmp_p);
+					// Erase return code at the end of text
+					while ( (len > 0) && ( (tmp_p[len - 1] == '\n') || (tmp_p[len - 1] == '\r') ) ){
+						tmp_p[len - 1] = 0;
+						len--;
 					}
+					printf("\nCreator text:\n%s\n", tmp_p);
 					free(tmp_p);
 				}
 			}
@@ -510,11 +510,15 @@ int parse_vital_packet(PAR3_CTX *par3_ctx)
 				if (tmp_p != NULL){
 					memcpy(tmp_p, par3_ctx->comment_packet + 48, len);
 					tmp_p[len] = 0;
+					// Erase return code at the end of text
+					while ( (len > 0) && ( (tmp_p[len - 1] == '\n') || (tmp_p[len - 1] == '\r') ) ){
+						tmp_p[len - 1] = 0;
+						len--;
+					}
 					if (strchr(tmp_p, '\n') == NULL){
 						printf("\nComment text: %s\n", tmp_p);
 					} else {
-						printf("\nComment text:\n");
-						printf("%s\n", tmp_p);
+						printf("\nComment text:\n%s\n", tmp_p);
 					}
 					free(tmp_p);
 				}
