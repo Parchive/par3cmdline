@@ -1,5 +1,5 @@
 
- I write some updating points in Parity Volume Set Specification 3.0.
+ I write some updating points in draft of Parity Volume Set Specification 3.0.
 This is a reminder for later implementation.
 
 
