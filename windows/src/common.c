@@ -216,6 +216,19 @@ size_t path_copy(char *dst, char *src, size_t max)
 	return len;
 }
 
+// Erase return code at the end of text
+size_t trim_text(uint8_t *text, size_t len)
+{
+	// Space, Carriage Return (\r), Line Feed (\n), Tab (\t)
+	while ( (len > 0) && ( (text[len - 1] == ' ') || (text[len - 1] == '\n') || (text[len - 1] == '\r') || (text[len - 1] == '\t') ) ){
+		text[len - 1] = 0;
+		len--;
+	}
+
+	return len;
+}
+
+
 // Because Argz Functions don't exit on MSVC, I made similar functions.
 
 // add a name to the end of names

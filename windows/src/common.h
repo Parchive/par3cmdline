@@ -5,6 +5,8 @@ int sanitize_file_name(char *name);
 int get_absolute_path(char *absolute_path, char *relative_path, size_t max);
 size_t path_copy(char *dst, char *src, size_t max);
 
+size_t trim_text(uint8_t *text, size_t len);
+
 int namez_add(char **namez, size_t *namez_len, size_t *namez_max, const char *str);
 int namez_count(char *namez, size_t namez_len);
 int namez_delete(char *namez, size_t *namez_len, char *entry);
