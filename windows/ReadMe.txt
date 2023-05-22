@@ -59,7 +59,7 @@ Options: (all uses)
   -B<path> : Set the base-path to use as reference for the datafiles
   -v [-v]  : Be more verbose
   -q [-q]  : Be more quiet (-q -q gives silence)
-  -m<n>    : Memory (in MB) to use
+  -m<n>    : Memory to use (k, m, g)
   --       : Treat all following arguments as filenames
   -abs     : Enable absolute path
 Options: (verify or repair)
@@ -196,7 +196,11 @@ At that time, you may refer return value to know result.
 [ About "-m" option ]
 
  If you want to limit using memory size, set this option.
-Note, this is not strict value. It may use more memory.
+You may set last character to "k", "kb", "m", "mb", "g", or "gb" as unit.
+The unit characters are case insensitive.
+For example, setting "-m1MB" is same as "-m1048576".
+
+ Note, this is not strict value. It may use more memory.
 When this isn't set, it assumes unlimited RAM size.
 
  This option will affect some buffer size.
