@@ -57,7 +57,7 @@ static void print_help(void)
 "  -B<path> : Set the base-path to use as reference for the datafiles\n"
 "  -v [-v]  : Be more verbose\n"
 "  -q [-q]  : Be more quiet (-q -q gives silence)\n"
-"  -m<n>    : Memory (in MB) to use\n"
+"  -m<n>    : Memory to use\n"
 "  --       : Treat all following arguments as filenames\n"
 "  -abs     : Enable absolute path\n"
 "Options: (verify or repair)\n"
@@ -266,8 +266,17 @@ int main(int argc, char *argv[])
 					ret = RET_INVALID_COMMAND;
 					goto prepare_return;
 				} else {
-					par3_ctx->memory_limit = strtoull(tmp_p + 1, NULL, 10);
-					par3_ctx->memory_limit *= 1048576;	// MB
+					char *end_p;
+					// Get the character that stops the scan
+					par3_ctx->memory_limit = strtoull(tmp_p + 1, &end_p, 10);
+					//printf("end char = %s\n", end_p);
+					if ( (_stricmp(end_p, "g") == 0) || (_stricmp(end_p, "gb") == 0) ){
+						par3_ctx->memory_limit <<= 30;	// GB
+					} else if ( (_stricmp(end_p, "m") == 0) || (_stricmp(end_p, "mb") == 0) ){
+						par3_ctx->memory_limit <<= 20;	// MB
+					} else if ( (_stricmp(end_p, "k") == 0) || (_stricmp(end_p, "kb") == 0) ){
+						par3_ctx->memory_limit <<= 10;	// KB
+					}
 				}
 
 			} else if ( (tmp_p[0] == 'S') && (tmp_p[1] >= '0') && (tmp_p[1] <= '9') ){	// Set searching time limit
@@ -736,8 +745,17 @@ int main(int argc, char *argv[])
 	}
 
 	if (par3_ctx->noise_level >= 1){
-		if (par3_ctx->memory_limit != 0)
-			printf("memory_limit = %I64u MB\n", par3_ctx->memory_limit >> 20);
+		if (par3_ctx->memory_limit != 0){
+			if ((par3_ctx->memory_limit & ((1 << 30) - 1)) == 0){
+				printf("memory_limit = %I64u GB\n", par3_ctx->memory_limit >> 30);
+			} else if ((par3_ctx->memory_limit & ((1 << 20) - 1)) == 0){
+				printf("memory_limit = %I64u MB\n", par3_ctx->memory_limit >> 20);
+			} else if ((par3_ctx->memory_limit & ((1 << 10) - 1)) == 0){
+				printf("memory_limit = %I64u KB\n", par3_ctx->memory_limit >> 10);
+			} else {
+				printf("memory_limit = %I64u Bytes\n", par3_ctx->memory_limit);
+			}
+		}
 		if (par3_ctx->search_limit != 0)
 			printf("search_limit = %d ms\n", par3_ctx->search_limit);
 		if (par3_ctx->block_count != 0)

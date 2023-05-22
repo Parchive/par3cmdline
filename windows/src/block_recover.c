@@ -828,7 +828,8 @@ int recover_lost_block_split(PAR3_CTX *par3_ctx, char *temp_path, uint64_t lost_
 					file_name = slice_list[slice_index].find_name;
 					file_offset = slice_list[slice_index].find_offset + tail_gap;
 					io_size = slice_list[slice_index].size - tail_gap;
-
+					if (io_size > part_size)
+						io_size = part_size;
 					if ( (fp == NULL) || (file_name != name_prev) ){
 						if (fp != NULL){	// Close previous input file.
 							fclose(fp);
@@ -1638,7 +1639,8 @@ int recover_lost_block_cohort(PAR3_CTX *par3_ctx, char *temp_path)
 						file_name = slice_list[slice_index].find_name;
 						file_offset = slice_list[slice_index].find_offset + tail_gap;
 						io_size = slice_list[slice_index].size - tail_gap;
-
+						if (io_size > part_size)
+							io_size = part_size;
 						if ( (fp_read == NULL) || (file_name != name_prev) ){
 							if (fp_read != NULL){	// Close previous input file.
 								fclose(fp_read);

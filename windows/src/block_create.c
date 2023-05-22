@@ -518,10 +518,12 @@ int create_recovery_block_split(PAR3_CTX *par3_ctx)
 
 					// Read one slice from a file.
 					tail_gap = tail_offset - slice_list[slice_index].tail_offset;	// This tail slice may start before tail_offset.
-					//printf("tail_gap for slice[%I64d] = %zu.\n", slice_index, tail_gap);
 					file_index = slice_list[slice_index].file;
 					file_offset = slice_list[slice_index].offset + tail_gap;
 					io_size = slice_list[slice_index].size - tail_gap;
+					if (io_size > part_size)
+						io_size = part_size;
+					//printf("tail_gap for slice[%I64d] = %zu, io_size = %zu\n", slice_index, tail_gap, io_size);
 					if ( (fp == NULL) || (file_index != file_prev) ){
 						if (fp != NULL){	// Close previous input file.
 							fclose(fp);
@@ -1055,10 +1057,12 @@ int create_recovery_block_cohort(PAR3_CTX *par3_ctx)
 
 						// Read one slice from a file.
 						tail_gap = tail_offset - slice_list[slice_index].tail_offset;	// This tail slice may start before tail_offset.
-						//printf("tail_gap for slice[%I64d] = %zu.\n", slice_index, tail_gap);
 						file_index = slice_list[slice_index].file;
 						file_offset = slice_list[slice_index].offset + tail_gap;
 						io_size = slice_list[slice_index].size - tail_gap;
+						if (io_size > part_size)
+							io_size = part_size;
+						//printf("tail_gap for slice[%I64d] = %zu, io_size = %zu\n", slice_index, tail_gap, io_size);
 						if ( (fp == NULL) || (file_index != file_prev) ){
 							if (fp != NULL){	// Close previous input file.
 								fclose(fp);
