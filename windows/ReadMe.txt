@@ -59,7 +59,7 @@ Options: (all uses)
   -B<path> : Set the base-path to use as reference for the datafiles
   -v [-v]  : Be more verbose
   -q [-q]  : Be more quiet (-q -q gives silence)
-  -m<n>    : Memory to use (k, m, g)
+  -m<n>    : Memory to use
   --       : Treat all following arguments as filenames
   -abs     : Enable absolute path
 Options: (verify or repair)
