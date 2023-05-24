@@ -380,7 +380,7 @@ int map_input_block_simple(PAR3_CTX *par3_ctx)
 		par3_ctx->block_list = block_p;
 	}
 	if (par3_ctx->noise_level >= 0){
-		printf("Actual block count = %I64u, Tail packing = %u\n\n", block_count, num_pack);
+		printf("Actual block count = %I64u, Tail packing = %u\n", block_count, num_pack);
 	}
 
 	return 0;
@@ -728,7 +728,7 @@ int map_input_block_trial(PAR3_CTX *par3_ctx)
 		par3_ctx->block_list = block_p;
 	}
 	if (par3_ctx->noise_level >= 0){
-		printf("Actual block count = %I64u, Tail packing = %u\n\n", block_count, num_pack);
+		printf("Actual block count = %I64u, Tail packing = %u\n", block_count, num_pack);
 	}
 
 	return 0;

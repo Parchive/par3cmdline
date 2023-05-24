@@ -250,7 +250,7 @@ int make_start_packet(PAR3_CTX *par3_ctx, int flag_trial)
 		tmp_p[0] = 0;
 	} else {
 		if (par3_ctx->noise_level >= 1){
-			printf("Galois field size = %u\n", par3_ctx->gf_size);
+			printf("\nGalois field size = %u\n", par3_ctx->gf_size);
 			printf("Galois field generator = 0x%X\n", par3_ctx->galois_poly);
 		}
 	}

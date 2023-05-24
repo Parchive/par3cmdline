@@ -681,7 +681,7 @@ int map_input_block_zip(PAR3_CTX *par3_ctx, int footer_size, uint64_t unprotecte
 		return RET_LOGIC_ERROR;
 	}
 	if (par3_ctx->noise_level >= 0){
-		printf("Actual block count = %I64u, Tail packing = %u, Deduplication = %u\n\n", block_count, num_pack, num_dedup);
+		printf("Actual block count = %I64u, Tail packing = %u, Deduplication = %u\n", block_count, num_pack, num_dedup);
 	}
 
 	return 0;

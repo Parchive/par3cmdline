@@ -3,6 +3,7 @@
 
 #include <errno.h>
 #include <inttypes.h>
+#include <io.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -14,17 +15,17 @@
 
 #define ZIP_SEARCH_SIZE	1024
 
-// Check ZIP file and return total size of footer sections.
+// Check ZIP file format and total size of footer sections
 // format_type : 0 = Unknown, 1 = PAR3, 2 = ZIP, 3 = 7-Zip
 // copy_size   : 0 = 7-Zip, 22 or 98 or more = ZIP
 int check_outside_format(PAR3_CTX *par3_ctx, int *format_type, int *copy_size)
 {
 	unsigned char buf[ZIP_SEARCH_SIZE];
-	uint32_t byte4;
-	int64_t byte8, file_size, read_size, offset, footer_size;
+	int64_t file_size, read_size, offset;
 	FILE *fp;
 
 	*format_type = 0;
+	*copy_size = 0;
 	file_size = par3_ctx->total_file_size;
 
 	//printf("ZIP filename = \"%s\"\n", par3_ctx->par_filename);
@@ -38,13 +39,15 @@ int check_outside_format(PAR3_CTX *par3_ctx, int *format_type, int *copy_size)
 	// 7z =  Signature of starting 6-bytes
 	// zip = local file header signature (starting 4-bytes) and
 	//       end of central directory record (last 22-bytes)
-	footer_size = 0;
 	if (fread(buf, 1, 32, fp) != 32){
 		perror("Failed to read ZIP file");
 		fclose(fp);
 		return RET_FILE_IO_ERROR;
 	}
 	if (((uint32_t *)buf)[0] == 0x04034b50){	// ZIP archive
+		int footer_size = 0;
+		int64_t ecdr_size;	// end of central directory record
+		int64_t cdh_size, cdh_offset;	// central directory header
 		*format_type = 2;
 
 		// Read some bytes from the last of ZIP file
@@ -66,20 +69,33 @@ int check_outside_format(PAR3_CTX *par3_ctx, int *format_type, int *copy_size)
 		offset = read_size - 22;
 		while (offset >= 0){
 			if (((uint32_t *)(buf + offset))[0] == 0x06054b50){	// End of central directory record
-				memcpy(&byte4, buf + offset + 12, 4);	// size of the central directory
-				byte8 = byte4;
-				memcpy(&byte4, buf + offset + 16, 4);	// offset of start of central directory
-				byte8 += byte4;
-				if (byte8 + read_size - offset == file_size){
-					footer_size = read_size - offset;
+				ecdr_size = read_size - offset;
+				cdh_size = 0;
+				memcpy(&cdh_size, buf + offset + 12, 4);	// size of the central directory
+				cdh_offset = 0;
+				memcpy(&cdh_offset, buf + offset + 16, 4);	// offset of start of central directory
+				if (cdh_offset + cdh_size + ecdr_size == file_size){
+					footer_size = (int)ecdr_size;
 					break;
+				} else if ( (cdh_size == 0xFFFFFFFF) || (cdh_offset == 0xFFFFFFFF) ){
+					// This ZIP file may be ZIP64 format.
+					offset -= 19;
+				} else if (cdh_offset + cdh_size + ecdr_size < file_size){
+					fclose(fp);
+					printf("There is additional data in ZIP file already.\n");
+					return RET_LOGIC_ERROR;
 				}
 			} else if (((uint32_t *)(buf + offset))[0] == 0x06064b50){	// Zip64 end of central directory record
-				memcpy(&byte8, buf + offset + 40, 8);		// size of the central directory
-				memcpy(&footer_size, buf + offset + 48, 8);	// // offset of start of central directory
-				if (byte8 + footer_size + read_size - offset == file_size){
-					footer_size = read_size - offset;
+				ecdr_size = read_size - offset;
+				memcpy(&cdh_size, buf + offset + 40, 8);	// size of the central directory
+				memcpy(&cdh_offset, buf + offset + 48, 8);	 // offset of start of central directory
+				if (cdh_offset + cdh_size + ecdr_size == file_size){
+					footer_size = (int)ecdr_size;
 					break;
+				} else if (cdh_offset + cdh_size + ecdr_size < file_size){
+					fclose(fp);
+					printf("There is additional data in ZIP file already.\n");
+					return RET_LOGIC_ERROR;
 				}
 			}
 
@@ -90,14 +106,20 @@ int check_outside_format(PAR3_CTX *par3_ctx, int *format_type, int *copy_size)
 			printf("Invalid ZIP file format\n");
 			return RET_LOGIC_ERROR;
 		}
+		*copy_size = footer_size;
 
 	} else if ( (((uint16_t *)buf)[0] == 0x7A37) && (((uint32_t *)(buf + 2))[0] == 0x1C27AFBC) ){	// 7-Zip archive
+		int64_t header_size;
 		*format_type = 3;
 
 		// Check size in Start Header
-		memcpy(&offset, buf + 12, 8);
-		memcpy(&byte8, buf + 20, 8);
-		if (32 + offset + byte8 != file_size){
+		memcpy(&offset, buf + 12, 8);		// NextHeaderOffset
+		memcpy(&header_size, buf + 20, 8);	// NextHeaderSize
+		if (32 + offset + header_size < file_size){
+			fclose(fp);
+			printf("There is additional data in 7-Zip file already.\n");
+			return RET_LOGIC_ERROR;
+		} else if (32 + offset + header_size != file_size){
 			fclose(fp);
 			printf("Invalid 7-Zip file format\n");
 			return RET_LOGIC_ERROR;
@@ -114,9 +136,9 @@ int check_outside_format(PAR3_CTX *par3_ctx, int *format_type, int *copy_size)
 		return RET_FILE_IO_ERROR;
 	}
 
-	*copy_size = (int)footer_size;
 	return 0;
 }
+
 
 // It appends PAR3 packets after a ZIP file.
 // It appends the last three ZIP sections after PAR3 packets, too.
@@ -329,5 +351,196 @@ uint64_t inside_zip_size(PAR3_CTX *par3_ctx,
 	*recv_block_count = recovery_block_count;
 	*packet_repeat_count = repeat_count;
 	return total_packet_size;
+}
+
+
+// Check ZIP file format and delete inside data
+// At this time, this supports appended data only.
+int delete_inside_data(PAR3_CTX *par3_ctx)
+{
+	unsigned char buf[ZIP_SEARCH_SIZE];
+	int ret, file_no;
+	int64_t file_size, read_size, offset;
+	FILE *fp;
+
+	file_size = par3_ctx->total_file_size;
+
+	//printf("ZIP filename = \"%s\"\n", par3_ctx->par_filename);
+	fp = fopen(par3_ctx->par_filename, "r+b");
+	if (fp == NULL){
+		perror("Failed to open ZIP file");
+		return RET_FILE_IO_ERROR;
+	}
+
+	// Check file format
+	// 7z =  Signature of starting 6-bytes
+	// zip = local file header signature (starting 4-bytes) and
+	//       end of central directory record (last 22-bytes)
+	if (fread(buf, 1, 32, fp) != 32){
+		perror("Failed to read ZIP file");
+		fclose(fp);
+		return RET_FILE_IO_ERROR;
+	}
+	if (((uint32_t *)buf)[0] == 0x04034b50){	// ZIP archive
+		int footer_size = 0;
+		int64_t ecdr_size;	// end of central directory record
+		int64_t cdh_size, cdh_offset;	// central directory header
+
+		// Read some bytes from the last of ZIP file
+		read_size = ZIP_SEARCH_SIZE;
+		if (read_size > file_size)
+			read_size = file_size;
+		if (_fseeki64(fp, - read_size, SEEK_END) != 0){	// Seek from end of file
+			perror("Failed to seek ZIP file");
+			fclose(fp);
+			return RET_FILE_IO_ERROR;
+		}
+		if (fread(buf, 1, read_size, fp) != read_size){
+			perror("Failed to read ZIP file");
+			fclose(fp);
+			return RET_FILE_IO_ERROR;
+		}
+
+		// Search ZIP signature from the last
+		offset = read_size - 22;
+		while (offset >= 0){
+			if (((uint32_t *)(buf + offset))[0] == 0x06054b50){	// End of central directory record
+				ecdr_size = read_size - offset;
+				cdh_size = 0;
+				memcpy(&cdh_size, buf + offset + 12, 4);	// size of the central directory
+				cdh_offset = 0;
+				memcpy(&cdh_offset, buf + offset + 16, 4);	// offset of start of central directory
+				if (cdh_offset + cdh_size + ecdr_size == file_size){
+					fclose(fp);
+					printf("There isn't additional data in ZIP file yet.\n");
+					return RET_LOGIC_ERROR;
+				} else if ( (cdh_size == 0xFFFFFFFF) || (cdh_offset == 0xFFFFFFFF) ){
+					// This ZIP file may be ZIP64 format.
+					offset -= 20;	// Skip [zip64 end of central directory locator]
+				} else if (cdh_offset + cdh_size + ecdr_size < file_size){
+					footer_size = (int)ecdr_size;
+					break;
+				}
+			} else if (((uint32_t *)(buf + offset))[0] == 0x06064b50){	// Zip64 end of central directory record
+				ecdr_size = read_size - offset;
+				memcpy(&cdh_size, buf + offset + 40, 8);	// size of the central directory
+				memcpy(&cdh_offset, buf + offset + 48, 8);	 // offset of start of central directory
+				if (cdh_offset + cdh_size + ecdr_size == file_size){
+					fclose(fp);
+					printf("There isn't additional data in ZIP file yet.\n");
+					return RET_LOGIC_ERROR;
+				} else if (cdh_offset + cdh_size + ecdr_size < file_size){
+					footer_size = (int)ecdr_size;
+					break;
+				}
+			}
+
+			offset--;
+		}
+		if (footer_size == 0){	// Not found
+			fclose(fp);
+			printf("Invalid ZIP file format\n");
+			return RET_LOGIC_ERROR;
+		}
+
+		// Search ZIP signature at original position
+		if (_fseeki64(fp, cdh_offset, SEEK_SET) != 0){
+			perror("Failed to seek ZIP file");
+			fclose(fp);
+			return RET_FILE_IO_ERROR;
+		}
+		if (fread(buf, 1, 4, fp) != 4){
+			perror("Failed to read ZIP file");
+			fclose(fp);
+			return RET_FILE_IO_ERROR;
+		}
+		if (((uint32_t *)buf)[0] != 0x02014b50){	// central file header signature
+			fclose(fp);
+			printf("Cannot find ZIP file header\n");
+			return RET_LOGIC_ERROR;
+		}
+		if (_fseeki64(fp, cdh_offset + cdh_size, SEEK_SET) != 0){
+			perror("Failed to seek ZIP file");
+			fclose(fp);
+			return RET_FILE_IO_ERROR;
+		}
+		if (fread(buf, 1, 4, fp) != 4){
+			perror("Failed to read ZIP file");
+			fclose(fp);
+			return RET_FILE_IO_ERROR;
+		}
+		if ( (((uint32_t *)buf)[0] != 0x06054b50)	&&	// end of central directory record
+				(((uint32_t *)buf)[0] != 0x02014b50) ){	// zip64 end of central directory record
+			fclose(fp);
+			printf("Cannot find ZIP file footer\n");
+			return RET_LOGIC_ERROR;
+		}
+		if (par3_ctx->noise_level >= 0){
+			printf("Original ZIP file size = %I64d\n", cdh_offset + cdh_size + ecdr_size);
+		}
+
+		// Delete appended data by resizing to the original ZIP file
+		file_no = _fileno(fp);
+		if (file_no < 0){
+			perror("Failed to seek ZIP file");
+			fclose(fp);
+			return RET_FILE_IO_ERROR;
+		} else {
+			//printf("file_no = %d\n", file_no);
+			ret = _chsize_s(file_no, cdh_offset + cdh_size + ecdr_size);
+			if (ret != 0){
+				perror("Failed to resize ZIP file");
+				fclose(fp);
+				return RET_FILE_IO_ERROR;
+			}
+		}
+
+	} else if ( (((uint16_t *)buf)[0] == 0x7A37) && (((uint32_t *)(buf + 2))[0] == 0x1C27AFBC) ){	// 7-Zip archive
+		int64_t header_size;
+
+		// Check size in Start Header
+		memcpy(&offset, buf + 12, 8);		// NextHeaderOffset
+		memcpy(&header_size, buf + 20, 8);	// NextHeaderSize
+		if (32 + offset + header_size == file_size){
+			fclose(fp);
+			printf("There isn't additional data in 7-Zip file yet.\n");
+			return RET_LOGIC_ERROR;
+		} else if (32 + offset + header_size > file_size){
+			fclose(fp);
+			printf("Invalid 7-Zip file format\n");
+			return RET_LOGIC_ERROR;
+		}
+		if (par3_ctx->noise_level >= 0){
+			printf("Original 7-Zip file size = %I64d\n", 32 + offset + header_size);
+		}
+
+		// Delete appended data by resizing to the original ZIP file
+		file_no = _fileno(fp);
+		if (file_no < 0){
+			perror("Failed to seek ZIP file");
+			fclose(fp);
+			return RET_FILE_IO_ERROR;
+		} else {
+			//printf("file_no = %d\n", file_no);
+			ret = _chsize_s(file_no, 32 + offset + header_size);
+			if (ret != 0){
+				perror("Failed to resize ZIP file");
+				fclose(fp);
+				return RET_FILE_IO_ERROR;
+			}
+		}
+
+	} else {	// Unknown format
+		fclose(fp);
+		printf("Unknown file format\n");
+		return RET_LOGIC_ERROR;
+	}
+
+	if (fclose(fp) != 0){
+		perror("Failed to close ZIP file");
+		return RET_FILE_IO_ERROR;
+	}
+
+	return 0;
 }
 

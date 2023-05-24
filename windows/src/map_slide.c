@@ -961,7 +961,7 @@ int map_input_block_slide(PAR3_CTX *par3_ctx)
 		par3_ctx->block_list = block_p;
 	}
 	if (par3_ctx->noise_level >= 0){
-		printf("Actual block count = %I64u, Tail packing = %u, Deduplication = %I64u\n\n", block_count, num_pack, num_dedup);
+		printf("Actual block count = %I64u, Tail packing = %u, Deduplication = %I64u\n", block_count, num_pack, num_dedup);
 	}
 
 	return 0;

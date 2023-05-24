@@ -193,8 +193,11 @@ int par3_insert_zip(PAR3_CTX *par3_ctx)
 // Delete PAR3 packets from ZIP file
 int par3_delete_zip(PAR3_CTX *par3_ctx)
 {
+	int ret;
 
-
+	ret = delete_inside_data(par3_ctx);
+	if (ret != 0)
+		return ret;
 
 	return 0;
 }
