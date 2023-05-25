@@ -31,7 +31,7 @@ int check_outside_format(PAR3_CTX *par3_ctx, int *format_type, int *copy_size)
 	//printf("ZIP filename = \"%s\"\n", par3_ctx->par_filename);
 	fp = fopen(par3_ctx->par_filename, "rb");
 	if (fp == NULL){
-		perror("Failed to open ZIP file");
+		perror("Failed to open Outside file");
 		return RET_FILE_IO_ERROR;
 	}
 
@@ -40,7 +40,7 @@ int check_outside_format(PAR3_CTX *par3_ctx, int *format_type, int *copy_size)
 	// zip = local file header signature (starting 4-bytes) and
 	//       end of central directory record (last 22-bytes)
 	if (fread(buf, 1, 32, fp) != 32){
-		perror("Failed to read ZIP file");
+		perror("Failed to read Outside file");
 		fclose(fp);
 		return RET_FILE_IO_ERROR;
 	}
@@ -55,12 +55,12 @@ int check_outside_format(PAR3_CTX *par3_ctx, int *format_type, int *copy_size)
 		if (read_size > file_size)
 			read_size = file_size;
 		if (_fseeki64(fp, - read_size, SEEK_END) != 0){	// Seek from end of file
-			perror("Failed to seek ZIP file");
+			perror("Failed to seek Outside file");
 			fclose(fp);
 			return RET_FILE_IO_ERROR;
 		}
 		if (fread(buf, 1, read_size, fp) != read_size){
-			perror("Failed to read ZIP file");
+			perror("Failed to read Outside file");
 			fclose(fp);
 			return RET_FILE_IO_ERROR;
 		}
@@ -125,6 +125,23 @@ int check_outside_format(PAR3_CTX *par3_ctx, int *format_type, int *copy_size)
 			return RET_LOGIC_ERROR;
 		}
 
+		// Check the end of archive file
+		if (_fseeki64(fp, 32 + offset + header_size - 2, SEEK_SET) != 0){
+			perror("Failed to seek Outside file");
+			fclose(fp);
+			return RET_FILE_IO_ERROR;
+		}
+		if (fread(buf, 1, 2, fp) != 2){
+			perror("Failed to read Outside file");
+			fclose(fp);
+			return RET_FILE_IO_ERROR;
+		}
+		if (((uint16_t *)buf)[0] != 0x0000){	// Property ID (0x00 = kEnd) and Size (0 bytes)
+			fclose(fp);
+			printf("Invalid 7-Zip file format\n");
+			return RET_LOGIC_ERROR;
+		}
+
 	} else {	// Unknown format
 		fclose(fp);
 		printf("Unknown file format\n");
@@ -132,7 +149,7 @@ int check_outside_format(PAR3_CTX *par3_ctx, int *format_type, int *copy_size)
 	}
 
 	if (fclose(fp) != 0){
-		perror("Failed to close ZIP file");
+		perror("Failed to close Outside file");
 		return RET_FILE_IO_ERROR;
 	}
 
@@ -368,7 +385,7 @@ int delete_inside_data(PAR3_CTX *par3_ctx)
 	//printf("ZIP filename = \"%s\"\n", par3_ctx->par_filename);
 	fp = fopen(par3_ctx->par_filename, "r+b");
 	if (fp == NULL){
-		perror("Failed to open ZIP file");
+		perror("Failed to open Outside file");
 		return RET_FILE_IO_ERROR;
 	}
 
@@ -377,7 +394,7 @@ int delete_inside_data(PAR3_CTX *par3_ctx)
 	// zip = local file header signature (starting 4-bytes) and
 	//       end of central directory record (last 22-bytes)
 	if (fread(buf, 1, 32, fp) != 32){
-		perror("Failed to read ZIP file");
+		perror("Failed to read Outside file");
 		fclose(fp);
 		return RET_FILE_IO_ERROR;
 	}
@@ -391,12 +408,12 @@ int delete_inside_data(PAR3_CTX *par3_ctx)
 		if (read_size > file_size)
 			read_size = file_size;
 		if (_fseeki64(fp, - read_size, SEEK_END) != 0){	// Seek from end of file
-			perror("Failed to seek ZIP file");
+			perror("Failed to seek Outside file");
 			fclose(fp);
 			return RET_FILE_IO_ERROR;
 		}
 		if (fread(buf, 1, read_size, fp) != read_size){
-			perror("Failed to read ZIP file");
+			perror("Failed to read Outside file");
 			fclose(fp);
 			return RET_FILE_IO_ERROR;
 		}
@@ -443,36 +460,36 @@ int delete_inside_data(PAR3_CTX *par3_ctx)
 			return RET_LOGIC_ERROR;
 		}
 
-		// Search ZIP signature at original position
+		// Check ZIP signature at original position
 		if (_fseeki64(fp, cdh_offset, SEEK_SET) != 0){
-			perror("Failed to seek ZIP file");
+			perror("Failed to seek Outside file");
 			fclose(fp);
 			return RET_FILE_IO_ERROR;
 		}
 		if (fread(buf, 1, 4, fp) != 4){
-			perror("Failed to read ZIP file");
+			perror("Failed to read Outside file");
 			fclose(fp);
 			return RET_FILE_IO_ERROR;
 		}
 		if (((uint32_t *)buf)[0] != 0x02014b50){	// central file header signature
 			fclose(fp);
-			printf("Cannot find ZIP file header\n");
+			printf("Invalid ZIP file format\n");
 			return RET_LOGIC_ERROR;
 		}
 		if (_fseeki64(fp, cdh_offset + cdh_size, SEEK_SET) != 0){
-			perror("Failed to seek ZIP file");
+			perror("Failed to seek Outside file");
 			fclose(fp);
 			return RET_FILE_IO_ERROR;
 		}
 		if (fread(buf, 1, 4, fp) != 4){
-			perror("Failed to read ZIP file");
+			perror("Failed to read Outside file");
 			fclose(fp);
 			return RET_FILE_IO_ERROR;
 		}
 		if ( (((uint32_t *)buf)[0] != 0x06054b50)	&&	// end of central directory record
 				(((uint32_t *)buf)[0] != 0x02014b50) ){	// zip64 end of central directory record
 			fclose(fp);
-			printf("Cannot find ZIP file footer\n");
+			printf("Invalid ZIP file format\n");
 			return RET_LOGIC_ERROR;
 		}
 		if (par3_ctx->noise_level >= 0){
@@ -482,14 +499,14 @@ int delete_inside_data(PAR3_CTX *par3_ctx)
 		// Delete appended data by resizing to the original ZIP file
 		file_no = _fileno(fp);
 		if (file_no < 0){
-			perror("Failed to seek ZIP file");
+			perror("Failed to seek Outside file");
 			fclose(fp);
 			return RET_FILE_IO_ERROR;
 		} else {
 			//printf("file_no = %d\n", file_no);
 			ret = _chsize_s(file_no, cdh_offset + cdh_size + ecdr_size);
 			if (ret != 0){
-				perror("Failed to resize ZIP file");
+				perror("Failed to resize Outside file");
 				fclose(fp);
 				return RET_FILE_IO_ERROR;
 			}
@@ -514,17 +531,34 @@ int delete_inside_data(PAR3_CTX *par3_ctx)
 			printf("Original 7-Zip file size = %I64d\n", 32 + offset + header_size);
 		}
 
-		// Delete appended data by resizing to the original ZIP file
+		// Check end mark at original position
+		if (_fseeki64(fp, 32 + offset + header_size - 2, SEEK_SET) != 0){
+			perror("Failed to seek Outside file");
+			fclose(fp);
+			return RET_FILE_IO_ERROR;
+		}
+		if (fread(buf, 1, 2, fp) != 2){
+			perror("Failed to read Outside file");
+			fclose(fp);
+			return RET_FILE_IO_ERROR;
+		}
+		if (((uint16_t *)buf)[0] != 0x0000){	// Property ID (0x00 = kEnd) and Size (0 bytes)
+			fclose(fp);
+			printf("Invalid 7-Zip file format\n");
+			return RET_LOGIC_ERROR;
+		}
+
+		// Delete appended data by resizing to the original 7-Zip file
 		file_no = _fileno(fp);
 		if (file_no < 0){
-			perror("Failed to seek ZIP file");
+			perror("Failed to seek Outside file");
 			fclose(fp);
 			return RET_FILE_IO_ERROR;
 		} else {
 			//printf("file_no = %d\n", file_no);
 			ret = _chsize_s(file_no, 32 + offset + header_size);
 			if (ret != 0){
-				perror("Failed to resize ZIP file");
+				perror("Failed to resize Outside file");
 				fclose(fp);
 				return RET_FILE_IO_ERROR;
 			}
