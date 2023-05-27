@@ -3,10 +3,12 @@
 
 #include <errno.h>
 #include <inttypes.h>
-#include <io.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+// MSVC headers
+#include <io.h>
 
 #include "libpar3.h"
 #include "inside.h"
@@ -16,8 +18,8 @@
 #define ZIP_SEARCH_SIZE	1024
 
 // Check ZIP file format and total size of footer sections
-// format_type : 0 = Unknown, 1 = PAR3, 2 = ZIP, 3 = 7-Zip
-// copy_size   : 0 = 7-Zip, 22 or 98 or more = ZIP
+// format_type : 0 = Unknown, 1 = PAR3, 2 = ZIP, 3 = 7z
+// copy_size   : 0 = 7z, 22 or 98 or more = ZIP
 int check_outside_format(PAR3_CTX *par3_ctx, int *format_type, int *copy_size)
 {
 	unsigned char buf[ZIP_SEARCH_SIZE];
@@ -108,7 +110,7 @@ int check_outside_format(PAR3_CTX *par3_ctx, int *format_type, int *copy_size)
 		}
 		*copy_size = footer_size;
 
-	} else if ( (((uint16_t *)buf)[0] == 0x7A37) && (((uint32_t *)(buf + 2))[0] == 0x1C27AFBC) ){	// 7-Zip archive
+	} else if ( (((uint16_t *)buf)[0] == 0x7A37) && (((uint32_t *)(buf + 2))[0] == 0x1C27AFBC) ){	// 7z archive
 		int64_t header_size;
 		*format_type = 3;
 
@@ -117,11 +119,11 @@ int check_outside_format(PAR3_CTX *par3_ctx, int *format_type, int *copy_size)
 		memcpy(&header_size, buf + 20, 8);	// NextHeaderSize
 		if (32 + offset + header_size < file_size){
 			fclose(fp);
-			printf("There is additional data in 7-Zip file already.\n");
+			printf("There is additional data in 7z file already.\n");
 			return RET_LOGIC_ERROR;
 		} else if (32 + offset + header_size != file_size){
 			fclose(fp);
-			printf("Invalid 7-Zip file format\n");
+			printf("Invalid 7z file format\n");
 			return RET_LOGIC_ERROR;
 		}
 
@@ -138,7 +140,7 @@ int check_outside_format(PAR3_CTX *par3_ctx, int *format_type, int *copy_size)
 		}
 		if (((uint16_t *)buf)[0] != 0x0000){	// Property ID (0x00 = kEnd) and Size (0 bytes)
 			fclose(fp);
-			printf("Invalid 7-Zip file format\n");
+			printf("Invalid 7z file format\n");
 			return RET_LOGIC_ERROR;
 		}
 
@@ -355,11 +357,6 @@ uint64_t inside_zip_size(PAR3_CTX *par3_ctx,
 	total_packet_size += common_packet_size * repeat_count;
 	total_packet_size += recv_data_packet_size * recovery_block_count;
 	if (par3_ctx->noise_level >= 1){
-		if (par3_ctx->noise_level >= 2){
-			double rate;
-			rate = (double)(block_size * recovery_block_count) / (double)total_packet_size;
-			printf("Recovery data in unprotected chunks = %.1f%%\n", rate * 100);
-		}
 		printf("Common packet size = %I64d\n", common_packet_size);
 		printf("Total packet size = %I64d\n\n", total_packet_size);
 	}
@@ -376,7 +373,7 @@ uint64_t inside_zip_size(PAR3_CTX *par3_ctx,
 int delete_inside_data(PAR3_CTX *par3_ctx)
 {
 	unsigned char buf[ZIP_SEARCH_SIZE];
-	int ret, file_no;
+	int file_no;
 	int64_t file_size, read_size, offset;
 	FILE *fp;
 
@@ -503,16 +500,14 @@ int delete_inside_data(PAR3_CTX *par3_ctx)
 			fclose(fp);
 			return RET_FILE_IO_ERROR;
 		} else {
-			//printf("file_no = %d\n", file_no);
-			ret = _chsize_s(file_no, cdh_offset + cdh_size + ecdr_size);
-			if (ret != 0){
+			if (_chsize_s(file_no, cdh_offset + cdh_size + ecdr_size) != 0){
 				perror("Failed to resize Outside file");
 				fclose(fp);
 				return RET_FILE_IO_ERROR;
 			}
 		}
 
-	} else if ( (((uint16_t *)buf)[0] == 0x7A37) && (((uint32_t *)(buf + 2))[0] == 0x1C27AFBC) ){	// 7-Zip archive
+	} else if ( (((uint16_t *)buf)[0] == 0x7A37) && (((uint32_t *)(buf + 2))[0] == 0x1C27AFBC) ){	// 7z archive
 		int64_t header_size;
 
 		// Check size in Start Header
@@ -520,15 +515,15 @@ int delete_inside_data(PAR3_CTX *par3_ctx)
 		memcpy(&header_size, buf + 20, 8);	// NextHeaderSize
 		if (32 + offset + header_size == file_size){
 			fclose(fp);
-			printf("There isn't additional data in 7-Zip file yet.\n");
+			printf("There isn't additional data in 7z file yet.\n");
 			return RET_LOGIC_ERROR;
 		} else if (32 + offset + header_size > file_size){
 			fclose(fp);
-			printf("Invalid 7-Zip file format\n");
+			printf("Invalid 7z file format\n");
 			return RET_LOGIC_ERROR;
 		}
 		if (par3_ctx->noise_level >= 0){
-			printf("Original 7-Zip file size = %I64d\n", 32 + offset + header_size);
+			printf("Original 7z file size = %I64d\n", 32 + offset + header_size);
 		}
 
 		// Check end mark at original position
@@ -544,20 +539,18 @@ int delete_inside_data(PAR3_CTX *par3_ctx)
 		}
 		if (((uint16_t *)buf)[0] != 0x0000){	// Property ID (0x00 = kEnd) and Size (0 bytes)
 			fclose(fp);
-			printf("Invalid 7-Zip file format\n");
+			printf("Invalid 7z file format\n");
 			return RET_LOGIC_ERROR;
 		}
 
-		// Delete appended data by resizing to the original 7-Zip file
+		// Delete appended data by resizing to the original 7z file
 		file_no = _fileno(fp);
 		if (file_no < 0){
 			perror("Failed to seek Outside file");
 			fclose(fp);
 			return RET_FILE_IO_ERROR;
 		} else {
-			//printf("file_no = %d\n", file_no);
-			ret = _chsize_s(file_no, 32 + offset + header_size);
-			if (ret != 0){
+			if (_chsize_s(file_no, 32 + offset + header_size) != 0){
 				perror("Failed to resize Outside file");
 				fclose(fp);
 				return RET_FILE_IO_ERROR;

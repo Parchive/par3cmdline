@@ -236,7 +236,7 @@ int path_search(PAR3_CTX *par3_ctx, char *match_path, int flag_recursive)
 					return RET_MEMORY_ERROR;
 				}
 
-			} else if (flag_recursive != 0){	// When the name is a directory and recursive search is enabled
+			} else if (flag_recursive == 'R'){	// When the name is a directory and recursive search is enabled
 
 				// check name in list, and ignore if exist
 				if (namez_search(par3_ctx->input_dir_name, par3_ctx->input_dir_name_len, new_dir) != NULL)

@@ -63,20 +63,20 @@ int insert_space_zip(PAR3_CTX *par3_ctx, int footer_size, int repeat_count)
 
 	fp = fopen(par3_ctx->par_filename, "r+b");
 	if (fp == NULL){
-		perror("Failed to open ZIP file");
+		perror("Failed to open Outside file");
 		return RET_FILE_IO_ERROR;
 	}
 
 	// Put the first mass of common packets
 	//printf("first common packets\n");
 	if (_fseeki64(fp, 0, SEEK_END) != 0){
-		perror("Failed to seek ZIP file");
+		perror("Failed to seek Outside file");
 		fclose(fp);
 		return RET_FILE_IO_ERROR;
 	}
 	write_size = common_packet_size;
 	if (fwrite(common_packet, 1, write_size, fp) != write_size){
-		perror("Failed to write first common packets on ZIP file");
+		perror("Failed to write first common packets on Outside file");
 		fclose(fp);
 		return RET_FILE_IO_ERROR;
 	}
@@ -121,12 +121,12 @@ int insert_space_zip(PAR3_CTX *par3_ctx, int footer_size, int repeat_count)
 
 			// Write packet header and recovery data on file.
 			if (fwrite(packet_header, 1, 88, fp) != 88){
-				perror("Failed to write Recovery Data Packet on ZIP file");
+				perror("Failed to write Recovery Data Packet on Outside file");
 				fclose(fp);
 				return RET_FILE_IO_ERROR;
 			}
 			if (fwrite(buf_p, 1, block_size, fp) != block_size){
-				perror("Failed to write Recovery Data Packet on ZIP file");
+				perror("Failed to write Recovery Data Packet on Outside file");
 				fclose(fp);
 				return RET_FILE_IO_ERROR;
 			}
@@ -138,31 +138,31 @@ int insert_space_zip(PAR3_CTX *par3_ctx, int footer_size, int repeat_count)
 			position_list[block_index].name = par3_ctx->par_filename;
 			position_list[block_index].offset = _ftelli64(fp);
 			if (position_list[block_index].offset < 0){
-				perror("Failed to get current position of ZIP file");
+				perror("Failed to get current position of Outside file");
 				fclose(fp);
 				return RET_FILE_IO_ERROR;
 			}
-			printf("block[%I64u] offset = %I64d, %s\n", block_index, position_list[block_index].offset, position_list[block_index].name);
+			//printf("block[%I64u] offset = %I64d, %s\n", block_index, position_list[block_index].offset, position_list[block_index].name);
 
 			// Calculate CRC of packet data to check error, because state of BLAKE3 hash is too large.
 			position_list[block_index].crc = crc64(packet_header + 24, 64, 0);
 
 			// Write packet header and dummy data on file.
 			if (fwrite(packet_header, 1, 88, fp) != 88){
-				perror("Failed to write Recovery Data Packet on ZIP file");
+				perror("Failed to write Recovery Data Packet on Outside file");
 				fclose(fp);
 				return RET_FILE_IO_ERROR;
 			}
 			// Write zero bytes as dummy
 			if (block_size > 1){
 				if (_fseeki64(fp, block_size - 1, SEEK_CUR) != 0){
-					perror("Failed to seek ZIP file");
+					perror("Failed to seek Outside file");
 					fclose(fp);
 					return RET_FILE_IO_ERROR;
 				}
 			}
 			if (fwrite(packet_header + 8, 1, 1, fp) != 1){	// Write the last 1 byte of zero.
-				perror("Failed to write Recovery Data Packet on ZIP file");
+				perror("Failed to write Recovery Data Packet on Outside file");
 				fclose(fp);
 				return RET_FILE_IO_ERROR;
 			}
@@ -174,7 +174,7 @@ int insert_space_zip(PAR3_CTX *par3_ctx, int footer_size, int repeat_count)
 			//printf("common packets\n");
 			write_size = common_packet_size;
 			if (fwrite(common_packet, 1, write_size, fp) != write_size){
-				perror("Failed to write common packets on ZIP file");
+				perror("Failed to write common packets on Outside file");
 				fclose(fp);
 				return RET_FILE_IO_ERROR;
 			}
@@ -187,7 +187,7 @@ int insert_space_zip(PAR3_CTX *par3_ctx, int footer_size, int repeat_count)
 		//printf("last common packets\n");
 		write_size = common_packet_size;
 		if (fwrite(common_packet, 1, write_size, fp) != write_size){
-			perror("Failed to write last common packets on ZIP file");
+			perror("Failed to write last common packets on Outside file");
 			fclose(fp);
 			return RET_FILE_IO_ERROR;
 		}
@@ -197,7 +197,7 @@ int insert_space_zip(PAR3_CTX *par3_ctx, int footer_size, int repeat_count)
 	write_size = par3_ctx->creator_packet_size;
 	if (write_size > 0){
 		if (fwrite(par3_ctx->creator_packet, 1, write_size, fp) != write_size){
-			perror("Failed to write Creator Packet on ZIP file");
+			perror("Failed to write Creator Packet on Outside file");
 			fclose(fp);
 			return RET_FILE_IO_ERROR;
 		}
@@ -214,13 +214,13 @@ int insert_space_zip(PAR3_CTX *par3_ctx, int footer_size, int repeat_count)
 
 		// Read footer from the last of original ZIP file
 		if (_fseeki64(fp, par3_ctx->total_file_size - footer_size, SEEK_SET) != 0){
-			perror("Failed to seek ZIP file");
+			perror("Failed to seek Outside file");
 			fclose(fp);
 			free(buf_p);
 			return RET_FILE_IO_ERROR;
 		}
 		if (fread(buf_p, 1, footer_size, fp) != footer_size){
-			perror("Failed to read ZIP file");
+			perror("Failed to read Outside file");
 			fclose(fp);
 			free(buf_p);
 			return RET_FILE_IO_ERROR;
@@ -228,13 +228,13 @@ int insert_space_zip(PAR3_CTX *par3_ctx, int footer_size, int repeat_count)
 
 		// Write footer at the last of outside ZIP file
 		if (_fseeki64(fp, 0, SEEK_END) != 0){
-			perror("Failed to seek ZIP file");
+			perror("Failed to seek Outside file");
 			fclose(fp);
 			free(buf_p);
 			return RET_FILE_IO_ERROR;
 		}
 		if (fwrite(buf_p, 1, footer_size, fp) != footer_size){
-			perror("Failed to write footer on ZIP file");
+			perror("Failed to write footer on Outside file");
 			fclose(fp);
 			free(buf_p);
 			return RET_FILE_IO_ERROR;
@@ -244,7 +244,7 @@ int insert_space_zip(PAR3_CTX *par3_ctx, int footer_size, int repeat_count)
 	}
 
 	if (fclose(fp) != 0){
-		perror("Failed to close ZIP file");
+		perror("Failed to close Outside file");
 		return RET_FILE_IO_ERROR;
 	}
 

@@ -94,7 +94,7 @@ int map_input_block_zip(PAR3_CTX *par3_ctx, int footer_size, uint64_t unprotecte
 	par3_ctx->work_buf = work_buf;
 
 	if (par3_ctx->noise_level >= 0){
-		printf("Computing hash:\n");
+		printf("\nComputing hash:\n");
 		progress_total = original_file_size + footer_size;
 		progress_step = 0;
 		progress_old = 0;

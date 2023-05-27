@@ -48,8 +48,8 @@ static uint64_t initial_block_size(uint64_t data_size)
 	return block_size;
 }
 
-// Insert PAR3 packets to ZIP file
-int par3_insert_zip(PAR3_CTX *par3_ctx)
+// Insert PAR3 packets in ZIP file
+int par3_insert_zip(PAR3_CTX *par3_ctx, char command_trial)
 {
 	int ret, format_type, copy_size;
 	int repeat_count, best_repeat_count;
@@ -73,8 +73,8 @@ int par3_insert_zip(PAR3_CTX *par3_ctx)
 	block_size = 150;
 	copy_size = 350;
 */
-	if (par3_ctx->noise_level >= 2){
-		printf("Start block size = %I64d\n\n", block_size);
+	if (par3_ctx->noise_level >= 1){
+		printf("\nTesting block size from %I64d:\n\n", block_size);
 	}
 	best_block_size = block_size;
 	best_total_size = inside_zip_size(par3_ctx, block_size, copy_size, &best_block_count, &best_recv_block_count, &best_repeat_count);
@@ -104,9 +104,32 @@ int par3_insert_zip(PAR3_CTX *par3_ctx)
 	par3_ctx->recovery_block_count = best_recv_block_count;
 	par3_ctx->max_recovery_block = best_recv_block_count;
 	repeat_count = best_repeat_count;
-	if (par3_ctx->noise_level >= 2){
-		printf("Best block size = %I64d, block count = %I64d, recvory block count = %I64d, repeat count = %d\n",
+	if (par3_ctx->noise_level >= 1){
+		printf("Best block size = %I64d\nblock count = %I64d, recvory block count = %I64d, repeat count = %d\n",
 				best_block_size, best_block_count, best_recv_block_count, repeat_count);
+	}
+
+	if (command_trial != 0){
+		// Show efficiency rate
+		if (par3_ctx->noise_level >= -1){
+			double rate;
+			// rate of "Additional PAR data" = "additional data size" / "original file size"
+			// rate of "Redundancy in blocks" = "number of recovery blocks" / "number of input blocks"
+			// rate of "Efficiency of PAR data" = "total size of recovery blocks" / "additional data size"
+			printf("\nSize of Outside file = %I64u\n", original_file_size + best_total_size + copy_size);
+			// Truncate two decimal places (use integer instead of showing double directly)
+			//printf("rate1 = %f, rate2 = %f\n", rate1, rate2);
+			rate = (double)(best_total_size + copy_size) / (double)original_file_size;
+			ret = (int)(rate * 1000);
+			printf("Additional PAR data    = %d.%d%%\n", ret / 10, ret % 10);
+			rate = (double)best_recv_block_count / (double)best_block_count;
+			ret = (int)(rate * 1000);
+			printf("Redundancy of blocks   = %d.%d%%\n", ret / 10, ret % 10);
+			rate = (double)(best_block_size * best_recv_block_count) / (double)(best_total_size + copy_size);
+			ret = (int)(rate * 1000);
+			printf("Efficiency of PAR data = %d.%d%%\n", ret / 10, ret % 10);
+		}
+		return 0;
 	}
 
 	// Map input file slices into input blocks.

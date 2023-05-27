@@ -667,7 +667,7 @@ int verify_repaired_file(PAR3_CTX *par3_ctx, char *temp_path,
 			*missing_file_count += 1;
 
 		// Complete, but different property
-		} else if ( ((file_list[file_index].state & 0xFFFF0000) != 0) && ((par3_ctx->file_system & 0x10003) != 0) ){
+		} else if ( ((file_list[file_index].state & 0x7FFF0000) != 0) && ((par3_ctx->file_system & 0x10003) != 0) ){
 			if (par3_ctx->noise_level >= 0){
 				if (flag_show == 0){
 					flag_show++;

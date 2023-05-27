@@ -8,6 +8,9 @@
 #include <string.h>
 #include <time.h>
 
+// MSVC headers
+#include <io.h>
+
 #include "libpar3.h"
 #include "galois.h"
 #include "hash.h"
@@ -484,6 +487,38 @@ int recover_lost_block(PAR3_CTX *par3_ctx, char *temp_path, int lost_count)
 				if (chunk_size == 0){	// Unprotected Chunk Description
 					// Unprotected chunk will be filled by zeros after repair.
 					file_size += chunk_list[chunk_index].block;
+					if (chunk_num == 1){	// When unprotected chunk is the last in the input file, set end of file.
+						int file_no;
+						if (par3_ctx->noise_level >= 3){
+							printf("Zero padding unprotected chunk[%u] on file[%u]:%I64d\n", chunk_index, file_index, file_size);
+						}
+						if ( (fp_write == NULL) || (file_index != file_prev) ){
+							if (fp_write != NULL){	// Close previous temporary file.
+								fclose(fp_write);
+								fp_write = NULL;
+							}
+							sprintf(temp_path + 22, "%u.tmp", file_index);
+							fp_write = fopen(temp_path, "r+b");
+							if (fp_write == NULL){
+								perror("Failed to open temporary file");
+								return RET_FILE_IO_ERROR;
+							}
+							file_prev = file_index;
+						}
+						file_no = _fileno(fp_write);
+						if (file_no < 0){
+							perror("Failed to seek temporary file");
+							fclose(fp_write);
+							return RET_FILE_IO_ERROR;
+						} else {
+							if (_chsize_s(file_no, file_size) != 0){
+								perror("Failed to resize temporary file");
+								fclose(fp_write);
+								return RET_FILE_IO_ERROR;
+							}
+						}
+					}
+
 				} else {	// Protected Chunk Description
 					while ( (chunk_size >= block_size) || (chunk_size >= 40) ){	// full size slice or chunk tail slice
 						slice_size = slice_list[slice_index].size;
@@ -1158,6 +1193,38 @@ if (par3_ctx->ecc_method & 8){	// FFT based Reed-Solomon Codes
 				if (chunk_size == 0){	// Unprotected Chunk Description
 					// Unprotected chunk will be filled by zeros after repair.
 					file_size += chunk_list[chunk_index].block;
+					if (chunk_num == 1){	// When unprotected chunk is the last in the input file, set end of file.
+						int file_no;
+						if (par3_ctx->noise_level >= 3){
+							printf("Zero padding unprotected chunk[%u] on file[%u]:%I64d\n", chunk_index, file_index, file_size);
+						}
+						if ( (fp == NULL) || (file_index != file_prev) ){
+							if (fp != NULL){	// Close previous temporary file.
+								fclose(fp);
+								fp = NULL;
+							}
+							sprintf(temp_path + 22, "%u.tmp", file_index);
+							fp = fopen(temp_path, "r+b");
+							if (fp == NULL){
+								perror("Failed to open temporary file");
+								return RET_FILE_IO_ERROR;
+							}
+							file_prev = file_index;
+						}
+						file_no = _fileno(fp);
+						if (file_no < 0){
+							perror("Failed to seek temporary file");
+							fclose(fp);
+							return RET_FILE_IO_ERROR;
+						} else {
+							if (_chsize_s(file_no, file_size) != 0){
+								perror("Failed to resize temporary file");
+								fclose(fp);
+								return RET_FILE_IO_ERROR;
+							}
+						}
+					}
+
 				} else {	// Protected Chunk Description
 					while ( (chunk_size >= block_size) || (chunk_size >= 40) ){	// full size slice or chunk tail slice
 						data_size = slice_list[slice_index].size;
@@ -1989,6 +2056,38 @@ printf("\n recover ok, progress = %I64u / %I64u\n", progress_step, progress_tota
 				if (chunk_size == 0){	// Unprotected Chunk Description
 					// Unprotected chunk will be filled by zeros after repair.
 					file_size += chunk_list[chunk_index].block;
+					if (chunk_num == 1){	// When unprotected chunk is the last in the input file, set end of file.
+						int file_no;
+						if (par3_ctx->noise_level >= 3){
+							printf("Zero padding unprotected chunk[%u] on file[%u]:%I64d\n", chunk_index, file_index, file_size);
+						}
+						if ( (fp_write == NULL) || (file_index != file_prev) ){
+							if (fp_write != NULL){	// Close previous temporary file.
+								fclose(fp_write);
+								fp_write = NULL;
+							}
+							sprintf(temp_path + 22, "%u.tmp", file_index);
+							fp_write = fopen(temp_path, "r+b");
+							if (fp_write == NULL){
+								perror("Failed to open temporary file");
+								return RET_FILE_IO_ERROR;
+							}
+							file_prev = file_index;
+						}
+						file_no = _fileno(fp_write);
+						if (file_no < 0){
+							perror("Failed to seek temporary file");
+							fclose(fp_write);
+							return RET_FILE_IO_ERROR;
+						} else {
+							if (_chsize_s(file_no, file_size) != 0){
+								perror("Failed to resize temporary file");
+								fclose(fp_write);
+								return RET_FILE_IO_ERROR;
+							}
+						}
+					}
+
 				} else {	// Protected Chunk Description
 					while ( (chunk_size >= block_size) || (chunk_size >= 40) ){	// full size slice or chunk tail slice
 						data_size = slice_list[slice_index].size;

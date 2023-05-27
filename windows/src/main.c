@@ -50,8 +50,10 @@ static void print_help(void)
 "  par3 v(erify) [options] <PAR3 file> [files] : Verify files using PAR3 file\n"
 "  par3 r(epair) [options] <PAR3 file> [files] : Repair files using PAR3 files\n"
 "  par3 l(ist)   [options] <PAR3 file>         : List files in PAR3 file\n"
-"  par3 iz       [options] <ZIP file>          : Insert to ZIP file\n"
-"  par3 dz       [options] <ZIP file>          : Delete from ZIP file\n"
+"  par3 ti       [options] <ZIP file>          : Try to insert PAR in ZIP file\n"
+"  par3 i        [options] <ZIP file>          : Insert PAR in ZIP file\n"
+"  par3 d        [options] <ZIP file>          : Delete PAR from ZIP file\n"
+"  par3 sv       [options] <ZIP file>          : Verify itself\n"
 "\n"
 "Options: (all uses)\n"
 "  -B<path> : Set the base-path to use as reference for the datafiles\n"
@@ -95,7 +97,7 @@ int main(int argc, char *argv[])
 	// command-line options
 	char command_operation = 0;
 	char command_trial = 0;
-	char command_recursive = 0;
+	char command_option = 0;
 
 	// For non UTF-8 code page system
 	ret = 1;
@@ -205,12 +207,17 @@ int main(int argc, char *argv[])
 		command_operation = 'e';	// try to extend
 		command_trial = 't';
 
-	} else if (strcmp(argv[1], "iz") == 0){
-		command_operation = 'i';	// insert to ZIP
-		command_trial = 'z';
-	} else if (strcmp(argv[1], "dz") == 0){
-		command_operation = 'd';	// delete from ZIP
-		command_trial = 'z';
+	} else if (strcmp(argv[1], "i") == 0){
+		command_operation = 'i';	// insert PAR in ZIP
+	} else if (strcmp(argv[1], "ti") == 0){
+		command_operation = 'i';	// try to insert PAR ito ZIP
+		command_trial = 't';
+	} else if (strcmp(argv[1], "d") == 0){
+		command_operation = 's';	// delete PAR from ZIP
+		command_option = 'd';
+	} else if (strcmp(argv[1], "sv") == 0){
+		command_operation = 's';	// verify itself
+		command_option = 'v';
 
 	} else {
 		print_help();
@@ -280,7 +287,8 @@ int main(int argc, char *argv[])
 				}
 
 			} else if ( (tmp_p[0] == 'S') && (tmp_p[1] >= '0') && (tmp_p[1] <= '9') ){	// Set searching time limit
-				if ( (command_operation != 'v') && (command_operation != 'r') ){
+				if ( (command_operation != 'v') && (command_operation != 'r')
+						&& (command_option != 'v') && (command_option != 'r') ){
 					printf("Cannot specify searching time limit unless reparing or verifying.\n");
 					ret = RET_INVALID_COMMAND;
 					goto prepare_return;
@@ -297,7 +305,7 @@ int main(int argc, char *argv[])
 					printf("Cannot specify base-path for listing.\n");
 					ret = RET_INVALID_COMMAND;
 					goto prepare_return;
-				} else if ( (command_operation == 'i') || (command_operation == 'd') ){
+				} else if ( (command_operation == 'i') || (command_operation == 's') ){
 					printf("Cannot specify base-path for PAR inside.\n");
 					ret = RET_INVALID_COMMAND;
 					goto prepare_return;
@@ -513,7 +521,7 @@ int main(int argc, char *argv[])
 					ret = RET_INVALID_COMMAND;
 					goto prepare_return;
 				} else {
-					command_recursive = 'R';
+					command_option = 'R';
 				}
 
 			} else if (strcmp(tmp_p, "D") == 0){	// Store Data packets
@@ -699,7 +707,7 @@ int main(int argc, char *argv[])
 		printf("PAR filename is not specified\n");
 		ret = RET_INVALID_COMMAND;
 		goto prepare_return;
-	} else if ( (command_operation == 'i') || (command_operation == 'd') ){
+	} else if ( (command_operation == 'i') || (command_operation == 's') ){
 		// It removes sub-directory from PAR filename when using "PAR inside" feature.
 		tmp_p = offset_file_name(par3_ctx->par_filename);
 		if (tmp_p > par3_ctx->par_filename){
@@ -708,8 +716,7 @@ int main(int argc, char *argv[])
 			strcpy(par3_ctx->base_path, par3_ctx->par_filename);
 			strcpy(par3_ctx->par_filename, file_name);
 		}
-	}
-	if (command_trial != 'z'){
+	} else {
 		tmp_p = par3_ctx->par_filename;
 		len = strlen(tmp_p);
 		// add standard extension
@@ -796,7 +803,7 @@ int main(int argc, char *argv[])
 			printf("File System Packet = 0x%X\n", par3_ctx->file_system);
 		if (par3_ctx->deduplication != 0)
 			printf("deduplication = level %c\n", par3_ctx->deduplication);
-		if (command_recursive != 0)
+		if (command_option == 'R')
 			printf("recursive search = enable\n");
 		if (par3_ctx->absolute_path != 0)
 			printf("Absolute path = enable\n");
@@ -831,7 +838,7 @@ int main(int argc, char *argv[])
 			//}
 
 			// search files by wild card matching
-			ret = path_search(par3_ctx, file_name, command_recursive);
+			ret = path_search(par3_ctx, file_name, command_option);
 			if (ret != 0){
 				printf("Failed to search: %s\n", file_name);
 				goto prepare_return;
@@ -1071,7 +1078,7 @@ int main(int argc, char *argv[])
 		if (par3_ctx->noise_level >= -1)
 			printf("Done\n");
 
-	} else if ( (command_operation == 'i') || (command_operation == 'd') ){	// PAR inside
+	} else if ( (command_operation == 'i') || (command_operation == 's') ){	// PAR inside
 
 		// Outside file = input file = PAR file
 		par3_ctx->input_file_name_len = strlen(par3_ctx->par_filename) + 1;
@@ -1102,20 +1109,23 @@ int main(int argc, char *argv[])
 			goto prepare_return;
 		}
 
-		if (command_trial == 'z'){
-			if (command_operation == 'i'){
-				// insert PAR3 packets to ZIP file
-				ret = par3_insert_zip(par3_ctx);
-			} else if (command_operation == 'd'){
-				// delete PAR3 packets from ZIP file
-				ret = par3_delete_zip(par3_ctx);
-			} else {
-				ret = RET_INVALID_COMMAND;
-			}
-			if (ret != 0){
-				printf("Failed to operate PAR inside ZIP\n");
-				goto prepare_return;
-			}
+		if (command_operation == 'i'){
+			// insert PAR3 packets in ZIP file
+			ret = par3_insert_zip(par3_ctx, command_trial);
+		} else if (command_option == 'd'){
+			// delete PAR3 packets from ZIP file
+			ret = par3_delete_zip(par3_ctx);
+		} else if (command_option == 'v'){
+			// verify itself with PAR3 packets
+			
+			printf("verify itself with PAR3 packets\n");
+			
+		} else {
+			ret = RET_INVALID_COMMAND;
+		}
+		if (ret != 0){
+			printf("Failed to operate PAR inside ZIP\n");
+			goto prepare_return;
 		}
 		if (par3_ctx->noise_level >= -1)
 			printf("Done\n");

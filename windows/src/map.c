@@ -93,7 +93,7 @@ int map_input_block(PAR3_CTX *par3_ctx)
 	}
 
 	if (par3_ctx->noise_level >= 0){
-		printf("Computing hash:\n");
+		printf("\nComputing hash:\n");
 		progress_total = par3_ctx->total_file_size;
 		progress_step = 0;
 		progress_old = 0;

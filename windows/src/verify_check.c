@@ -60,6 +60,19 @@ int check_complete_file(PAR3_CTX *par3_ctx, char *filename, uint32_t file_id,
 		if (par3_ctx->noise_level >= 1){
 			printf("chunk count = %u, current file size = %I64u, original size = %I64u\n", chunk_num, current_size, file_size);
 		}
+		if ( (file_p->state & 0x80000000) && (par3_ctx->noise_level >= 2) ){
+			chunk_list = par3_ctx->chunk_list;
+			block_index = 0;
+			chunk_index = file_p->chunk;
+			while (chunk_num > 0){
+				if (chunk_list[chunk_index].size == 0)
+					block_index++;
+				chunk_index++;
+				chunk_num--;
+			}
+			printf("Number of unprotected chunk = %I64d\n", block_index);
+			chunk_num = file_p->chunk_num;
+		}
 	}
 	if ( (file_size == 0) && (current_size > 0) ){
 		// If original file size was 0, no need to check file data.
@@ -77,6 +90,21 @@ int check_complete_file(PAR3_CTX *par3_ctx, char *filename, uint32_t file_id,
 	if (fp == NULL){
 		perror("Failed to open input file");
 		return RET_FILE_IO_ERROR;
+	}
+
+	if (offset_next == NULL){	// Check file size after repair
+		int file_no = _fileno(fp);
+		if (file_no >= 0){
+			current_size = _filelengthi64(file_no);
+			//printf("file_size = %I64u, current_size = %I64u\n", file_size, current_size);
+			if (current_size < file_size){
+				fclose(fp);
+				return -1;
+			} else if (current_size > file_size){
+				fclose(fp);
+				return -2;
+			}
+		}
 	}
 
 	// Only when stored CRC-64 is valid, check the first 16 KB.
@@ -103,7 +131,7 @@ int check_complete_file(PAR3_CTX *par3_ctx, char *filename, uint32_t file_id,
 	while (chunk_size == 0){	// zeros if not protected
 		// Seek to end of unprotected chunk
 		if (_fseeki64(fp, block_index, SEEK_CUR) != 0){
-			perror("Failed to seek ZIP file");
+			perror("Failed to seek Outside file");
 			fclose(fp);
 			return RET_FILE_IO_ERROR;
 		}
@@ -361,7 +389,7 @@ int check_complete_file(PAR3_CTX *par3_ctx, char *filename, uint32_t file_id,
 			if (chunk_size == 0){	// zeros if not protected
 				// Seek to end of unprotected chunk
 				if (_fseeki64(fp, block_index, SEEK_CUR) != 0){
-					perror("Failed to seek ZIP file");
+					perror("Failed to seek Outside file");
 					fclose(fp);
 					return RET_FILE_IO_ERROR;
 				}
