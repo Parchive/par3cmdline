@@ -53,7 +53,7 @@ static void print_help(void)
 "  par3 ti       [options] <ZIP file>          : Try to insert PAR in ZIP file\n"
 "  par3 i        [options] <ZIP file>          : Insert PAR in ZIP file\n"
 "  par3 d        [options] <ZIP file>          : Delete PAR from ZIP file\n"
-"  par3 sv       [options] <ZIP file>          : Verify itself\n"
+"  par3 vs       [options] <ZIP file>  [files] : Verify itself\n"
 "\n"
 "Options: (all uses)\n"
 "  -B<path> : Set the base-path to use as reference for the datafiles\n"
@@ -213,11 +213,11 @@ int main(int argc, char *argv[])
 		command_operation = 'i';	// try to insert PAR ito ZIP
 		command_trial = 't';
 	} else if (strcmp(argv[1], "d") == 0){
-		command_operation = 's';	// delete PAR from ZIP
-		command_option = 'd';
-	} else if (strcmp(argv[1], "sv") == 0){
-		command_operation = 's';	// verify itself
-		command_option = 'v';
+		command_operation = 'd';	// delete PAR from ZIP
+
+	} else if (strcmp(argv[1], "vs") == 0){
+		command_operation = 'v';	// verify itself
+		command_option = 's';
 
 	} else {
 		print_help();
@@ -287,8 +287,7 @@ int main(int argc, char *argv[])
 				}
 
 			} else if ( (tmp_p[0] == 'S') && (tmp_p[1] >= '0') && (tmp_p[1] <= '9') ){	// Set searching time limit
-				if ( (command_operation != 'v') && (command_operation != 'r')
-						&& (command_option != 'v') && (command_option != 'r') ){
+				if ( (command_operation != 'v') && (command_operation != 'r') ){
 					printf("Cannot specify searching time limit unless reparing or verifying.\n");
 					ret = RET_INVALID_COMMAND;
 					goto prepare_return;
@@ -305,7 +304,7 @@ int main(int argc, char *argv[])
 					printf("Cannot specify base-path for listing.\n");
 					ret = RET_INVALID_COMMAND;
 					goto prepare_return;
-				} else if ( (command_operation == 'i') || (command_operation == 's') ){
+				} else if ( (command_operation == 'i') || (command_operation == 'd') ){
 					printf("Cannot specify base-path for PAR inside.\n");
 					ret = RET_INVALID_COMMAND;
 					goto prepare_return;
@@ -707,7 +706,7 @@ int main(int argc, char *argv[])
 		printf("PAR filename is not specified\n");
 		ret = RET_INVALID_COMMAND;
 		goto prepare_return;
-	} else if ( (command_operation == 'i') || (command_operation == 's') ){
+	} else if ( (command_operation == 'i') || (command_operation == 'd') || (command_option == 's') ){
 		// It removes sub-directory from PAR filename when using "PAR inside" feature.
 		tmp_p = offset_file_name(par3_ctx->par_filename);
 		if (tmp_p > par3_ctx->par_filename){
@@ -715,6 +714,17 @@ int main(int argc, char *argv[])
 			tmp_p[-1] = 0;
 			strcpy(par3_ctx->base_path, par3_ctx->par_filename);
 			strcpy(par3_ctx->par_filename, file_name);
+		} else {
+			par3_ctx->base_path[0] = 0;	// clear base-path
+		}
+		if (command_option == 's'){	// Check file extension for "PAR inside ZIP"
+			tmp_p = par3_ctx->par_filename;
+			len = strlen(tmp_p);
+			if ( (_stricmp(tmp_p + len - 4, ".zip") != 0) && (_stricmp(tmp_p + len - 3, ".7z") != 0) ){
+				printf("File extension is different from ZIP.\n");
+				ret = RET_FILE_IO_ERROR;
+				goto prepare_return;
+			}
 		}
 	} else {
 		tmp_p = par3_ctx->par_filename;
@@ -966,10 +976,10 @@ int main(int argc, char *argv[])
 		}
 
 		// search par files
-		if (command_operation != 'l'){	// Verify or Repair
-			ret = par_search(par3_ctx, par3_ctx->par_filename, 1);	// Check other PAR3 files, too.
-		} else {	// List
+		if ( (command_operation == 'l') || (command_option == 's') ){	// List or Self
 			ret = par_search(par3_ctx, par3_ctx->par_filename, 0);	// Check the specified PAR3 file only.
+		} else {	// Verify or Repair
+			ret = par_search(par3_ctx, par3_ctx->par_filename, 1);	// Check other PAR3 files, too.
 		}
 		if (ret != 0){
 			printf("Failed to search PAR files\n");
@@ -1078,7 +1088,7 @@ int main(int argc, char *argv[])
 		if (par3_ctx->noise_level >= -1)
 			printf("Done\n");
 
-	} else if ( (command_operation == 'i') || (command_operation == 's') ){	// PAR inside
+	} else if ( (command_operation == 'i') || (command_operation == 'd') ){	// PAR inside
 
 		// Outside file = input file = PAR file
 		par3_ctx->input_file_name_len = strlen(par3_ctx->par_filename) + 1;
@@ -1112,14 +1122,9 @@ int main(int argc, char *argv[])
 		if (command_operation == 'i'){
 			// insert PAR3 packets in ZIP file
 			ret = par3_insert_zip(par3_ctx, command_trial);
-		} else if (command_option == 'd'){
+		} else if (command_operation == 'd'){
 			// delete PAR3 packets from ZIP file
 			ret = par3_delete_zip(par3_ctx);
-		} else if (command_option == 'v'){
-			// verify itself with PAR3 packets
-			
-			printf("verify itself with PAR3 packets\n");
-			
 		} else {
 			ret = RET_INVALID_COMMAND;
 		}

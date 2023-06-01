@@ -358,7 +358,7 @@ uint64_t aggregate_recovery_block(PAR3_CTX *par3_ctx)
 			}
 			if (par3_ctx->noise_level >= 1){
 				if (hint_num > 0){
-					printf("Number of recovery block would be %I64u\n", hint_num);
+					printf("Number of recovery blocks would be %I64u.\n", hint_num);
 				}
 			}
 			if (find_count > find_count_max){
