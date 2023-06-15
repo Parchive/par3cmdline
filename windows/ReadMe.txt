@@ -54,6 +54,11 @@ Usage:
   par3 v(erify) [options] <PAR3 file> [files] : Verify files using PAR3 file
   par3 r(epair) [options] <PAR3 file> [files] : Repair files using PAR3 files
   par3 l(ist)   [options] <PAR3 file>         : List files in PAR3 file
+  par3 ti       [options] <ZIP file>          : Try to insert PAR in ZIP file
+  par3 i(nsert) [options] <ZIP file>          : Insert PAR in ZIP file
+  par3 d(elete) [options] <ZIP file>          : Delete PAR from ZIP file
+  par3 vs       [options] <ZIP file>  [files] : Verify itself
+  par3 rs       [options] <ZIP file>  [files] : Repair itself
 
 Options: (all uses)
   -B<path> : Set the base-path to use as reference for the datafiles
@@ -160,6 +165,55 @@ If you add other type files, they will be verified as input files.
 it may try to repair as possible as it can.
 When it could not reapir any files at all, this command returns RET_REPAIR_NOT_POSSIBLE(2).
 When it reapired some files, this command returns RET_REPAIR_FAILED(2).
+
+
+
+[ About "insert PAR" command ]
+
+ This is a sample implementation of "PAR inside ZIP" feature.
+This command inserts PAR3 packets in normal ZIP (.zip) or 7-Zip (.7z) file.
+Because it doesn't modify the original ZIP file data,
+other ZIP archiver tools can treat the protected ZIP file.
+
+ To make simpler recovery record, it will select block size automatically.
+You may set your favorite redundancy.
+When you don't set redundancy, it becomes 1% by default.
+
+
+
+[ About "delete PAR" command ]
+
+ This is a sample implementation of "PAR inside ZIP" feature.
+This command deletes PAR3 packets from protected ZIP (.zip) or 7-Zip (.7z) file.
+The resulting ZIP file should be same as the original one.
+If protected ZIP file is damaged, you must repair it before deleting PAR3 packets.
+
+
+
+[ About "verify itself" command ]
+
+ This is a sample implementation of "PAR inside ZIP" feature.
+You can specify protected ZIP file as PAR file.
+You may specify extra files in addition to the ZIP file,
+if it was splitted into multiple pieces.
+
+ Be careful, it verifies protected data only.
+It cannot detect damage of unprotected data (PAR3 packets themselves).
+If too many PAR3 packets are lost, it may not be able to verify itself.
+
+
+
+[ About "repair itself" command ]
+
+ This is a sample implementation of "PAR inside ZIP" feature.
+You can specify protected ZIP file as PAR file.
+It will repair damaged ZIP file and copy complete PAR3 packets.
+So, repaired ZIP file is protected again.
+
+ If you use normal "repair" command for "PAR inside ZIP",
+it will erase PAR3 packets in the ZIP file.
+Then, the repaired ZIP file won't be protected anymore.
+So, you should use "repair itself" command for "PAR inside ZIP".
 
 
 
