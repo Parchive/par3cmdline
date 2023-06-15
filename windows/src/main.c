@@ -51,9 +51,10 @@ static void print_help(void)
 "  par3 r(epair) [options] <PAR3 file> [files] : Repair files using PAR3 files\n"
 "  par3 l(ist)   [options] <PAR3 file>         : List files in PAR3 file\n"
 "  par3 ti       [options] <ZIP file>          : Try to insert PAR in ZIP file\n"
-"  par3 i        [options] <ZIP file>          : Insert PAR in ZIP file\n"
-"  par3 d        [options] <ZIP file>          : Delete PAR from ZIP file\n"
+"  par3 i(nsert) [options] <ZIP file>          : Insert PAR in ZIP file\n"
+"  par3 d(elete) [options] <ZIP file>          : Delete PAR from ZIP file\n"
 "  par3 vs       [options] <ZIP file>  [files] : Verify itself\n"
+"  par3 rs       [options] <ZIP file>  [files] : Repair itself\n"
 "\n"
 "Options: (all uses)\n"
 "  -B<path> : Set the base-path to use as reference for the datafiles\n"
@@ -207,16 +208,19 @@ int main(int argc, char *argv[])
 		command_operation = 'e';	// try to extend
 		command_trial = 't';
 
-	} else if (strcmp(argv[1], "i") == 0){
+	} else if ( (strcmp(argv[1], "i") == 0) || (strcmp(argv[1], "insert") == 0) ){
 		command_operation = 'i';	// insert PAR in ZIP
 	} else if (strcmp(argv[1], "ti") == 0){
 		command_operation = 'i';	// try to insert PAR ito ZIP
 		command_trial = 't';
-	} else if (strcmp(argv[1], "d") == 0){
+	} else if ( (strcmp(argv[1], "d") == 0) || (strcmp(argv[1], "delete") == 0) ){
 		command_operation = 'd';	// delete PAR from ZIP
 
 	} else if (strcmp(argv[1], "vs") == 0){
 		command_operation = 'v';	// verify itself
+		command_option = 's';
+	} else if (strcmp(argv[1], "rs") == 0){
+		command_operation = 'r';	// repair itself
 		command_option = 's';
 
 	} else {
@@ -1134,9 +1138,6 @@ int main(int argc, char *argv[])
 		}
 		if (par3_ctx->noise_level >= -1)
 			printf("Done\n");
-
-		printf("This feature is under construction.\n");
-
 	}
 
 	ret = 0;
