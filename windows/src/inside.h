@@ -5,3 +5,5 @@ uint64_t inside_zip_size(PAR3_CTX *par3_ctx, uint64_t block_size, int footer_siz
 
 int delete_inside_data(PAR3_CTX *par3_ctx);
 
+int copy_inside_data(PAR3_CTX *par3_ctx, char *temp_path);
+

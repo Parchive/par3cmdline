@@ -245,7 +245,11 @@ int verify_input_file(PAR3_CTX *par3_ctx, uint32_t *missing_file_count, uint32_t
 					// While file data is complete, file name may be different case on Windows PC.
 					// Because Windows OS is case insensitive, I ignore the case, too.
 					if (par3_ctx->noise_level >= -1){
-						printf("Target: \"%s\" - complete.\n", file_p->name);
+						if (file_p->state & 0x80000000){	// Completeness of unprotected chunks is unknown.
+							printf("Target: \"%s\" - protected data is complete.\n", file_p->name);
+						} else {
+							printf("Target: \"%s\" - complete.\n", file_p->name);
+						}
 					}
 				}
 			} else {

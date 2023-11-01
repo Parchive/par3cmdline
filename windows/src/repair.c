@@ -15,6 +15,7 @@
 #include "libpar3.h"
 #include "common.h"
 #include "file.h"
+#include "inside.h"
 #include "verify.h"
 
 
@@ -116,6 +117,14 @@ int create_temp_file(PAR3_CTX *par3_ctx, char *temp_path)
 				return RET_FILE_IO_ERROR;
 			}
 		}
+	}
+
+	if ( (file_count == 1) && (file_list[0].state & 0x80000000) ){	// Copy PAR3 packets in unprotected chunks
+		int ret;
+		sprintf(temp_path + 22, "%u.tmp", 0);
+		ret = copy_inside_data(par3_ctx, temp_path);
+		if (ret != 0)
+			return ret;
 	}
 
 	return 0;
@@ -639,7 +648,11 @@ int verify_repaired_file(PAR3_CTX *par3_ctx, char *temp_path,
 
 				} else {
 					if (par3_ctx->noise_level >= 0){
-						printf("Target: \"%s\" - repaired.\n", file_list[file_index].name);
+						if (file_list[file_index].state & 0x80000000){	// Completeness of unprotected chunks is unknown.
+							printf("Target: \"%s\" - protected data was repaired.\n", file_list[file_index].name);
+						} else {
+							printf("Target: \"%s\" - repaired.\n", file_list[file_index].name);
+						}
 					}
 				}
 

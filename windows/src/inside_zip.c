@@ -11,6 +11,7 @@
 #include <io.h>
 
 #include "libpar3.h"
+#include "hash.h"
 #include "inside.h"
 #include "common.h"
 
@@ -22,7 +23,7 @@
 // copy_size   : 0 = 7z, 22 or 98 or more = ZIP
 int check_outside_format(PAR3_CTX *par3_ctx, int *format_type, int *copy_size)
 {
-	unsigned char buf[ZIP_SEARCH_SIZE];
+	uint8_t buf[ZIP_SEARCH_SIZE];
 	int64_t file_size, read_size, offset;
 	FILE *fp;
 
@@ -192,6 +193,8 @@ uint64_t inside_zip_size(PAR3_CTX *par3_ctx,
 	if (par3_ctx->noise_level >= 2){
 		printf("data_size = %I64d, footer_size = %d, block_size = %I64d\n", data_size, footer_size, block_size);
 	}
+	// On the other hand, there are 1 protected chunk in 7-Zip.
+	// [ data chunk ] [ unprotected chunk ]
 
 	// How many blocks in 1st protected chunk
 	tail_block_count = 0;
@@ -281,25 +284,29 @@ uint64_t inside_zip_size(PAR3_CTX *par3_ctx,
 	} else {
 		file_packet_size += data_tail_size;
 	}
-	// Protected Chunk Description (footer chunk)
-	file_packet_size += 8;	// length of protected chunk
-	if (footer_size >= block_size)
-		file_packet_size += 8;	// index of first input block holding chunk
-	if (footer_tail_size >= 40){
-		file_packet_size += 40;
-	} else {
-		file_packet_size += footer_tail_size;
+	if (footer_size > 0){
+		// Protected Chunk Description (footer chunk)
+		file_packet_size += 8;	// length of protected chunk
+		if (footer_size >= block_size)
+			file_packet_size += 8;	// index of first input block holding chunk
+		if (footer_tail_size >= 40){
+			file_packet_size += 40;
+		} else {
+			file_packet_size += footer_tail_size;
+		}
 	}
 	// Unprotected Chunk Description (par3 packets)
 	file_packet_size += 16;
-	// Protected Chunk Description (duplicated footer chunk)
-	file_packet_size += 8;	// length of protected chunk
-	if (footer_size >= block_size)
-		file_packet_size += 8;	// index of first input block holding chunk
-	if (footer_tail_size >= 40){
-		file_packet_size += 40;
-	} else {
-		file_packet_size += footer_tail_size;
+	if (footer_size > 0){
+		// Protected Chunk Description (duplicated footer chunk)
+		file_packet_size += 8;	// length of protected chunk
+		if (footer_size >= block_size)
+			file_packet_size += 8;	// index of first input block holding chunk
+		if (footer_tail_size >= 40){
+			file_packet_size += 40;
+		} else {
+			file_packet_size += footer_tail_size;
+		}
 	}
 	common_packet_size += file_packet_size;
 	if (par3_ctx->noise_level >= 1){
@@ -372,7 +379,7 @@ uint64_t inside_zip_size(PAR3_CTX *par3_ctx,
 // At this time, this supports appended data only.
 int delete_inside_data(PAR3_CTX *par3_ctx)
 {
-	unsigned char buf[ZIP_SEARCH_SIZE];
+	uint8_t buf[ZIP_SEARCH_SIZE];
 	int file_no;
 	int64_t file_size, read_size, offset;
 	FILE *fp;
@@ -566,6 +573,217 @@ int delete_inside_data(PAR3_CTX *par3_ctx)
 	if (fclose(fp) != 0){
 		perror("Failed to close ZIP file");
 		return RET_FILE_IO_ERROR;
+	}
+
+	return 0;
+}
+
+// Copy complete PAR3 packets from damaged file to repaired file
+int copy_inside_data(PAR3_CTX *par3_ctx, char *temp_path)
+{
+	uint8_t *buf, buf_hash[16];
+	uint32_t chunk_num;
+	uint64_t offset, chunk_offset, slice_offset, file_offset;
+	uint64_t chunk_size, slice_size;
+	uint64_t packet_size, total_packet_size;
+	uint64_t slice_count, slice_index;
+	uint64_t alloc_size, buf_size;
+	PAR3_SLICE_CTX *slice_list;
+	PAR3_CHUNK_CTX *chunk_p;
+	FILE *fp_read, *fp_write;
+
+	slice_count = par3_ctx->slice_count;
+	slice_list = par3_ctx->slice_list;
+	chunk_p = par3_ctx->chunk_list;
+	chunk_num = par3_ctx->chunk_count;
+
+	// Get range of target unprotected chunk
+	offset = 0;
+	chunk_offset = 0;
+	if (chunk_num < 2)
+		return RET_LOGIC_ERROR;
+	while (chunk_num > 0){	// check all chunk descriptions
+		chunk_size = chunk_p->size;
+		if (chunk_size == 0){	// Unprotected Chunk Description
+			chunk_size = chunk_p->block;
+			chunk_offset = offset;
+			break;
+		} else {	// Protected Chunk Description
+			offset += chunk_size;
+		}
+		chunk_p++;
+		chunk_num--;
+	}
+	if (chunk_offset == 0)
+		return RET_LOGIC_ERROR;
+	if (par3_ctx->noise_level >= 2){
+		printf("\nUnprotected Chunk: offset = %I64d, size = %I64d\n", chunk_offset, chunk_size);
+	}
+
+	// Buffer size must be larger than each packet size.
+	// The minimum size is 4 KB to reduce time of file access.
+	alloc_size = (chunk_size + 4095) & ~4095;
+	packet_size = 0;
+	if ( (par3_ctx->memory_limit != 0) && (alloc_size > par3_ctx->memory_limit) ){
+		// Size of Recovery Data Packet at first
+		packet_size = 48 + 40 + par3_ctx->block_size;
+		if (packet_size < par3_ctx->creator_packet_size)
+			packet_size = par3_ctx->creator_packet_size;
+		if (packet_size < par3_ctx->comment_packet_size)
+			packet_size = par3_ctx->comment_packet_size;
+		if (packet_size < par3_ctx->start_packet_size)
+			packet_size = par3_ctx->start_packet_size;
+		if (packet_size < par3_ctx->matrix_packet_size)
+			packet_size = par3_ctx->matrix_packet_size;
+		if (packet_size < par3_ctx->file_packet_size)
+			packet_size = par3_ctx->file_packet_size;
+		if (packet_size < par3_ctx->dir_packet_size)
+			packet_size = par3_ctx->dir_packet_size;
+		if (packet_size < par3_ctx->root_packet_size)
+			packet_size = par3_ctx->root_packet_size;
+		// If packet size is larger than memory limit, use packet size.
+		if (packet_size > par3_ctx->memory_limit){
+			alloc_size = (packet_size + 4095) & ~4095;
+		} else {
+			alloc_size = par3_ctx->memory_limit;
+		}
+	}
+	if (par3_ctx->noise_level >= 3){
+		printf("alloc_size = %I64d, packet_size = %I64d\n", alloc_size, packet_size);
+	}
+
+	// Allocate buffer to keep PAR3 packet
+	// To check completeness of the packet, it needs to read the entire bytes on memory.
+	buf = malloc(alloc_size);
+	if (buf == NULL){
+		perror("Failed to allocate memory for PAR3 packet");
+		return RET_MEMORY_ERROR;
+	}
+	par3_ctx->work_buf = buf;
+
+	// Search PAR3 packets in outside file
+	fp_read = fopen(par3_ctx->par_filename, "rb");
+	if (fp_read == NULL){
+		perror("Failed to open Outside file");
+		return RET_FILE_IO_ERROR;
+	}
+	fp_write = fopen(temp_path, "wb");
+	if (fp_write == NULL){
+		perror("Failed to open temporary file");
+		fclose(fp_read);
+		return RET_FILE_IO_ERROR;
+	}
+	if (_fseeki64(fp_write, chunk_offset, SEEK_SET) != 0){
+		perror("Failed to seek temporary file");
+		fclose(fp_read);
+		fclose(fp_write);
+		return RET_FILE_IO_ERROR;
+	}
+
+	file_offset = 0;
+	total_packet_size = 0;
+	while (total_packet_size < chunk_size){
+		// Skip found input file slices in damaged file
+		slice_index = 0;
+		while (slice_index < slice_count){
+			if (slice_list[slice_index].find_name != NULL){
+				slice_offset = slice_list[slice_index].find_offset;
+				slice_size = slice_list[slice_index].size;
+				if ( (slice_offset + slice_size > file_offset) && (slice_offset < file_offset + 48) ){
+					//printf("file_offset = %I64d, slice_index = %I64d\n", file_offset, slice_index);
+					file_offset = slice_offset + slice_size;
+					// Check again from the first slice
+					slice_index = 0;
+					continue;
+				}
+			}
+			slice_index++;
+		}
+		if (_fseeki64(fp_read, file_offset, SEEK_SET) != 0){
+			perror("Failed to seek Outside file");
+			fclose(fp_read);
+			fclose(fp_write);
+			return RET_FILE_IO_ERROR;
+		}
+
+		// Read some packets at once
+		buf_size = fread(buf, 1, alloc_size, fp_read);
+		if (par3_ctx->noise_level >= 3){
+			printf("file_offset = %I64d, buf_size = %I64d\n", file_offset, buf_size);
+		}
+		offset = 0;
+		while (offset + 48 < buf_size){
+			if (memcmp(buf + offset, "PAR3\0PKT", 8) == 0){	// check Magic sequence
+				// read packet size
+				memcpy(&packet_size, buf + (offset + 24), 8);
+				if (packet_size <= 48){	// If packet is too small, just ignore it.
+					offset += 8;
+					continue;
+				}
+				// If packet exceeds buffer, read more bytes.
+				if (offset + packet_size > buf_size){
+					// slide data to top
+					memmove(buf, buf + offset, buf_size - offset);
+					file_offset += offset;
+					// read following data
+					buf_size = buf_size - offset + fread(buf + buf_size - offset, 1, offset, fp_read);
+					if (par3_ctx->noise_level >= 3){
+						printf("file_offset = %I64d, buf_size = %I64d, offset = %I64d, packet_size = %I64d\n", file_offset, buf_size, offset, packet_size);
+					}
+					offset = 0;
+					if (packet_size > buf_size){
+						offset += 8;
+						continue;
+					}
+				}
+
+				// check fingerprint hash of the packet
+				blake3(buf + (offset + 24), packet_size - 24, buf_hash);
+				if (memcmp(buf + (offset + 8), buf_hash, 16) != 0){
+					// If checksum is different, ignore the packet.
+					offset += 8;
+					continue;
+				}
+				if (par3_ctx->noise_level >= 3){
+					printf("Complete packet: offset = %I64d + %I64d, size = %I64d\n", file_offset, offset, packet_size);
+				}
+
+				// write packet on temporary file
+				if (fwrite(buf + offset, 1, packet_size, fp_write) != packet_size){
+					perror("Failed to write packet on temporary file");
+					fclose(fp_read);
+					fclose(fp_write);
+					return RET_FILE_IO_ERROR;
+				}
+				total_packet_size += packet_size;
+
+				offset += packet_size;
+			} else {
+				offset++;
+			}
+		}
+		file_offset += offset;
+
+		// Exit at end of file
+		if (feof(fp_read) != 0)
+			break;
+	}
+
+	if (fclose(fp_read) != 0){
+		perror("Failed to close Outside file");
+		fclose(fp_write);
+		return RET_FILE_IO_ERROR;
+	}
+	if (fclose(fp_write) != 0){
+		perror("Failed to close temporary file");
+		return RET_FILE_IO_ERROR;
+	}
+
+	free(buf);
+	par3_ctx->work_buf = NULL;
+
+	if (par3_ctx->noise_level >= 2){
+		printf("Total size of copied complete packets = %I64d\n", total_packet_size);
 	}
 
 	return 0;
