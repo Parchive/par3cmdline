@@ -33,27 +33,29 @@ plank@cs.utk.edu
 #define _CRT_SECURE_NO_WARNINGS
 
 #include <errno.h>
+#include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 
 
 // Create tables for 8-bit Galois Field
 // Return main pointer of tables.
-int * gf8_create_table(int prim_poly)
+uint8_t * gf8_create_table(int prim_poly)
 {
 	int j, b;
 	int x, y, logx, sum_j;
-	int *galois_log_table, *galois_ilog_table, *galois_mult_table;
+	uint8_t *galois_log_table, *galois_ilog_table, *galois_mult_table;
 
 	// Allocate tables on memory
-	galois_log_table = (int *) malloc(sizeof(int) * 256 * (1 + 1 + 256));
+	// To fit CPU cache memory, table uses 8-bit integer.
+	galois_log_table = malloc(sizeof(uint8_t) * 256 * (1 + 1 + 256));
 	if (galois_log_table == NULL)
 		return NULL;
 	galois_ilog_table = galois_log_table + 256;
 	galois_mult_table = galois_log_table + 256 * 2;
 
 	// galois_log_table[0] is invalid, because power of 2 never becomes 0.
-	galois_log_table[0] = 255;	// Instead of invalid value, set MAX value.
+	galois_log_table[0] = prim_poly;	// Instead of invalid value, set generator polynomial.
 	galois_ilog_table[255] = 1;	// 2 power 0 is 1. 2 power 255 is 1.
 
 	b = 1;
@@ -92,7 +94,9 @@ int * gf8_create_table(int prim_poly)
 
 
 // Return (x * y)
-int gf8_multiply(int *galois_log_table, int x, int y)
+/*
+// Normal slow version
+int gf8_multiply(uint8_t *galois_log_table, int x, int y)
 {
 	int sum_j;
 	int *galois_ilog_table;
@@ -107,11 +111,12 @@ int gf8_multiply(int *galois_log_table, int x, int y)
 
 	return galois_ilog_table[sum_j];
 }
+*/
 
 // Using galois_mult_table
-int gf8_fast_multiply(int *galois_log_table, int x, int y)
+int gf8_multiply(uint8_t *galois_log_table, int x, int y)
 {
-	int *galois_mult_table;
+	uint8_t *galois_mult_table;
 
 	galois_mult_table = galois_log_table + 256 * 2;
 
@@ -119,10 +124,10 @@ int gf8_fast_multiply(int *galois_log_table, int x, int y)
 }
 
 // Return (x / y)
-int gf8_divide(int *galois_log_table, int x, int y)
+int gf8_divide(uint8_t *galois_log_table, int x, int y)
 {
 	int sum_j;
-	int *galois_ilog_table;
+	uint8_t *galois_ilog_table;
 
 	if (y == 0)
 		return -1;	// Error: division by zero
@@ -138,9 +143,9 @@ int gf8_divide(int *galois_log_table, int x, int y)
 }
 
 // Return (1 / y)
-int gf8_reciprocal(int *galois_log_table, int y)
+int gf8_reciprocal(uint8_t *galois_log_table, int y)
 {
-	int *galois_ilog_table;
+	uint8_t *galois_ilog_table;
 
 	if (y == 0)
 		return -1;	// Error: division by zero
@@ -150,35 +155,141 @@ int gf8_reciprocal(int *galois_log_table, int y)
 }
 
 
-// Simple and support size_t for 64-bit build
-void gf8_region_multiply(int *galois_log_table,
-						unsigned char *region,	/* Region to multiply */
-						int multby,				/* Number to multiply by */
-						size_t nbytes,			/* Number of bytes in region */
-						unsigned char *r2,		/* If r2 != NULL, products go here */
+// Simplify and support size_t for 64-bit build
+void gf8_region_multiply(uint8_t *galois_log_table,
+						uint8_t *region,	/* Region to multiply */
+						int multby,			/* Number to multiply by */
+						size_t nbytes,		/* Number of bytes in region */
+						uint8_t *r2,		/* If r2 != NULL, products go here */
 						int add)
 {
-	unsigned char prod;
 	size_t i;
-	int *galois_table;
 
-	// Shift mult_table offset by multby
-	galois_table = galois_log_table + 256 * 2;
-	galois_table += multby * 256;
+	if (multby == 0) {
+		if (add == 0){
+			if (r2 == NULL)
+				r2 = region;
 
-	if ( (r2 == NULL) || (add == 0) ) {
-		if (r2 == NULL)
-			r2 = region;	// If r2 == NULL, products go original region.
-
-		for (i = 0; i < nbytes; i++) {
-			prod = galois_table[ region[i] ];
-			r2[i] = prod;
+			for (i = 0; i < nbytes; i++) {
+				r2[i] = 0;
+			}
 		}
+
+	} else if (multby == 1) {
+		if (add == 0){
+			if (r2 != NULL){
+				for (i = 0; i < nbytes; i++) {
+					r2[i] = region[i];
+				}
+			}
+		} else {
+			if (r2 != NULL){
+				for (i = 0; i < nbytes; i++) {
+					r2[i] ^= region[i];
+				}
+			} else {
+				for (i = 0; i < nbytes; i++) {
+					region[i] = 0;
+				}
+			}
+		}
+
 	} else {
-		for (i = 0; i < nbytes; i++) {
-			prod = galois_table[ region[i] ];
-			r2[i] ^= prod;
+		uint8_t prod;
+		uint8_t *galois_mult_table;
+
+		galois_mult_table = galois_log_table + 256 * 2;
+		galois_mult_table += multby * 256;	// Shift mult_table offset by multby
+
+		if ( (r2 == NULL) || (add == 0) ) {
+			if (r2 == NULL)
+				r2 = region;
+
+			for (i = 0; i < nbytes; i++) {
+				prod = galois_mult_table[ region[i] ];
+				r2[i] = prod;
+			}
+		} else {
+			for (i = 0; i < nbytes; i++) {
+				prod = galois_mult_table[ region[i] ];
+				r2[i] ^= prod;
+			}
 		}
 	}
+}
+
+
+// Create parity bytes in the region
+void gf8_region_create_parity(int prim_poly, uint8_t *buf, size_t region_size)
+{
+	uint32_t sum, temp, mask;
+
+	prim_poly &= 0xFF;	// reduce to 8-bit value
+
+	// XOR all block data to 4 bytes
+	sum = 0;
+	while (region_size > 4){
+		temp = *((uint32_t *)buf);
+
+		// store highest bits of each 8-bit integer
+		mask = (sum & 0x80808080) >> 7;	// 0x01010101 or 0x00000000
+
+		// When SIMD is used, multiple of 2 is faster.
+		// previous value multiply by 2
+		//sum = (sum & 0x7F7F7F7F) << 1;
+
+		// If multiple of 3 is good, it's possible by XOR to the original value.
+		// previous value multiply by 3
+		sum ^= (sum & 0x7F7F7F7F) << 1;
+
+		// prim_poly may be 0x1D
+		sum ^= mask * prim_poly;	// 0x1D1D1D1D or 0x00000000
+
+	 	// add new 4 bytes
+		sum ^= temp;
+
+		region_size -= 4;
+		buf += 4;
+	}
+
+	((uint32_t *)buf)[0] = sum;
+}
+
+// Check parity bytes in the region
+int gf8_region_check_parity(int galois_poly, uint8_t *buf, size_t region_size)
+{
+	uint32_t sum, temp, mask;
+
+	galois_poly &= 0xFF;	// reduce to 8-bit value
+
+	// XOR all block data to 4 bytes
+	sum = 0;
+	while (region_size > 4){
+		temp = *((uint32_t *)buf);
+
+		// store highest bits of each 8-bit integer
+		mask = (sum & 0x80808080) >> 7;	// 0x01010101 or 0x00000000
+
+		// previous value multiply by 2
+		//sum = (sum & 0x7F7F7F7F) << 1;
+
+		// previous value multiply by 3
+		sum ^= (sum & 0x7F7F7F7F) << 1;
+
+		// galois_poly may be 0x1D
+		sum ^= mask * galois_poly;	// 0x1D1D1D1D or 0x00000000
+
+	 	// add new 4 bytes
+		sum ^= temp;
+
+		region_size -= 4;
+		buf += 4;
+	}
+
+	// Parity is 4 bytes.
+	if (((uint32_t *)buf)[0] != sum)
+		return 1;
+
+	return 0;
 }
 

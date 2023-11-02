@@ -11,25 +11,42 @@
 
 #if __linux__
 
-#warning "_filelength and _fileno undefined"
-int _fileno(FILE *);
-uint64_t _filelengthi64(int fd);
+/* in stdio.h */
+#define _fileno fileno
+
+#include <sys/stat.h>
+
+int64_t _filelengthi64(int fd) {
+  struct stat buffer;
+  int result;
+
+  result = fstat(fd, &buffer);
+  if (result == 0) {
+    // success
+    return buffer.st_size;
+  }
+  else {
+    // failure
+    return (int64_t) -1;  // this should sign-extend
+  }
+}
 
 #elif _WIN32
 
+// MSVC headers
 #include <io.h>
 
 #endif
-
 
 #include "blake3/blake3.h"
 #include "libpar3.h"
 #include "common.h"
 #include "hash.h"
 #include "packet.h"
+#include "file.h"
 
 
-int read_vital_packet(PAR3_CTX *par3_ctx)
+int read_packet(PAR3_CTX *par3_ctx)
 {
 	char *namez, packet_type[9];
 	uint8_t *buf, buf_hash[16];
@@ -53,7 +70,7 @@ int read_vital_packet(PAR3_CTX *par3_ctx)
 		// So, a user should not set small limit.
 	}
 	if (par3_ctx->noise_level >= 2){
-		printf("buffer size for PAR files = %"PRINT64"u\n", buf_size);
+		printf("buffer size for PAR files = " PRIu64 "\n", buf_size);
 	}
 	buf = malloc(buf_size);
 	if (buf == NULL){
@@ -84,7 +101,7 @@ int read_vital_packet(PAR3_CTX *par3_ctx)
 		read_size = buf_size;
 		if (file_size < buf_size)
 			read_size = file_size;
-		//printf("file data = %"PRINT64"u, read_size = %zu, remain = %zu\n", file_size, read_size, file_size - read_size);
+		//printf("file data = " PRIu64 ", read_size = %zu, remain = %zu\n", file_size, read_size, file_size - read_size);
 		if (fread(buf, 1, read_size, fp) != read_size){
 			printf("Failed to read \"%s\", skip to next file.\n", namez + namez_off);
 			namez_off += strlen(namez + namez_off) + 1;
@@ -113,7 +130,7 @@ int read_vital_packet(PAR3_CTX *par3_ctx)
 				if (packet_size > buf_size){	// If packet is larger than buffer, show error and continue.
 					if (par3_ctx->noise_level >= 1){
 						memcpy(packet_type, buf + (offset + 40), 8);
-						printf("Warning, packet is too large. size = %"PRINT64"u, type = %s\n", packet_size, packet_type);
+						printf("Warning, packet is too large. size = " PRIu64 ", type = %s\n", packet_size, packet_type);
 					}
 					offset += 8;
 					continue;
@@ -126,7 +143,7 @@ int read_vital_packet(PAR3_CTX *par3_ctx)
 
 					// slide data to top
 					memmove(buf, buf + offset, buf_size - offset);
-					//printf("file data = %"PRINT64"u, offset = %zu, read_size = %zu, ", file_size, offset, read_size);
+					//printf("file data = " PRIu64 ", offset = %zu, read_size = %zu, ", file_size, offset, read_size);
 					if (fread(buf + buf_size - offset, 1, read_size, fp) != read_size){
 						printf("Failed to read \"%s\", skip to next file.\n", namez + namez_off);
 						namez_off += strlen(namez + namez_off) + 1;
@@ -135,7 +152,7 @@ int read_vital_packet(PAR3_CTX *par3_ctx)
 					}
 					file_size -= read_size;
 					max = buf_size - offset + read_size;
-					//printf("remain = %"PRINT64"u, max = %zu\n", file_size, max);
+					//printf("remain = " PRIu64 ", max = %zu\n", file_size, max);
 					file_offset += offset;
 					offset = 0;
 				}
@@ -151,8 +168,8 @@ int read_vital_packet(PAR3_CTX *par3_ctx)
 
 				// read packet type
 				memcpy(packet_type, buf + (offset + 40), 8);
-				if (par3_ctx->noise_level >= 2){
-					printf("offset =%6"PRINT64"u, size =%5"PRINT64"u, type = %s\n", file_offset + offset, packet_size, packet_type);
+				if (par3_ctx->noise_level >= 3){
+					printf("offset =%6" PRIu64 ", size =%5" PRIu64 ", type = %s\n", file_offset + offset, packet_size, packet_type);
 				}
 
 				// store the found packet
@@ -179,7 +196,7 @@ int read_vital_packet(PAR3_CTX *par3_ctx)
 
 				// slide data to top
 				memmove(buf, buf + offset, buf_size - offset);
-				//printf("file_size = %"PRINT64"u, offset = %zu, read_size = %zu, ", file_size, offset, read_size);
+				//printf("file_size = " PRIu64 ", offset = %zu, read_size = %zu, ", file_size, offset, read_size);
 				if (fread(buf + buf_size - offset, 1, read_size, fp) != read_size){
 					printf("Failed to read \"%s\", skip to next file.\n", namez + namez_off);
 					namez_off += strlen(namez + namez_off) + 1;
@@ -188,7 +205,7 @@ int read_vital_packet(PAR3_CTX *par3_ctx)
 				}
 				file_size -= read_size;
 				max = buf_size - offset + read_size;
-				//printf("remain = %"PRINT64"u, max = %zu\n", file_size, max);
+				//printf("remain = " PRIu64 ", max = %zu\n", file_size, max);
 				file_offset += offset;
 				offset = 0;
 			}
@@ -201,7 +218,7 @@ int read_vital_packet(PAR3_CTX *par3_ctx)
 		}
 
 		if (par3_ctx->noise_level >= 0){
-			printf("Loaded %"PRINT64"u new packets (found %"PRINT64"u packets)\n", new_packet_count, packet_count);
+			printf("Loaded " PRIu64 " new packets (found " PRIu64 " packets)\n", new_packet_count, packet_count);
 		}
 
 		namez_off += strlen(namez + namez_off) + 1;
@@ -212,25 +229,27 @@ int read_vital_packet(PAR3_CTX *par3_ctx)
 	if (par3_ctx->noise_level >= 2){
 		printf("\nTotal packet:\n");
 		if (par3_ctx->creator_packet_count > 0)
-			printf("Number of Creator Packets       =%3u (%4"PRINT64"d bytes)\n", par3_ctx->creator_packet_count, par3_ctx->creator_packet_size);
+			printf("Number of Creator Packet       =%3u (%4" PRId64 " bytes)\n", par3_ctx->creator_packet_count, par3_ctx->creator_packet_size);
 		if (par3_ctx->comment_packet_count > 0)
-			printf("Number of Comment Packets       =%3u (%4"PRINT64"d bytes)\n", par3_ctx->comment_packet_count, par3_ctx->comment_packet_size);
+			printf("Number of Comment Packet       =%3u (%4" PRId64 " bytes)\n", par3_ctx->comment_packet_count, par3_ctx->comment_packet_size);
 		if (par3_ctx->start_packet_count > 0)
-			printf("Number of Start Packets         =%3u (%4"PRINT64"d bytes)\n", par3_ctx->start_packet_count, par3_ctx->start_packet_size);
+			printf("Number of Start Packet         =%3u (%4" PRId64 " bytes)\n", par3_ctx->start_packet_count, par3_ctx->start_packet_size);
 		if (par3_ctx->matrix_packet_count > 0)
-			printf("Number of Matrix Packets        =%3u (%4"PRINT64"d bytes)\n", par3_ctx->matrix_packet_count, par3_ctx->matrix_packet_size);
+			printf("Number of Matrix Packet        =%3u (%4" PRId64 " bytes)\n", par3_ctx->matrix_packet_count, par3_ctx->matrix_packet_size);
 		if (par3_ctx->file_packet_count > 0)
-			printf("Number of File Packets          =%3u (%4"PRINT64"d bytes)\n", par3_ctx->file_packet_count, par3_ctx->file_packet_size);
+			printf("Number of File Packet          =%3u (%4" PRId64 " bytes)\n", par3_ctx->file_packet_count, par3_ctx->file_packet_size);
 		if (par3_ctx->dir_packet_count > 0)
-			printf("Number of Directory Packets     =%3u (%4"PRINT64"d bytes)\n", par3_ctx->dir_packet_count, par3_ctx->dir_packet_size);
+			printf("Number of Directory Packet     =%3u (%4" PRId64 " bytes)\n", par3_ctx->dir_packet_count, par3_ctx->dir_packet_size);
 		if (par3_ctx->root_packet_count > 0)
-			printf("Number of Root Packets          =%3u (%4"PRINT64"d bytes)\n", par3_ctx->root_packet_count, par3_ctx->root_packet_size);
+			printf("Number of Root Packet          =%3u (%4" PRId64 " bytes)\n", par3_ctx->root_packet_count, par3_ctx->root_packet_size);
+		if (par3_ctx->file_system_packet_count > 0)
+			printf("Number of File System Packet   =%3u (%4" PRId64 " bytes)\n", par3_ctx->file_system_packet_count, par3_ctx->file_system_packet_size);
 		if (par3_ctx->ext_data_packet_count > 0)
-			printf("Number of External Data Packets =%3u (%4"PRINT64"d bytes)\n", par3_ctx->ext_data_packet_count, par3_ctx->ext_data_packet_size);
+			printf("Number of External Data Packet =%3u (%4" PRId64 " bytes)\n", par3_ctx->ext_data_packet_count, par3_ctx->ext_data_packet_size);
 		if (par3_ctx->data_packet_count > 0)
-			printf("Number of Data Packets          =%3"PRINT64"u\n", par3_ctx->data_packet_count);
-		if (par3_ctx->rec_data_packet_count > 0)
-			printf("Number of Recovery Data Packets =%3"PRINT64"u\n", par3_ctx->rec_data_packet_count);
+			printf("Number of Data Packet          =%3" PRIu64 "\n", par3_ctx->data_packet_count);
+		if (par3_ctx->recv_packet_count > 0)
+			printf("Number of Recovery Data Packet =%3" PRIu64 "\n", par3_ctx->recv_packet_count);
 	}
 	ret = check_packet_set(par3_ctx);
 	if (ret != 0)
@@ -278,15 +297,20 @@ void show_read_result(PAR3_CTX *par3_ctx, int flag_detail)
 			if (flag_detail == 0){
 				printf("\"%s\"\n", file_p->name);
 			} else if (flag_detail == 1){
-				printf("%13"PRINT64"u \"%s\"\n", file_p->size, file_p->name);
+				printf("%13" PRIu64 " \"%s\"\n", file_p->size, file_p->name);
 			} else {
-				printf("%13"PRINT64"u ", file_p->size);
+				printf("%13" PRIu64 " ", file_p->size);
 				printf("%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x ",
 					file_p->hash[0], file_p->hash[1], file_p->hash[2], file_p->hash[3],
 					file_p->hash[4], file_p->hash[5], file_p->hash[6], file_p->hash[7],
 					file_p->hash[8], file_p->hash[9], file_p->hash[10], file_p->hash[11],
 					file_p->hash[12], file_p->hash[13], file_p->hash[14], file_p->hash[15]);
 				printf("\"%s\"\n", file_p->name);
+
+				if (par3_ctx->file_system & 0x10003){	// UNIX Permissions Packet or FAT Permissions Packet
+					//printf("offset of File Packet = %" PRId64 "\n", file_p->offset);
+					read_file_system_option(par3_ctx, 1, file_p->offset);
+				}
 			}
 			//printf("index of file = %u, index of the first chunk = %u\n", par3_ctx->input_file_count, file_p->chunk);
 
@@ -315,6 +339,11 @@ void show_read_result(PAR3_CTX *par3_ctx, int flag_detail)
 		num = par3_ctx->input_dir_count;
 		while (num > 0){
 			printf("\"%s\"\n", dir_p->name);
+
+			if ( ((par3_ctx->file_system & 4) != 0) && ((par3_ctx->file_system & 3) != 0) ){	// UNIX Permissions Packet
+				//printf("offset of Directory Packet = %" PRId64 "\n", dir_p->offset);
+				read_file_system_option(par3_ctx, 2, dir_p->offset);
+			}
 
 			dir_p++;
 			num--;
@@ -348,7 +377,7 @@ void show_data_size(PAR3_CTX *par3_ctx)
 	par3_ctx->total_file_size = total_size;
 	par3_ctx->max_file_size = max_size;
 
-	printf("Total file size = %"PRINT64"u\n", total_size);
-	printf("Max file size = %"PRINT64"u\n", max_size);
+	printf("Total file size = " PRIu64 "\n", total_size);
+	printf("Max file size = " PRIu64 "\n", max_size);
 }
 

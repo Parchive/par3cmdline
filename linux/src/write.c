@@ -18,6 +18,7 @@
 #include "blake3/blake3.h"
 #include "libpar3.h"
 #include "common.h"
+#include "galois.h"
 #include "hash.h"
 #include "packet.h"
 #include "write.h"
@@ -105,6 +106,16 @@ int write_index_file(PAR3_CTX *par3_ctx)
 		}
 	}
 
+	// File System Specific Packets
+	write_size = par3_ctx->file_system_packet_size;
+	if (write_size > 0){
+		if (fwrite(par3_ctx->file_system_packet, 1, write_size, fp) != write_size){
+			perror("Failed to write File System Packet on Index File");
+			fclose(fp);
+			return RET_FILE_IO_ERROR;
+		}
+	}
+
 	// Comment Packet
 	write_size = par3_ctx->comment_packet_size;
 	if (write_size > 0){
@@ -145,12 +156,14 @@ number of blocks = 8192 ~ 16383 : number of copies = 14
 number of blocks = 16384 ~ 32767 : number of copies = 15
 number of blocks = 32768 ~ 65535 : number of copies = 16
 */
-static int write_data_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t each_start, uint64_t each_count)
+static int write_data_packet(PAR3_CTX *par3_ctx, char *file_name, uint64_t each_start, uint64_t each_count)
 {
 	uint8_t *work_buf, *common_packet, packet_header[56];
-	uint32_t file_index, file_read;
+	uint32_t file_index, file_prev;
+	uint32_t cohort_count;
 	int64_t slice_index;
 	uint64_t num, file_offset;
+	uint64_t block_count, block_index, block_max;
 	size_t block_size, read_size, tail_offset;
 	size_t write_size, write_size2;
 	size_t packet_count, packet_to, packet_from;
@@ -169,15 +182,21 @@ static int write_data_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t each_s
 	common_packet = par3_ctx->common_packet;
 	common_packet_size = par3_ctx->common_packet_size;
 
+	// Set count for each cohort
+	if (par3_ctx->interleave > 0){
+		block_count = par3_ctx->block_count;
+		cohort_count = par3_ctx->interleave + 1;
+	}
+
 	// How many repetition of common packet.
 	packet_count = 0;	// reduce 1, because put 1st copy at first.
 	for (num = 2; num <= each_count; num *= 2)	// log2(each_count)
 		packet_count++;
-	//printf("each_count = %I64u, repetition = %zu\n", each_count, packet_count);
+	//printf("each_count = " PRIu64 ", repetition = %zu\n", each_count, packet_count);
 	packet_count *= par3_ctx->common_packet_count;
 	//printf("number of repeated packets = %zu\n", packet_count);
 
-	fp_write = fopen(filename, "wb");
+	fp_write = fopen(file_name, "wb");
 	if (fp_write == NULL){
 		perror("Failed to open Archive File");
 		return RET_FILE_IO_ERROR;
@@ -202,83 +221,42 @@ static int write_data_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t each_s
 	}
 
 	// Data Packet and repeated common packets
-	file_read = 0xFFFFFFFF;
+	file_prev = 0xFFFFFFFF;
 	fp_read = NULL;
 	packet_from = 0;
 	packet_offset = 0;
 	for (num = each_start; num < each_start + each_count; num++){
-		// data size in the block
-		write_size = block_list[num].size;
+		if (par3_ctx->interleave == 0){
+			block_index = num;
+			block_max = block_index + 1;
+		} else {	// Write multiple blocks at interleaving
+			block_index = num * cohort_count;	// Starting index of the block
+			block_max = block_index + cohort_count;	// How many blocks in the volume
+			if (block_max > block_count)
+				block_max = block_count;
+		}
+		//printf("block_index = " PRIu64 ", block_max = " PRIu64 "\n", block_index, block_max);
 
-		// packet header
-		make_packet_header(packet_header, 56 + write_size, par3_ctx->set_id, "PAR DAT\0", 0);
+		while (block_index < block_max){
+			// data size in the block
+			write_size = block_list[block_index].size;
 
-		// The index of the input block
-		memcpy(packet_header + 48, &num, 8);
+			// packet header
+			make_packet_header(packet_header, 56 + write_size, par3_ctx->set_id, "PAR DAT\0", 0);
 
-		// Read block data from file.
-		if (block_list[num].state & 1){	// including full size data
-			slice_index = block_list[num].slice;
-			while (slice_index != -1){
-				if (slice_list[slice_index].size == block_size)
-					break;
-				slice_index = slice_list[slice_index].next;
-			}
-			if (slice_index == -1){	// When there is no valid slice.
-				printf("Mapping information for block[%"PRINT64"u] is wrong.\n", num);
-				fclose(fp_write);
-				if (fp_read != NULL)
-					fclose(fp_read);
-				return RET_LOGIC_ERROR;
-			}
+			// The index of the input block
+			memcpy(packet_header + 48, &block_index, 8);
 
-			// Read one slice from a file.
-			file_index = slice_list[slice_index].file;
-			file_offset = slice_list[slice_index].offset;
-			read_size = slice_list[slice_index].size;
-			//printf("Reading %zu bytes of slice[%"PRINT64"d] on file[%u] for block[%"PRINT64"u].\n", read_size, slice_index, file_index, num);
-			if ( (fp_read == NULL) || (file_index != file_read) ){
-				if (fp_read != NULL){	// Close previous input file.
-					fclose(fp_read);
-					fp_read = NULL;
-				}
-				fp_read = fopen(file_list[file_index].name, "rb");
-				if (fp_read == NULL){
-					perror("Failed to open input file");
-					fclose(fp_write);
-					return RET_FILE_IO_ERROR;
-				}
-				file_read = file_index;
-			}
-			if (_fseeki64(fp_read, file_offset, SEEK_SET) != 0){
-				perror("Failed to seek input file");
-				fclose(fp_read);
-				fclose(fp_write);
-				return RET_FILE_IO_ERROR;
-			}
-			if (fread(work_buf, 1, read_size, fp_read) != read_size){
-				perror("Failed to read full slice on input file");
-				fclose(fp_read);
-				fclose(fp_write);
-				return RET_FILE_IO_ERROR;
-			}
-
-		} else {	// tail data only (one tail or packed tails)
-			//printf("Reading %zu bytes for block[%"PRINT64"u].\n", read_size, num);
-			tail_offset = 0;
-			while (tail_offset < write_size){	// Read tails until data end.
-				slice_index = block_list[num].slice;
+			// Read block data from file.
+			if (block_list[block_index].state & 1){	// including full size data
+				slice_index = block_list[block_index].slice;
 				while (slice_index != -1){
-					//printf("block = %"PRINT64"u, size = %zu, offset = %zu, slice = %"PRINT64"d\n", num, write_size, tail_offset, slice_index);
-					// Even when chunk tails are overlaped, it will find tail slice of next position.
-					if ( (slice_list[slice_index].tail_offset + slice_list[slice_index].size > tail_offset) &&
-							(slice_list[slice_index].tail_offset <= tail_offset) ){
+					if (slice_list[slice_index].size == block_size)
 						break;
-					}
 					slice_index = slice_list[slice_index].next;
 				}
 				if (slice_index == -1){	// When there is no valid slice.
-					printf("Mapping information for block[%"PRINT64"u] is wrong.\n", num);
+					printf("Mapping information for block[" PRIu64 "] is wrong.\n", block_index);
 					fclose(fp_write);
 					if (fp_read != NULL)
 						fclose(fp_read);
@@ -289,7 +267,8 @@ static int write_data_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t each_s
 				file_index = slice_list[slice_index].file;
 				file_offset = slice_list[slice_index].offset;
 				read_size = slice_list[slice_index].size;
-				if ( (fp_read == NULL) || (file_index != file_read) ){
+				//printf("Reading %zu bytes of slice[%" PRId64 "] on file[%u] for block[" PRIu64 "].\n", read_size, slice_index, file_index, block_index);
+				if ( (fp_read == NULL) || (file_index != file_prev) ){
 					if (fp_read != NULL){	// Close previous input file.
 						fclose(fp_read);
 						fp_read = NULL;
@@ -300,7 +279,7 @@ static int write_data_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t each_s
 						fclose(fp_write);
 						return RET_FILE_IO_ERROR;
 					}
-					file_read = file_index;
+					file_prev = file_index;
 				}
 				if (_fseeki64(fp_read, file_offset, SEEK_SET) != 0){
 					perror("Failed to seek input file");
@@ -308,46 +287,106 @@ static int write_data_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t each_s
 					fclose(fp_write);
 					return RET_FILE_IO_ERROR;
 				}
-				if (fread(work_buf + tail_offset, 1, read_size, fp_read) != read_size){
-					perror("Failed to read tail slice on input file");
+				if (fread(work_buf, 1, read_size, fp_read) != read_size){
+					perror("Failed to read full slice on input file");
 					fclose(fp_read);
 					fclose(fp_write);
 					return RET_FILE_IO_ERROR;
 				}
-				tail_offset += read_size;
+
+			} else {	// tail data only (one tail or packed tails)
+				//printf("Reading %zu bytes for block[" PRIu64 "].\n", read_size, block_index);
+				tail_offset = 0;
+				while (tail_offset < write_size){	// Read tails until data end.
+					slice_index = block_list[block_index].slice;
+					while (slice_index != -1){
+						//printf("block = " PRIu64 ", size = %zu, offset = %zu, slice = %" PRId64 "\n", block_index, write_size, tail_offset, slice_index);
+						// Even when chunk tails are overlaped, it will find tail slice of next position.
+						if ( (slice_list[slice_index].tail_offset + slice_list[slice_index].size > tail_offset)
+								&& (slice_list[slice_index].tail_offset <= tail_offset) ){
+							break;
+						}
+						slice_index = slice_list[slice_index].next;
+					}
+					if (slice_index == -1){	// When there is no valid slice.
+						printf("Mapping information for block[" PRIu64 "] is wrong.\n", block_index);
+						fclose(fp_write);
+						if (fp_read != NULL)
+							fclose(fp_read);
+						return RET_LOGIC_ERROR;
+					}
+
+					// Read one slice from a file.
+					file_index = slice_list[slice_index].file;
+					file_offset = slice_list[slice_index].offset;
+					read_size = slice_list[slice_index].size;
+					if ( (fp_read == NULL) || (file_index != file_prev) ){
+						if (fp_read != NULL){	// Close previous input file.
+							fclose(fp_read);
+							fp_read = NULL;
+						}
+						fp_read = fopen(file_list[file_index].name, "rb");
+						if (fp_read == NULL){
+							perror("Failed to open input file");
+							fclose(fp_write);
+							return RET_FILE_IO_ERROR;
+						}
+						file_prev = file_index;
+					}
+					if (_fseeki64(fp_read, file_offset, SEEK_SET) != 0){
+						perror("Failed to seek input file");
+						fclose(fp_read);
+						fclose(fp_write);
+						return RET_FILE_IO_ERROR;
+					}
+					if (fread(work_buf + tail_offset, 1, read_size, fp_read) != read_size){
+						perror("Failed to read tail slice on input file");
+						fclose(fp_read);
+						fclose(fp_write);
+						return RET_FILE_IO_ERROR;
+					}
+					tail_offset += read_size;
+				}
+
+				// Zero fill rest bytes
+				//if (write_size < block_size)
+				//	memset(work_buf + write_size, 0, block_size - write_size);
 			}
 
-			// Zero fill rest bytes
-//			if (write_size < block_size)
-//				memset(work_buf + write_size, 0, block_size - write_size);
-		}
+			// At creating time, CRC of a block was set, even when the block includes multiple chunk tails.
+			// It appends chunk tails as tail packing, and calculates their total CRC for the block.
+			// But, after verification, a block without full size data doesn't have valid CRC value.
+			if (block_list[block_index].state & 64){
+				// Calculate checksum of block to confirm that input file was not changed.
+				if (crc64(work_buf, write_size, 0) != block_list[block_index].crc){
+					printf("Checksum of block[" PRIu64 "] is different.\n", block_index);
+					fclose(fp_read);
+					fclose(fp_write);
+					return RET_LOGIC_ERROR;
+				}
+			}
 
-		// Calculate checksum of block to confirm that input file was not changed.
-		if (crc64(work_buf, write_size, 0) != block_list[num].crc){
-			printf("Checksum of block[%"PRINT64"u] is different.\n", num);
-			fclose(fp_read);
-			fclose(fp_write);
-			return RET_LOGIC_ERROR;
-		}
+			// Calculate checksum of packet here.
+			blake3_hasher_init(&hasher);
+			blake3_hasher_update(&hasher, packet_header + 24, 24 + 8);
+			blake3_hasher_update(&hasher, work_buf, write_size);
+			blake3_hasher_finalize(&hasher, packet_header + 8, 16);
 
-		// Calculate checksum of packet here.
-		blake3_hasher_init(&hasher);
-		blake3_hasher_update(&hasher, packet_header + 24, 24 + 8);
-		blake3_hasher_update(&hasher, work_buf, write_size);
-		blake3_hasher_finalize(&hasher, packet_header + 8, 16);
+			// Write packet header and data on file.
+			if (fwrite(packet_header, 1, 56, fp_write) != 56){
+				perror("Failed to write Data Packet on Archive File");
+				fclose(fp_write);
+				fclose(fp_read);
+				return RET_FILE_IO_ERROR;
+			}
+			if (fwrite(work_buf, 1, write_size, fp_write) != write_size){
+				perror("Failed to write Data Packet on Archive File");
+				fclose(fp_write);
+				fclose(fp_read);
+				return RET_FILE_IO_ERROR;
+			}
 
-		// Write packet header and data on file.
-		if (fwrite(packet_header, 1, 56, fp_write) != 56){
-			perror("Failed to write Data Packet on Archive File");
-			fclose(fp_write);
-			fclose(fp_read);
-			return RET_FILE_IO_ERROR;
-		}
-		if (fwrite(work_buf, 1, write_size, fp_write) != write_size){
-			perror("Failed to write Data Packet on Archive File");
-			fclose(fp_write);
-			fclose(fp_read);
-			return RET_FILE_IO_ERROR;
+			block_index++;	// Goto next block
 		}
 
 		// How many common packets to write here.
@@ -425,12 +464,12 @@ static int write_data_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t each_s
 }
 
 // Write PAR3 files with Data packets (input blocks)
-int write_archive_file(PAR3_CTX *par3_ctx)
+int write_archive_file(PAR3_CTX *par3_ctx, char *file_name)
 {
-	char filename[_MAX_PATH], recovery_file_scheme;
 	int digit_num1, digit_num2;
 	uint32_t file_count;
 	size_t len, region_size;
+	int64_t recovery_file_scheme;
 	uint64_t block_count, base_num;
 	uint64_t each_start, each_count, max_count;
 
@@ -438,10 +477,11 @@ int write_archive_file(PAR3_CTX *par3_ctx)
 	if (block_count == 0)
 		return 0;
 	recovery_file_scheme = par3_ctx->recovery_file_scheme;
-	file_count = par3_ctx->recovery_file_count;
+	if (recovery_file_scheme == -2)
+		recovery_file_scheme = par3_ctx->max_file_size;
 
 	// Allocate memory to read one input block and parity.
-	region_size = (par3_ctx->block_size + 1 + 7) & ~8;
+	region_size = (par3_ctx->block_size + 4 + 3) & ~3;
 	par3_ctx->work_buf = malloc(region_size);
 	if (par3_ctx->work_buf == NULL){
 		perror("Failed to allocate memory for input data");
@@ -449,26 +489,35 @@ int write_archive_file(PAR3_CTX *par3_ctx)
 	}
 
 	// Remove the last ".par3" from base PAR3 filename.
-	strcpy(filename, par3_ctx->par_filename);
-	len = strlen(filename);
-	if (strcmp(filename + len - 5, ".par3") == 0){
+	strcpy(file_name, par3_ctx->par_filename);
+	len = strlen(file_name);
+	if (strcmp(file_name + len - 5, ".par3") == 0){
 		len -= 5;
-		filename[len] = 0;
-		//printf("len = %zu, base name = %s\n", len, filename);
+		file_name[len] = 0;
+		//printf("len = %zu, base name = %s\n", len, file_name);
+	}
+
+	// Set count for each cohort
+	if (par3_ctx->interleave > 0){
+		block_count = (block_count + par3_ctx->interleave) / (par3_ctx->interleave + 1);	// round up
 	}
 
 	// Calculate block count and digits max.
-	calculate_digit_max(par3_ctx, block_count, 0, &base_num, &max_count, &digit_num1, &digit_num2);
+	file_count = calculate_digit_max(par3_ctx, 56, block_count, 0, &base_num, &max_count, &digit_num1, &digit_num2);
 	if (len + 11 + digit_num1 + digit_num2 >= _MAX_PATH){	// .part#+#.par3
-		printf("PAR3 filename will be too long.\n");
+		printf("PAR filename will be too long.\n");
 		return RET_FILE_IO_ERROR;
+	}
+
+	if (par3_ctx->noise_level >= 1){
+		show_sizing_scheme(par3_ctx, file_count, base_num, max_count);
 	}
 
 	// Write each PAR3 file.
 	each_start = 0;
 	while (block_count > 0){
 		if (file_count > 0){
-			if (recovery_file_scheme == 'u'){	// Uniform
+			if (recovery_file_scheme == -1){	// Uniform
 				each_count = max_count;
 				if (base_num > 0){
 					base_num--;
@@ -476,7 +525,7 @@ int write_archive_file(PAR3_CTX *par3_ctx)
 						max_count--;
 				}
 
-			} else {	// Variable (multiply by 2)
+			} else {	// Variable (base number * power of 2)
 				each_count = base_num;
 				base_num *= 2;
 				if (each_count > block_count)
@@ -484,14 +533,16 @@ int write_archive_file(PAR3_CTX *par3_ctx)
 			}
 
 		} else {
-			if (recovery_file_scheme == 'u'){	// Uniform
+			if (recovery_file_scheme == -1){	// Uniform
 				each_count = block_count;
 
-			} else if (recovery_file_scheme == 'l'){	// Limit size
+			} else if (recovery_file_scheme > 0){	// Limit size
 				each_count = base_num;
-				base_num *= 2;
-				if (each_count > max_count)
+				if (each_count > max_count){
 					each_count = max_count;
+				} else {
+					base_num *= 2;
+				}
 				if (each_count > block_count)
 					each_count = block_count;
 
@@ -503,12 +554,12 @@ int write_archive_file(PAR3_CTX *par3_ctx)
 			}
 		}
 
-		sprintf(filename + len, ".part%0*"PRINT64"u+%0*"PRINT64"u.par3", digit_num1, each_start, digit_num2, each_count);
-		if (write_data_packet(par3_ctx, filename, each_start, each_count) != 0){
+		sprintf(file_name + len, ".part%0*" PRIu64 "+%0*" PRIu64 ".par3", digit_num1, each_start, digit_num2, each_count);
+		if (write_data_packet(par3_ctx, file_name, each_start, each_count) != 0){
 			return RET_FILE_IO_ERROR;
 		}
 		if (par3_ctx->noise_level >= -1)
-			printf("Wrote archive file, %s\n", offset_file_name(filename));
+			printf("Wrote archive file, %s\n", offset_file_name(file_name));
 
 		each_start += each_count;
 		block_count -= each_count;
@@ -522,24 +573,34 @@ int write_archive_file(PAR3_CTX *par3_ctx)
 
 
 // Recovery Data packet with dummy recovery block
-static int write_recovery_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t each_start, uint64_t each_count)
+static int write_recovery_packet(PAR3_CTX *par3_ctx, char *file_name, uint64_t each_start, uint64_t each_count)
 {
-	uint8_t *buf_p, *common_packet, packet_header[89];
-	uint64_t num;
+	uint8_t *buf_p, *common_packet, packet_header[88];
+	uint8_t gf_size;
+	int galois_poly, ret;
+	uint32_t cohort_count;
+	uint64_t num, first_num;
+	uint64_t block_index, block_max;
 	size_t block_size, region_size;
 	size_t write_size, write_size2;
 	size_t packet_count, packet_to, packet_from;
 	size_t common_packet_size, packet_size, packet_offset;
+	PAR3_POS_CTX *position_list;
 	FILE *fp;
 	blake3_hasher hasher;
 
 	block_size = par3_ctx->block_size;
+	first_num = par3_ctx->first_recovery_block;
+	gf_size = par3_ctx->gf_size;
+	galois_poly = par3_ctx->galois_poly;
 	common_packet = par3_ctx->common_packet;
 	common_packet_size = par3_ctx->common_packet_size;
+	position_list = par3_ctx->position_list;
+	cohort_count = par3_ctx->interleave + 1;
 
-	region_size = (block_size + 1 + 7) & ~8;
-	buf_p = par3_ctx->recovery_data;
-	if (par3_ctx->ecc_method & 0x1000){
+	region_size = (block_size + 4 + 3) & ~3;
+	buf_p = par3_ctx->block_data;
+	if (par3_ctx->ecc_method & 0x8000){
 		// Move to the position of starting recovery block
 		buf_p += (each_start - par3_ctx->first_recovery_block) * region_size;
 	}
@@ -548,11 +609,11 @@ static int write_recovery_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t ea
 	packet_count = 0;	// reduce 1, because put 1st copy at first.
 	for (num = 2; num <= each_count; num *= 2)	// log2(each_count)
 		packet_count++;
-	//printf("each_count = %"PRINT64"u, repetition = %zu\n", each_count, packet_count);
+	//printf("each_count = " PRIu64 ", repetition = %zu\n", each_count, packet_count);
 	packet_count *= par3_ctx->common_packet_count;
 	//printf("number of repeated packets = %zu\n", packet_count);
 
-	fp = fopen(filename, "wb");
+	fp = fopen(file_name, "wb");
 	if (fp == NULL){
 		perror("Failed to open Recovery File");
 		return RET_FILE_IO_ERROR;
@@ -580,70 +641,100 @@ static int write_recovery_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t ea
 	memset(packet_header + 8, 0, 16);	// Zero fill checksum of packet as a sign of not calculated yet
 	memcpy(packet_header + 48, par3_ctx->root_packet + 8, 16);	// The checksum from the Root packet
 	memcpy(packet_header + 64, par3_ctx->matrix_packet + 8, 16);
-	packet_header[88] = 0;	// Zero for dummy data
 
 	// Recovery Data Packet and repeated common packets
 	packet_from = 0;
 	packet_offset = 0;
 	for (num = each_start; num < each_start + each_count; num++){
-		// packet header
-		make_packet_header(packet_header, 88 + block_size, par3_ctx->set_id, "PAR REC\0", 0);
+		if (par3_ctx->interleave == 0){
+			block_index = num;
+			block_max = block_index + 1;
+		} else {	// Write multiple blocks at interleaving
+			block_index = num * cohort_count;	// Starting index of the block
+			block_max = block_index + cohort_count;	// How many blocks in the volume
+		}
+		//printf("block_index = " PRIu64 ", block_max = " PRIu64 "\n", block_index, block_max);
 
-		// The index of the recovery block
-		memcpy(packet_header + 80, &num, 8);
+		while (block_index < block_max){
+			// packet header
+			make_packet_header(packet_header, 88 + block_size, par3_ctx->set_id, "PAR REC\0", 0);
 
-		// When there are enough memory to keep all recovery blocks,
-		// recovery blocks were created already.
-		if (par3_ctx->ecc_method & 0x1000){
-			// Check parity of recovery block to confirm that calculation was correct.
-			if (region_check_parity(buf_p, region_size, block_size) != 0){
-				printf("Parity of block[%"PRINT64"u] is different.\n", num);
-				fclose(fp);
-				return RET_LOGIC_ERROR;
-			}
+			// The index of the recovery block
+			memcpy(packet_header + 80, &block_index, 8);
 
-			// Calculate checksum of packet here.
-			blake3_hasher_init(&hasher);
-			blake3_hasher_update(&hasher, packet_header + 24, 24 + 40);
-			blake3_hasher_update(&hasher, buf_p, block_size);
-			blake3_hasher_finalize(&hasher, packet_header + 8, 16);
+			// When there is enough memory to keep all recovery blocks,
+			// recovery blocks were created already.
+			if (par3_ctx->ecc_method & 0x8000){
+				// Check parity of recovery block to confirm that calculation was correct.
+				if (gf_size == 2){
+					ret = gf16_region_check_parity(galois_poly, buf_p, region_size);
+				} else if (gf_size == 1){
+					ret = gf8_region_check_parity(galois_poly, buf_p, region_size);
+				} else {
+					ret = region_check_parity(buf_p, region_size);
+				}
+				if (ret != 0){
+					printf("Parity of recovery block[" PRIu64 "] is different.\n", block_index);
+					fclose(fp);
+					return RET_LOGIC_ERROR;
+				}
 
-			// Write packet header and recovery data on file.
-			if (fwrite(packet_header, 1, 88, fp) != 88){
-				perror("Failed to write Recovery Data Packet on Recovery File");
-				fclose(fp);
-				return RET_FILE_IO_ERROR;
-			}
-			if (fwrite(buf_p, 1, block_size, fp) != block_size){
-				perror("Failed to write Recovery Data Packet on Recovery File");
-				fclose(fp);
-				return RET_FILE_IO_ERROR;
-			}
-			buf_p += region_size;
+				// Calculate checksum of packet here.
+				blake3_hasher_init(&hasher);
+				blake3_hasher_update(&hasher, packet_header + 24, 24 + 40);
+				blake3_hasher_update(&hasher, buf_p, block_size);
+				blake3_hasher_finalize(&hasher, packet_header + 8, 16);
 
-		} else {
-			// Save position of each recovery block for later wariting.
-			
+				// Write packet header and recovery data on file.
+				if (fwrite(packet_header, 1, 88, fp) != 88){
+					perror("Failed to write Recovery Data Packet on Recovery File");
+					fclose(fp);
+					return RET_FILE_IO_ERROR;
+				}
+				if (fwrite(buf_p, 1, block_size, fp) != block_size){
+					perror("Failed to write Recovery Data Packet on Recovery File");
+					fclose(fp);
+					return RET_FILE_IO_ERROR;
+				}
+				buf_p += region_size;
 
-			// Write packet header and dummy data on file.
-			if (fwrite(packet_header, 1, 88, fp) != 88){
-				perror("Failed to write Recovery Data Packet on Recovery File");
-				fclose(fp);
-				return RET_FILE_IO_ERROR;
-			}
-			// Write zero bytes as dummy
-			if (block_size > 1){
-				if (_fseeki64(fp, block_size - 1, SEEK_CUR) != 0){
-					perror("Failed to seek Recovery File");
+			// When there isn't enough memory to keep all blocks, zero fill the block area.
+			} else {
+				// Save position of each recovery block for later wariting.
+				position_list[block_index - first_num].name = par3_ctx->par_file_name + par3_ctx->par_file_name_len - strlen(file_name) - 1;
+				position_list[block_index - first_num].offset = _ftelli64(fp);
+				if (position_list[block_index - first_num].offset < 0){
+					perror("Failed to get current position of Recovery File");
+					fclose(fp);
+					return RET_FILE_IO_ERROR;
+				}
+				//printf("block[" PRIu64 "] offset = %" PRId64 ", %s\n", block_index, position_list[block_index - first_num].offset, position_list[block_index - first_num].name);
+
+				// Calculate CRC of packet data to check error, because state of BLAKE3 hash is too large.
+				position_list[block_index - first_num].crc = crc64(packet_header + 24, 64, 0);
+
+				// Write packet header and dummy data on file.
+				if (fwrite(packet_header, 1, 88, fp) != 88){
+					perror("Failed to write Recovery Data Packet on Recovery File");
+					fclose(fp);
+					return RET_FILE_IO_ERROR;
+				}
+				// Write zero bytes as dummy
+				if (block_size > 1){
+					if (_fseeki64(fp, block_size - 1, SEEK_CUR) != 0){
+						perror("Failed to seek Recovery File");
+						fclose(fp);
+						return RET_FILE_IO_ERROR;
+					}
+				}
+				if (fwrite(packet_header + 8, 1, 1, fp) != 1){	// Write the last 1 byte of zero.
+					perror("Failed to write Recovery Data Packet on Recovery File");
 					fclose(fp);
 					return RET_FILE_IO_ERROR;
 				}
 			}
-			if (fwrite(packet_header + 88, 1, 1, fp) != 1){
-				perror("Failed to write Recovery Data Packet on Recovery File");
-				fclose(fp);
-				return RET_FILE_IO_ERROR;
-			}
+
+			block_index++;	// Goto next block
 		}
 
 		// How many common packets to write here.
@@ -710,11 +801,11 @@ static int write_recovery_packet(PAR3_CTX *par3_ctx, char *filename, uint64_t ea
 }
 
 // Write PAR3 files with Recovery Data packets (recovery blocks are not written yet)
-int write_recovery_file(PAR3_CTX *par3_ctx)
+int write_recovery_file(PAR3_CTX *par3_ctx, char *file_name)
 {
-	char filename[_MAX_PATH], recovery_file_scheme;
 	int digit_num1, digit_num2;
 	uint32_t file_count;
+	int64_t recovery_file_scheme;
 	uint64_t block_count, base_num, first_num;
 	uint64_t each_start, each_count, max_count;
 	size_t len;
@@ -723,30 +814,50 @@ int write_recovery_file(PAR3_CTX *par3_ctx)
 	if (block_count == 0)
 		return 0;
 	recovery_file_scheme = par3_ctx->recovery_file_scheme;
-	file_count = par3_ctx->recovery_file_count;
+	if (recovery_file_scheme == -2)
+		recovery_file_scheme = par3_ctx->max_file_size;
 	first_num = par3_ctx->first_recovery_block;
 
 	// Remove the last ".par3" from base PAR3 filename.
-	strcpy(filename, par3_ctx->par_filename);
-	len = strlen(filename);
-	if (strcmp(filename + len - 5, ".par3") == 0){
+	strcpy(file_name, par3_ctx->par_filename);
+	len = strlen(file_name);
+	if (strcmp(file_name + len - 5, ".par3") == 0){
 		len -= 5;
-		filename[len] = 0;
-		//printf("len = %zu, base name = %s\n", len, filename);
+		file_name[len] = 0;
+		//printf("len = %zu, base name = %s\n", len, file_name);
+	}
+
+	// When recovery blocks were not created yet, allocate memory to store packet position.
+	if ((par3_ctx->ecc_method & 0x8000) == 0){
+		par3_ctx->position_list = malloc(sizeof(PAR3_POS_CTX) * block_count);
+		if (par3_ctx->position_list == NULL){
+			perror("Failed to allocate memory for position list");
+			return RET_MEMORY_ERROR;
+		}
+	}
+
+	// Set count for each cohort
+	if (par3_ctx->interleave > 0){
+		block_count = (block_count + par3_ctx->interleave) / (par3_ctx->interleave + 1);	// round up
+		first_num = (first_num + par3_ctx->interleave) / (par3_ctx->interleave + 1);
 	}
 
 	// Calculate block count and digits max.
-	calculate_digit_max(par3_ctx, block_count, first_num, &base_num, &max_count, &digit_num1, &digit_num2);
+	file_count = calculate_digit_max(par3_ctx, 88, block_count, first_num, &base_num, &max_count, &digit_num1, &digit_num2);
 	if (len + 10 + digit_num1 + digit_num2 >= _MAX_PATH){	// .vol#+#.par3
-		printf("PAR3 filename will be too long.\n");
+		printf("PAR filename will be too long.\n");
 		return RET_FILE_IO_ERROR;
+	}
+
+	if (par3_ctx->noise_level >= 1){
+		show_sizing_scheme(par3_ctx, file_count, base_num, max_count);
 	}
 
 	// Write each PAR3 file.
 	each_start = first_num;
 	while (block_count > 0){
 		if (file_count > 0){
-			if (recovery_file_scheme == 'u'){	// Uniform
+			if (recovery_file_scheme == -1){	// Uniform
 				each_count = max_count;
 				if (base_num > 0){
 					base_num--;
@@ -754,7 +865,7 @@ int write_recovery_file(PAR3_CTX *par3_ctx)
 						max_count--;
 				}
 
-			} else {	// Variable (multiply by 2)
+			} else {	// Variable (base number * power of 2)
 				each_count = base_num;
 				base_num *= 2;
 				if (each_count > block_count)
@@ -762,14 +873,16 @@ int write_recovery_file(PAR3_CTX *par3_ctx)
 			}
 
 		} else {
-			if (recovery_file_scheme == 'u'){	// Uniform
+			if (recovery_file_scheme == -1){	// Uniform
 				each_count = block_count;
 
-			} else if (recovery_file_scheme == 'l'){	// Limit size
+			} else if (recovery_file_scheme > 0){	// Limit size
 				each_count = base_num;
-				base_num *= 2;
-				if (each_count > max_count)
+				if (each_count > max_count){
 					each_count = max_count;
+				} else {
+					base_num *= 2;
+				}
 				if (each_count > block_count)
 					each_count = block_count;
 
@@ -781,12 +894,19 @@ int write_recovery_file(PAR3_CTX *par3_ctx)
 			}
 		}
 
-		sprintf(filename + len, ".vol%0*"PRINT64"u+%0*"PRINT64"u.par3", digit_num1, each_start, digit_num2, each_count);
-		if (write_recovery_packet(par3_ctx, filename, each_start, each_count) != 0){
+		sprintf(file_name + len, ".vol%0*" PRIu64 "+%0*" PRIu64 ".par3", digit_num1, each_start, digit_num2, each_count);
+		if ((par3_ctx->ecc_method & 0x8000) == 0){
+			// When recovery blocks were not created yet, keep list of PAR filename.
+			if ( namez_add(&(par3_ctx->par_file_name), &(par3_ctx->par_file_name_len), &(par3_ctx->par_file_name_max), file_name) != 0){
+				perror("Failed to allocate memory for PAR filename");
+				return RET_MEMORY_ERROR;
+			}
+		}
+		if (write_recovery_packet(par3_ctx, file_name, each_start, each_count) != 0){
 			return RET_FILE_IO_ERROR;
 		}
 		if (par3_ctx->noise_level >= -1)
-			printf("Wrote recovery file, %s\n", offset_file_name(filename));
+			printf("Wrote recovery file, %s\n", offset_file_name(file_name));
 
 		each_start += each_count;
 		block_count -= each_count;

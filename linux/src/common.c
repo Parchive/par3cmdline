@@ -3,6 +3,7 @@
 #define _CRT_SECURE_NO_WARNINGS
 
 #include <errno.h>
+#include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -186,6 +187,15 @@ int get_absolute_path(char *absolute_path, char *relative_path, size_t max)
 			tmp_p[0] = '/';
 			tmp_p = strchr(tmp_p + 1, '\\');
 		}
+
+	} else {
+		// Even when the file doesn't exist, replace directory mark.
+		tmp_p = absolute_path;
+		tmp_p = strchr(tmp_p, '\\');
+		while (tmp_p != NULL){
+			tmp_p[0] = '/';
+			tmp_p = strchr(tmp_p + 1, '\\');
+		}
 	}
 
 	return 0;
@@ -221,6 +231,19 @@ size_t path_copy(char *dst, char *src, size_t max)
 
 	return len;
 }
+
+// Erase return code at the end of text
+size_t trim_text(uint8_t *text, size_t len)
+{
+	// Space, Carriage Return (\r), Line Feed (\n), Tab (\t)
+	while ( (len > 0) && ( (text[len - 1] == ' ') || (text[len - 1] == '\n') || (text[len - 1] == '\r') || (text[len - 1] == '\t') ) ){
+		text[len - 1] = 0;
+		len--;
+	}
+
+	return len;
+}
+
 
 // Because Argz Functions don't exit on MSVC, I made similar functions.
 
@@ -493,14 +516,61 @@ size_t namez_maxlen(char *namez, size_t namez_len)
 }
 
 
-// Combine 8 or 16 bytes to little endian 3 bytes integer.
-int mem_or8(unsigned char buf[8])
+// Combine 8 or 16 bytes to little endian 32-bit integer.
+unsigned int mem_or8(unsigned char buf[8])
 {
-	return (buf[0] | (buf[1] << 8) | ((buf[2] | buf[3] | buf[4] | buf[5] | buf[6] | buf[7]) << 16));
+	unsigned int *p4 = (unsigned int *)buf;
+
+	return (p4[0] | p4[1]);
 }
-int mem_or16(unsigned char buf[16])
+unsigned int mem_or16(unsigned char buf[16])
 {
-	return (buf[0] | (buf[1] << 8) | ((buf[2] | buf[3] | buf[4] | buf[5] | buf[6] | buf[7] |
-			buf[8] | buf[9] | buf[10] | buf[11] | buf[12] | buf[13] | buf[14] | buf[15]) << 16));
+	unsigned int *p4 = (unsigned int *)buf;
+
+	return (p4[0] | p4[1] | p4[2] | p4[3]);
+}
+
+
+// Popcount
+// https://en.wikipedia.org/wiki/Hamming_weight
+int popcount32(uint32_t x)
+{
+	x -= (x >> 1) & 0x55555555;						//put count of each 2 bits into those 2 bits
+	x = (x & 0x33333333) + ((x >> 2) & 0x33333333);	//put count of each 4 bits into those 4 bits 
+	x = (x + (x >> 4)) & 0x0f0f0f0f;				//put count of each 8 bits into those 8 bits 
+	x += x >>  8;									//put count of each 16 bits into their lowest 8 bits
+	x += x >> 16;									//put count of each 32 bits into their lowest 8 bits
+	return x & 0x7f;
+}
+
+// Return log2 of integer (round up)
+// log2(0) = error, log2(1) = 0, log2(2) = 1, log2(3) = 2, log2(4) = 2, log2(5) = 3, ...
+int roundup_log2(uint64_t x)
+{
+	int n = 0;
+
+	while (x > 1){
+		x = (x + 1) >> 1;	// This line same as "x = (x + 1) / 2;".
+		n++;
+	}
+
+	return n;
+}
+
+// Return next power of two at or above given value.
+uint64_t next_pow2(uint64_t x)
+{
+	uint64_t y = 1;	// 2 power 0
+
+	if (x == 0)
+		return 0;	// Special case
+	if (x >= 0x8000000000000000)
+		return 0x8000000000000000;	// Aboid over flow
+
+	while (y < x){
+		y = y << 1;
+	}
+
+	return y;
 }
 

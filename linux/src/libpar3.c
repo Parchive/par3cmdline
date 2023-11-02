@@ -256,7 +256,7 @@ int path_search(PAR3_CTX *par3_ctx, char *match_path, int flag_recursive)
 					return RET_MEMORY_ERROR;
 				}
 
-			} else if (flag_recursive != 0){	// When the name is a directory and recursive search is enabled
+			} else if (flag_recursive == 'R'){	// When the name is a directory and recursive search is enabled
 
 				// check name in list, and ignore if exist
 				if (namez_search(par3_ctx->input_dir_name, par3_ctx->input_dir_name_len, new_dir) != NULL)
@@ -590,8 +590,8 @@ int get_file_status(PAR3_CTX *par3_ctx)
 	}
 
 	if (par3_ctx->noise_level >= 0){
-		printf("Total file size = %"PRINT64"u\n", par3_ctx->total_file_size);
-		printf("Max file size = %"PRINT64"u\n", par3_ctx->max_file_size);
+		printf("Total file size = %"PRIu64"u\n", par3_ctx->total_file_size);
+		printf("Max file size = %"PRIu64"u\n", par3_ctx->max_file_size);
 	}
 
 	return 0;
@@ -605,9 +605,10 @@ uint64_t suggest_block_size(PAR3_CTX *par3_ctx)
 	long double f;
 
 	// If every input files are smaller than 40 bytes, block size will be 40.
-	if (par3_ctx->max_file_size < 40)
+	if (par3_ctx->max_file_size <= 40)
 		return 40;
 
+	// Let block count to be 1% of block size.
 	// total file size = block size * block count
 	// total file size = block size * block size * 1%
 	// total file size * 100 = block size * block size
@@ -628,12 +629,12 @@ uint64_t suggest_block_size(PAR3_CTX *par3_ctx)
 	block_count = 8;
 	while (block_count * 2 <= block_size)
 		block_count *= 2;
-	//printf("block_size = %"PRINT64"u, power of 2 = %"PRINT64"u\n", block_size, block_count);
+	//printf("block_size = %"PRIu64"u, power of 2 = %"PRIu64"u\n", block_size, block_count);
 	block_size = block_count;
 
 	// test possible number of blocks
 	block_count = calculate_block_count(par3_ctx, block_size);
-	//printf("1st block_count = %"PRINT64"u\n", block_count);
+	//printf("1st block_count = %"PRIu64"u\n", block_count);
 	if (block_count > 128){	// If range is 16-bit Reed Solomon Codes, more block count is possible.
 		if (block_count <= 1000){	// When there are too few blocks
 			block_size /= 2;
@@ -645,7 +646,7 @@ uint64_t suggest_block_size(PAR3_CTX *par3_ctx)
 		block_size *= 2;
 		block_count = calculate_block_count(par3_ctx, block_size);
 	}
-	//printf("2nd block_count = %"PRINT64"u\n", block_count);
+	//printf("2nd block_count = %"PRIu64"u\n", block_count);
 
 	// If total number of input blocks is equal or less than 128,
 	// PAR3 uses 8-bit Reed-Solomon Codes.
@@ -797,7 +798,7 @@ int sort_input_set(PAR3_CTX *par3_ctx)
 			} else {
 				file_p->chk[0] = 0;
 			}
-			//printf("file size = %"PRINT64"u, tail size = %"PRINT64"u\n", file_size, tail_size);
+			//printf("file size = %"PRIu64"u, tail size = %"PRIu64"u\n", file_size, tail_size);
 
 			file_p++;
 			num--;
@@ -813,7 +814,7 @@ int sort_input_set(PAR3_CTX *par3_ctx)
 
 		if (par3_ctx->noise_level >= 0){
 			while (num > 0){
-				printf("input file = \"%s\" %"PRINT64"u / %"PRINT64"u\n", file_p->name, file_p->chk[0], file_p->size);
+				printf("input file = \"%s\" %"PRIu64"u / %"PRIu64"u\n", file_p->name, file_p->chk[0], file_p->size);
 
 				file_p++;
 				num--;
@@ -851,10 +852,11 @@ int sort_input_set(PAR3_CTX *par3_ctx)
 #ifdef __linux__
 #elif _WIN32
 
-// search other par files from par_filename
-int par_search(PAR3_CTX *par3_ctx, int flag_other)
+// search other par files from base filename
+int par_search(PAR3_CTX *par3_ctx, char *base_name, int flag_other)
 {
 	char find_path[_MAX_PATH], *list_name;
+	int file_count;
 	size_t dir_len, len, off, list_len;
 	uint64_t max_file_size;
 
@@ -862,8 +864,9 @@ int par_search(PAR3_CTX *par3_ctx, int flag_other)
 	struct _finddatai64_t c_file;
 	intptr_t handle;
 
+	file_count = 0;
 	max_file_size = 0;
-	strcpy(find_path, par3_ctx->par_filename);
+	strcpy(find_path, base_name);
 
 	// get length of directory part
 	dir_len = offset_file_name(find_path) - find_path;
@@ -872,9 +875,10 @@ int par_search(PAR3_CTX *par3_ctx, int flag_other)
 	handle = _findfirst64(find_path, &c_file);
 	if (handle != (intptr_t) -1){
 		strcpy(find_path + dir_len, c_file.name);
-		//printf("found = \"%s\", size = %"PRINT64"d\n", find_path, c_file.size);
+		//printf("found = \"%s\", size = %"PRIu64"d\n", find_path, c_file.size);
 		if (max_file_size < (uint64_t)c_file.size)
 			max_file_size = c_file.size;
+		file_count++;
 
 		// add found filename with absolute path
 		if ( namez_add(&(par3_ctx->par_file_name), &(par3_ctx->par_file_name_len), &(par3_ctx->par_file_name_max), find_path) != 0){
@@ -929,9 +933,10 @@ int par_search(PAR3_CTX *par3_ctx, int flag_other)
 				if (namez_search(par3_ctx->par_file_name, par3_ctx->par_file_name_len, find_path) != NULL)
 					continue;
 
-				//printf("found = \"%s\", size = %"PRINT64"d\n", find_path, c_file.size);
+				//printf("found = \"%s\", size = %"PRIu64"d\n", find_path, c_file.size);
 				if (max_file_size < (uint64_t)c_file.size)
 					max_file_size = c_file.size;
+				file_count++;
 
 				// add found filename with absolute path
 				if ( namez_add(&(par3_ctx->par_file_name), &(par3_ctx->par_file_name_len), &(par3_ctx->par_file_name_max), find_path) != 0){
@@ -953,15 +958,34 @@ int par_search(PAR3_CTX *par3_ctx, int flag_other)
 				//printf("extra file = \"%s\"\n", list_name + off);
 				len = strlen(list_name + off);
 				if (_stricmp(list_name + off + len - 5, ".par3") == 0){	// move this file to list of par files
+					// Filename may be relative path.
+					if (par3_ctx->base_path[0] != 0){
+						int ret = get_absolute_path(find_path, list_name + off, _MAX_PATH - 8);
+						//printf("file = \"%s\"\n", find_path);
+						if (ret != 0){
+							off += len + 1;
+							continue;
+						}
+					} else {
+						strcpy(find_path, list_name + off);
+					}
 
 					// check name in list, and ignore if exist
-					if (namez_search(par3_ctx->par_file_name, par3_ctx->par_file_name_len, list_name + off) == NULL){
+					if (namez_search(par3_ctx->par_file_name, par3_ctx->par_file_name_len, find_path) == NULL){
+						struct _stat64 stat_buf;
+						if (_stat64(find_path, &stat_buf) == 0){
+							//printf("found = \"%s\", size = %" PRId64 "\n", find_path, stat_buf.st_size);
+							if (max_file_size < (uint64_t)stat_buf.st_size)
+								max_file_size = stat_buf.st_size;
+							file_count++;
+						}
+
 						// add found filename
-						if ( namez_add(&(par3_ctx->par_file_name), &(par3_ctx->par_file_name_len), &(par3_ctx->par_file_name_max), list_name + off) != 0){
+						if ( namez_add(&(par3_ctx->par_file_name), &(par3_ctx->par_file_name_len), &(par3_ctx->par_file_name_max), find_path) != 0){
 							return RET_MEMORY_ERROR;
 						}
-					//} else {
-					//	printf("extra file = \"%s\" is listed already.\n", list_name + off);
+					} else if (par3_ctx->noise_level >= 2){
+						printf("extra file = \"%s\" is listed already.\n", list_name + off);
 					}
 
 					// remove from list of extra files
@@ -1011,8 +1035,9 @@ int par_search(PAR3_CTX *par3_ctx, int flag_other)
 	}
 
 	par3_ctx->max_file_size = max_file_size;
-	if (par3_ctx->noise_level >= 0){
-		printf("Max par file size = %"PRINT64"u\n", par3_ctx->max_file_size);
+	if (par3_ctx->noise_level >= 1){
+		printf("Number of PAR file = %d\n", file_count);
+		printf("Max par file size = %"PRIu64"u\n", par3_ctx->max_file_size);
 	}
 
 	return 0;
@@ -1051,6 +1076,7 @@ void par3_release(PAR3_CTX *par3_ctx)
 		par3_ctx->par_file_name_len = 0;
 		par3_ctx->par_file_name_max = 0;
 	}
+
 	if (par3_ctx->chunk_list){
 		free(par3_ctx->chunk_list);
 		par3_ctx->chunk_list = NULL;
@@ -1065,17 +1091,10 @@ void par3_release(PAR3_CTX *par3_ctx)
 		free(par3_ctx->block_list);
 		par3_ctx->block_list = NULL;
 	}
-	if (par3_ctx->input_data){
-		free(par3_ctx->input_data);
-		par3_ctx->input_data = NULL;
-	}
-	if (par3_ctx->recovery_data){
-		free(par3_ctx->recovery_data);
-		par3_ctx->recovery_data = NULL;
-	}
-	if (par3_ctx->galois_table){
-		free(par3_ctx->galois_table);
-		par3_ctx->galois_table = NULL;
+
+	if (par3_ctx->block_data){
+		free(par3_ctx->block_data);
+		par3_ctx->block_data = NULL;
 	}
 	if (par3_ctx->work_buf){
 		free(par3_ctx->work_buf);
@@ -1085,6 +1104,7 @@ void par3_release(PAR3_CTX *par3_ctx)
 		free(par3_ctx->crc_list);
 		par3_ctx->crc_list = NULL;
 	}
+
 	if (par3_ctx->creator_packet){
 		free(par3_ctx->creator_packet);
 		par3_ctx->creator_packet = NULL;
@@ -1133,21 +1153,49 @@ void par3_release(PAR3_CTX *par3_ctx)
 		par3_ctx->ext_data_packet_size = 0;
 		par3_ctx->ext_data_packet_count = 0;
 	}
+	if (par3_ctx->file_system_packet){
+		free(par3_ctx->file_system_packet);
+		par3_ctx->file_system_packet = NULL;
+		par3_ctx->file_system_packet_size = 0;
+		par3_ctx->file_system_packet_count = 0;
+	}
 	if (par3_ctx->common_packet){
 		free(par3_ctx->common_packet);
 		par3_ctx->common_packet = NULL;
 		par3_ctx->common_packet_size = 0;
 		par3_ctx->common_packet_count = 0;
 	}
+
+	if (par3_ctx->position_list){
+		free(par3_ctx->position_list);
+		par3_ctx->position_list = NULL;
+	}
 	if (par3_ctx->data_packet_list){
 		free(par3_ctx->data_packet_list);
 		par3_ctx->data_packet_list = NULL;
 		par3_ctx->data_packet_count = 0;
 	}
-	if (par3_ctx->rec_data_packet_list){
-		free(par3_ctx->rec_data_packet_list);
-		par3_ctx->rec_data_packet_list = NULL;
-		par3_ctx->rec_data_packet_count = 0;
+	if (par3_ctx->recv_packet_list){
+		free(par3_ctx->recv_packet_list);
+		par3_ctx->recv_packet_list = NULL;
+		par3_ctx->recv_packet_count = 0;
+	}
+
+	if (par3_ctx->galois_table){
+		free(par3_ctx->galois_table);
+		par3_ctx->galois_table = NULL;
+	}
+	if (par3_ctx->recv_id_list){
+		free(par3_ctx->recv_id_list);
+		par3_ctx->recv_id_list = NULL;
+	}
+	if (par3_ctx->matrix){
+		free(par3_ctx->matrix);
+		par3_ctx->matrix = NULL;
+	}
+	if (par3_ctx->lost_list){
+		free(par3_ctx->lost_list);
+		par3_ctx->lost_list = NULL;
 	}
 }
 

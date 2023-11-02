@@ -1,6 +1,7 @@
 
 // CRC-64-ISO
 uint64_t crc64(const uint8_t *buf, size_t size, uint64_t crc);
+uint64_t crc64_zero(size_t size, uint64_t crc);
 
 // table setup for slide window search
 void init_crc_slide_table(PAR3_CTX *par3_ctx, int flag_usage);
@@ -21,6 +22,11 @@ void blake3(const uint8_t *buf, size_t size, uint8_t *hash);
 
 
 // parity bytes in the region
-void region_create_parity(uint8_t *buf, size_t region_size, size_t block_size);
-int region_check_parity(uint8_t *buf, size_t region_size, size_t block_size);
+void region_create_parity(uint8_t *buf, size_t region_size);
+int region_check_parity(uint8_t *buf, size_t region_size);
+
+// parity bytes in the region for Leopard-RS (ALTMAP)
+void leo_region_create_parity(uint8_t *buf, size_t region_size);
+int leo_region_check_parity(uint8_t *buf, size_t region_size);
+void leo_region_restore(uint8_t *buf, size_t region_size);
 

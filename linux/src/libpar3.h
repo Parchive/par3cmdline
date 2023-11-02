@@ -7,11 +7,9 @@
 #include <linux/limits.h>
 #define _MAX_PATH PATH_MAX
 
-#define PRINT64 "l"
-
 #elif _WIN32
 
-#define PRINT64 "I64"
+// no windows-specific includes here
 
 #endif
 
@@ -57,17 +55,22 @@ typedef struct {
 	uint64_t slice;		// index of the first slice
 
 	uint64_t chk[2];	// checksum of File Packet
+	int64_t offset;		// offset bytes of this File Packet
 
 	uint32_t state;		// Result of verification (bit flag)
 						// 1 = missing, 2 = damaged
 						// 4 = misnamed, higher bit is (extra_id << 3).
-						// 0x0100 = repaired
+						// 0x0100 = repaired, 0x0200 = repairable
 						// 0x8000 = not file
+						// 0x10000 = different timestamp
+						// 0x20000 = different permissions
+						// 0x80000000 = Unprotected Chunk Description
 } PAR3_FILE_CTX;
 
 typedef struct {
 	char *name;			// directory name
 	uint64_t chk[2];	// checksum of Directory Packet
+	int64_t offset;		// offset bytes of this Directory Packet
 } PAR3_DIR_CTX;
 
 typedef struct {
@@ -114,12 +117,21 @@ typedef struct {
 } PAR3_PKT_CTX;
 
 typedef struct {
+	uint64_t crc;		// CRC-64 of packet
+	char *name;			// name of belong file
+	int64_t offset;		// offset bytes of packet
+} PAR3_POS_CTX;
+
+typedef struct {
 	// Command-line options
 	int noise_level;
-	char recovery_file_scheme;
+	int64_t recovery_file_scheme;	// -1= Uniform, -2= Limit, 1~= Limit size
 	char deduplication;
 	char data_packet;
 	char absolute_path;
+	uint32_t file_system;	// Bit flag to store/recover in File System Specific Packets
+							// UNIX Permissions Packet: 1 = mtime, 2 = i_mode
+							// FAT Permissions Packet: 0x10000 = LastWriteTimestamp
 	uint32_t search_limit;	// how long time to slide search (milli second)
 	uint64_t memory_limit;	// how much memory to use (byte)
 
@@ -139,24 +151,31 @@ typedef struct {
 	uint8_t attribute;	// attributes in Root Packet
 	uint8_t gf_size;	// The size of the Galois field in bytes
 
-	int galois_poly;	// The generator polynomial of the Galois field
-	int *galois_table;	// Pointer of tables for (finite) galois field arithmetic
-	int ecc_method;		// Bit flag: 1 = Reed-Solomon Erasure Codes with Cauchy Matrix
-						//           2 = Erasure Codes with Sparse Random Matrix (no support yet)
-						//           4 = LDPC (no support yet)
-						//      0x1000 = Keep all recovery blocks on memory
-						//  0x####0000 = offset of using Matrix Packet
+	int galois_poly;		// The generator polynomial of the Galois field
+	void *galois_table;		// Pointer of tables for (finite) galois field arithmetic
+	uint32_t ecc_method;	// Bit flag: 1 = Reed-Solomon Erasure Codes with Cauchy Matrix
+							//           2 = Erasure Codes with Sparse Random Matrix (no support yet)
+							//           4 = LDPC (no support yet)
+							//           8 = FFT based Reed-Solomon Codes
+							//      0x8000 = Keep all recovery blocks or lost blocks on memory
+
+	uint32_t interleave;	// Number of interleaving (Number of cohorts = this value + 1)
+	uint32_t *lost_list;	// List for lost blocks and recovery blocks for every cohorts
+
+	int *recv_id_list;		// List for index of using recovery blocks
+	void *matrix;
 
 	uint64_t block_size;
 	uint64_t block_count;		// This may be max or possible value at creating.
 	PAR3_BLOCK_CTX *block_list;	// List of block information
-	uint8_t *input_data;
+	uint8_t *block_data;
 
 	uint64_t first_recovery_block;
+	uint64_t max_recovery_block;
 	uint64_t recovery_block_count;
 	uint32_t recovery_file_count;
-	uint32_t redundancy_size;	// Lower 7-bit (0~100) is percent, or 101=KB, 102=MB, 103=GB.
-	uint8_t *recovery_data;
+	uint32_t redundancy_size;	// Lower 8-bit (0~250) is percent, or 251=KB, 252=MB, 253=GB.
+	uint32_t max_redundancy_size;
 
 	char base_path[_MAX_PATH];
 	char par_filename[_MAX_PATH];
@@ -203,6 +222,7 @@ typedef struct {
 	uint8_t *matrix_packet;			// pointer to Matrix Packets
 	size_t matrix_packet_size;		// total size of Matrix Packets
 	uint32_t matrix_packet_count;
+	size_t matrix_packet_offset;	// offset of using Matrix Packet for recovery
 
 	uint8_t *file_packet;			// pointer to File Packets
 	size_t file_packet_size;		// total size of File Packets
@@ -218,14 +238,19 @@ typedef struct {
 	size_t ext_data_packet_size;	// total size of External Data Packets
 	uint32_t ext_data_packet_count;
 
+	uint8_t *file_system_packet;	// pointer to File System Specific Packets
+	size_t file_system_packet_size;	// total size of File System Specific Packets
+	uint32_t file_system_packet_count;
+
 	uint8_t *common_packet;			// pointer to duplicated common packets
 	size_t common_packet_size;		// total size of duplicated common packets
 	size_t common_packet_count;
 
-	PAR3_PKT_CTX *data_packet_list;		// List of Data Packets
+	PAR3_POS_CTX *position_list;	// List of packet position
+	PAR3_PKT_CTX *data_packet_list;	// List of Data Packets
 	uint64_t data_packet_count;
-	PAR3_PKT_CTX *rec_data_packet_list;	// List of Recovery Data Packets
-	uint64_t rec_data_packet_count;
+	PAR3_PKT_CTX *recv_packet_list;	// List of Recovery Data Packets
+	uint64_t recv_packet_count;
 
 } PAR3_CTX;
 
@@ -244,12 +269,12 @@ int add_creator_text(PAR3_CTX *par3_ctx, char *text);
 int add_comment_text(PAR3_CTX *par3_ctx, char *text);
 
 // For creation
-int par3_trial(PAR3_CTX *par3_ctx);
-int par3_create(PAR3_CTX *par3_ctx);
+int par3_trial(PAR3_CTX *par3_ctx, char *temp_path);
+int par3_create(PAR3_CTX *par3_ctx, char *temp_path);
 
 
 // About par files
-int par_search(PAR3_CTX *par3_ctx, int flag_other);
+int par_search(PAR3_CTX *par3_ctx, char *base_name, int flag_other);
 int extra_search(PAR3_CTX *par3_ctx, char *match_path);
 
 // For verification and repair
@@ -257,8 +282,18 @@ int par3_list(PAR3_CTX *par3_ctx);
 int par3_verify(PAR3_CTX *par3_ctx);
 int par3_repair(PAR3_CTX *par3_ctx, char *temp_path);
 
+
+// For creation after verification
+int par3_extend(PAR3_CTX *par3_ctx, char command_trial, char *temp_path);
+
+
 // Release internal allocated memory
 void par3_release(PAR3_CTX *par3_ctx);
+
+
+// For PAR inside ZIP
+int par3_insert_zip(PAR3_CTX *par3_ctx, char command_trial);
+int par3_delete_zip(PAR3_CTX *par3_ctx);
 
 
 #endif // __LIBPAR3_H__

@@ -10,38 +10,43 @@
 
 #ifdef __linux__
 #elif _WIN32
-#include <io.h>
+// MSVC headers
+#include <sys/stat.h>
 #endif
 
 #include "blake3/blake3.h"
 #include "libpar3.h"
 #include "common.h"
 #include "hash.h"
+#include "file.h"
 #include "verify.h"
 
 
 #ifdef __linux__
-#warning "static int check_directory(char *path) undefined"
-static int check_directory(char *path);
+#warning "int check_directory(PAR3_CTX *par3_ctx, char *path, int64_t offset) undefined"
+int check_directory(PAR3_CTX *par3_ctx, char *path, int64_t offset);
 
 #elif _WIN32
 // This will check permission and attributes in future.
 // return 0 = exist, 1 = missing
 // 0x8000 = not directory
-// 0x****0000 = permission or attribute is different ?
-static int check_directory(char *path)
+// 0x****0000 = different property (timestamp, permission, or attribute)
+int check_directory(PAR3_CTX *par3_ctx, char *path, int64_t offset)
 {
-	// MSVC
-	struct _finddatai64_t c_file;
-	intptr_t handle;
+	struct _stat64 stat_buf;
 
-	handle = _findfirst64(path, &c_file);
-	if (handle == -1)
+	// Check infomation, only when scuucess.
+	if (_stat64(path, &stat_buf) != 0)
 		return 1;
-	_findclose(handle);
 
-	if ((c_file.attrib & _A_SUBDIR) == 0)
+	// _S_IFDIR = 0x4000
+	if ((stat_buf.st_mode & _S_IFDIR) == 0)
 		return 0x8000;
+
+	if ( (offset >= 0) && ((par3_ctx->file_system & 4) != 0) && ((par3_ctx->file_system & 3) != 0) ){
+		//printf("offset of Directory Packet = %" PRId64 "\n", offset);
+		return check_file_system_option(par3_ctx, 2, offset, &stat_buf);
+	}
 
 	return 0;
 }
@@ -49,39 +54,51 @@ static int check_directory(char *path)
 
 // Check existense of each input directory.
 // Return number of missing directories.
-uint32_t check_input_directory(PAR3_CTX *par3_ctx)
+void check_input_directory(PAR3_CTX *par3_ctx, uint32_t *missing_dir_count, uint32_t *bad_dir_count)
 {
 	int ret;
-	uint32_t num, missing_dir_count;
+	uint32_t num;
 	PAR3_DIR_CTX *dir_p;
 
 	if (par3_ctx->input_dir_count == 0)
-		return 0;
+		return;
 
 	if (par3_ctx->noise_level >= -1){
 		printf("\nVerifying input directories:\n\n");
 	}
 
-	missing_dir_count = 0;
 	num = par3_ctx->input_dir_count;
 	dir_p = par3_ctx->input_dir_list;
 	while (num > 0){
 		if (par3_ctx->noise_level >= -1){
 			printf("Target: \"%s\"", dir_p->name);
 		}
-		ret = check_directory(dir_p->name);
+		ret = check_directory(par3_ctx, dir_p->name, dir_p->offset);
+		//printf("\n check_directory = 0x%x\n", ret);
 		if (ret == 0){
 			if (par3_ctx->noise_level >= -1){
 				printf(" - found.\n");
 			}
 		} else if (ret == 1){
-			missing_dir_count++;
+			*missing_dir_count += 1;
 			if (par3_ctx->noise_level >= -1){
 				printf(" - missing.\n");
 			}
 		} else if (ret == 0x8000){
+			*missing_dir_count += 1;
 			if (par3_ctx->noise_level >= -1){
 				printf(" - not directory.\n");
+			}
+		} else if (ret & 0xFFFF0000){
+			*bad_dir_count += 1;
+			if (par3_ctx->noise_level >= -1){
+				if ((ret & 0xFFFF0000) == 0x10000){
+					printf(" - different timestamp.\n");
+				} else if ((ret & 0xFFFF0000) == 0x20000){
+					printf(" - different permissions.\n");
+				} else {
+					printf(" - different property.\n");
+				}
 			}
 		} else {
 			if (par3_ctx->noise_level >= -1){
@@ -92,41 +109,45 @@ uint32_t check_input_directory(PAR3_CTX *par3_ctx)
 		dir_p++;
 		num--;
 	}
-
-	return missing_dir_count;
 }
 
+
 #ifdef __linux__
-#warning "static int check_file(char *path, uint64_t *current_size) is undefined"
-static int check_file(char *path, uint64_t *current_size);
+#warning "static int check_file(PAR3_CTX *par3_ctx, char *path, uint64_t *current_size, int64_t offset) undefined"
+static int check_file(PAR3_CTX *par3_ctx, char *path, uint64_t *current_size, int64_t offset);
+
 #elif _WIN32
-// This will check permission and attributes in future.
+
+// This will check permission and attributes, only when you set an option.
 // return 0 = exist, 1 = missing
 // 0x8000 = not file
-// 0x****0000 = permission or attribute is different ?
-static int check_file(char *path, uint64_t *current_size)
+// 0x****0000 = different property (timestamp, permission, or attribute)
+static int check_file(PAR3_CTX *par3_ctx, char *path, uint64_t *current_size, int64_t offset)
 {
-	// MSVC
-	struct _finddatai64_t c_file;
-	intptr_t handle;
+	struct _stat64 stat_buf;
 
-	handle = _findfirst64(path, &c_file);
-	if (handle == -1)
+	// Check infomation, only when scuucess.
+	if (_stat64(path, &stat_buf) != 0)
 		return 1;
-	_findclose(handle);
 
 	// Get size of existing file.
-	*current_size = c_file.size;	// This may be different from original size.
+	*current_size = stat_buf.st_size;	// This may be different from original size.
 
-	if ((c_file.attrib & _A_SUBDIR) == 1)
+	// _S_IFREG = 0x8000
+	if ((stat_buf.st_mode & _S_IFREG) == 0)
 		return 0x8000;
+
+	if ( (offset >= 0) && (par3_ctx->file_system & 0x10003) ){
+		//printf("offset of File Packet = %" PRId64 "\n", offset);
+		return check_file_system_option(par3_ctx, 1, offset, &stat_buf);
+	}
 
 	return 0;
 }
 #endif
 
 // Check existense and content of each input file.
-int verify_input_file(PAR3_CTX *par3_ctx, uint32_t *missing_file_count, uint32_t *damaged_file_count)
+int verify_input_file(PAR3_CTX *par3_ctx, uint32_t *missing_file_count, uint32_t *damaged_file_count, uint32_t *bad_file_count)
 {
 	int ret;
 	uint32_t num;
@@ -188,14 +209,14 @@ int verify_input_file(PAR3_CTX *par3_ctx, uint32_t *missing_file_count, uint32_t
 	if (ret != 0)
 		return ret;
 	if (par3_ctx->noise_level >= 2){
-		printf("Number of full size blocks = %"PRINT64"u, chunk tails = %"PRINT64"u\n", par3_ctx->crc_count, par3_ctx->tail_count);
+		printf("Number of full size block = %" PRIu64 ", chunk tail = %" PRIu64 "\n", par3_ctx->crc_count, par3_ctx->tail_count);
 /*
 		// for debug
 		for (uint64_t i = 0; i < par3_ctx->crc_count; i++){
-			printf("crc_list[%2"PRINT64"u] = 0x%016"PRINT64"x , block = %"PRINT64"u\n", i, par3_ctx->crc_list[i].crc, par3_ctx->crc_list[i].index);
+			printf("crc_list[%2" PRIu64 "] = 0x%016I64x , block = %" PRIu64 "\n", i, par3_ctx->crc_list[i].crc, par3_ctx->crc_list[i].index);
 		}
 		for (uint64_t i = 0; i < par3_ctx->tail_count; i++){
-			printf("tail_list[%2"PRINT64"u] = 0x%016"PRINT64"x , slice = %"PRINT64"u\n", i, par3_ctx->tail_list[i].crc, par3_ctx->tail_list[i].index);
+			printf("tail_list[%2" PRIu64 "] = 0x%016I64x , slice = %" PRIu64 "\n", i, par3_ctx->tail_list[i].crc, par3_ctx->tail_list[i].index);
 		}
 */
 	}
@@ -213,22 +234,40 @@ int verify_input_file(PAR3_CTX *par3_ctx, uint32_t *missing_file_count, uint32_t
 
 	file_p = par3_ctx->input_file_list;
 	for (num = 0; num < par3_ctx->input_file_count; num++){
-		ret = check_file(file_p->name, &current_size);
-		file_p->state = ret;
-		if ( (ret == 0) && ( (file_p->size > 0) || (current_size > 0) ) ){
+		ret = check_file(par3_ctx, file_p->name, &current_size, file_p->offset);
+		//printf("check_file = 0x%x, size = %" PRIu64 "\n", ret, current_size);
+		file_p->state |= ret;
+		if ( ((ret & 0xFFFF) == 0) && ( (file_p->size > 0) || (current_size > 0) ) ){
 			if (par3_ctx->noise_level >= 0){
 				printf("Opening: \"%s\"\n", file_p->name);
 			}
 			file_offset = 0;
 			ret = check_complete_file(par3_ctx, file_p->name, num, current_size, &file_offset);
-			//printf("ret = %d, size = %"PRINT64"u, offset = %"PRINT64"u\n", ret, current_size, file_offset);
+			//printf("ret = %d, size = %" PRIu64 ", offset = %" PRIu64 "\n", ret, current_size, file_offset);
 			if (ret > 0)
 				return ret;	// error
 			if (ret == 0){
-				// While file data is complete, file name may be different case on Windows PC.
-				// Because Windows OS is case insensitive, I ignore the case, too.
-				if (par3_ctx->noise_level >= -1){
-					printf("Target: \"%s\" - complete.\n", file_p->name);
+				if (file_p->state & 0x7FFF0000){
+					*bad_file_count += 1;
+					if (par3_ctx->noise_level >= -1){
+						if ((file_p->state & 0x7FFF0000) == 0x10000){
+							printf("Target: \"%s\" - different timestamp.\n", file_p->name);
+						} else if ((file_p->state & 0x7FFF0000) == 0x20000){
+							printf("Target: \"%s\" - different permissions.\n", file_p->name);
+						} else {
+							printf("Target: \"%s\" - different property.\n", file_p->name);
+						}
+					}
+				} else {
+					// While file data is complete, file name may be different case on Windows PC.
+					// Because Windows OS is case insensitive, I ignore the case, too.
+					if (par3_ctx->noise_level >= -1){
+						if (file_p->state & 0x80000000){	// Completeness of unprotected chunks is unknown.
+							printf("Target: \"%s\" - protected data is complete.\n", file_p->name);
+						} else {
+							printf("Target: \"%s\" - complete.\n", file_p->name);
+						}
+					}
 				}
 			} else {
 				file_p->state |= 2;
@@ -236,12 +275,12 @@ int verify_input_file(PAR3_CTX *par3_ctx, uint32_t *missing_file_count, uint32_t
 
 				// Start slide search after the last found block position.
 				ret = check_damaged_file(par3_ctx, file_p->name, current_size, file_offset, &file_damage, NULL);
-				//printf("ret = %d, size = %"PRINT64"u, offset = %"PRINT64"u, damage = %"PRINT64"u\n",
+				//printf("ret = %d, size = %" PRIu64 ", offset = %" PRIu64 ", damage = %" PRIu64 "\n",
 				//		ret, current_size, file_offset, file_damage);
 				if (ret != 0)
 					return ret;
 				if (par3_ctx->noise_level >= -1){
-					printf("Target: \"%s\" - damaged. %"PRINT64"u of %"PRINT64"u bytes available.\n",
+					printf("Target: \"%s\" - damaged. %" PRIu64 " of %" PRIu64 " bytes available.\n",
 							file_p->name, current_size - file_damage, current_size);
 				}
 			}
@@ -260,6 +299,7 @@ int verify_input_file(PAR3_CTX *par3_ctx, uint32_t *missing_file_count, uint32_t
 					printf(" - missing.\n");
 				}
 			} else if (ret == 0x8000){
+				*missing_file_count += 1;
 				if (par3_ctx->noise_level >= -1){
 					printf(" - not file.\n");
 				}
@@ -307,7 +347,7 @@ int verify_extra_file(PAR3_CTX *par3_ctx, uint32_t *missing_file_count, uint32_t
 		}
 
 		// Get file size
-		ret = check_file(list_name + off, &current_size);
+		ret = check_file(par3_ctx, list_name + off, &current_size, -1);
 		if ((ret & 0xFFFF) != 0){
 			if (par3_ctx->noise_level >= -1){
 				printf("Target: \"%s\" - unknown.\n", list_name + off);
@@ -337,7 +377,7 @@ int verify_extra_file(PAR3_CTX *par3_ctx, uint32_t *missing_file_count, uint32_t
 
 		// Calculate file hash to find misnamed file later.
 		ret = check_damaged_file(par3_ctx, list_name + off, current_size, 0, &file_damage, tmp_p);
-		//printf("ret = %d, size = %"PRINT64"u, damage = %"PRINT64"u\n", ret, current_size, file_damage);
+		//printf("ret = %d, size = %" PRIu64 ", damage = %" PRIu64 "\n", ret, current_size, file_damage);
 		if (ret != 0)
 			return ret;
 
@@ -383,7 +423,7 @@ printf("%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x\n",
 			if (ret & 4){
 				printf("Target: \"%s\" - is a match for \"%s\".\n", list_name + off, file_p->name);
 			} else {
-				printf("Target: \"%s\" - %"PRINT64"u of %"PRINT64"u bytes available.\n",
+				printf("Target: \"%s\" - %" PRIu64 " of %" PRIu64 " bytes available.\n",
 						list_name + off, current_size - file_damage, current_size);
 			}
 		}

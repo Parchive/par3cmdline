@@ -12,7 +12,7 @@
 
 
 // 0 = no packet yet, 1 = the packet exists already
-static int check_packet_exist(uint8_t *buf, size_t buf_size, uint8_t *packet, uint64_t packet_size)
+int check_packet_exist(uint8_t *buf, size_t buf_size, uint8_t *packet, uint64_t packet_size)
 {
 	size_t offset;
 	uint64_t this_size;
@@ -124,32 +124,6 @@ int add_found_packet(PAR3_CTX *par3_ctx, uint8_t *packet)
 			par3_ctx->start_packet_count++;
 		}
 
-	} else if (memcmp(packet_type, "PAR CAU\0", 8) == 0){	// Cauchy Matrix Packet
-		if (par3_ctx->matrix_packet == NULL){
-			par3_ctx->matrix_packet = malloc(packet_size);
-			if (par3_ctx->matrix_packet == NULL){
-				perror("Failed to allocate memory for Matrix Packet");
-				return RET_MEMORY_ERROR;
-			}
-			memcpy(par3_ctx->matrix_packet, packet, packet_size);
-			par3_ctx->matrix_packet_size = packet_size;
-			par3_ctx->matrix_packet_count = 1;
-		} else if (check_packet_exist(par3_ctx->matrix_packet, par3_ctx->matrix_packet_size, packet, packet_size) == 1){
-			// If there is the packet already, just exit.
-			return -1;
-		} else {
-			// Add this packet after other packets.
-			tmp_p = realloc(par3_ctx->matrix_packet, par3_ctx->matrix_packet_size + packet_size);
-			if (tmp_p == NULL){
-				perror("Failed to re-allocate memory for Matrix Packet");
-				return RET_MEMORY_ERROR;
-			}
-			par3_ctx->matrix_packet = tmp_p;
-			memcpy(par3_ctx->matrix_packet + par3_ctx->matrix_packet_size, packet, packet_size);
-			par3_ctx->matrix_packet_size += packet_size;
-			par3_ctx->matrix_packet_count++;
-		}
-
 	} else if (memcmp(packet_type, "PAR FIL\0", 8) == 0){	// File Packet
 		if (par3_ctx->file_packet == NULL){
 			par3_ctx->file_packet = malloc(packet_size);
@@ -254,6 +228,86 @@ int add_found_packet(PAR3_CTX *par3_ctx, uint8_t *packet)
 			par3_ctx->ext_data_packet_count++;
 		}
 
+	} else if (memcmp(packet_type, "PAR CAU\0", 8) == 0){	// Cauchy Matrix Packet
+		if (par3_ctx->matrix_packet == NULL){
+			par3_ctx->matrix_packet = malloc(packet_size);
+			if (par3_ctx->matrix_packet == NULL){
+				perror("Failed to allocate memory for Matrix Packet");
+				return RET_MEMORY_ERROR;
+			}
+			memcpy(par3_ctx->matrix_packet, packet, packet_size);
+			par3_ctx->matrix_packet_size = packet_size;
+			par3_ctx->matrix_packet_count = 1;
+		} else if (check_packet_exist(par3_ctx->matrix_packet, par3_ctx->matrix_packet_size, packet, packet_size) == 1){
+			// If there is the packet already, just exit.
+			return -1;
+		} else {
+			// Add this packet after other packets.
+			tmp_p = realloc(par3_ctx->matrix_packet, par3_ctx->matrix_packet_size + packet_size);
+			if (tmp_p == NULL){
+				perror("Failed to re-allocate memory for Matrix Packet");
+				return RET_MEMORY_ERROR;
+			}
+			par3_ctx->matrix_packet = tmp_p;
+			memcpy(par3_ctx->matrix_packet + par3_ctx->matrix_packet_size, packet, packet_size);
+			par3_ctx->matrix_packet_size += packet_size;
+			par3_ctx->matrix_packet_count++;
+		}
+
+	} else if (memcmp(packet_type, "PAR FFT\0", 8) == 0){	// FFT Matrix Packet
+		if (par3_ctx->matrix_packet == NULL){
+			par3_ctx->matrix_packet = malloc(packet_size);
+			if (par3_ctx->matrix_packet == NULL){
+				perror("Failed to allocate memory for Matrix Packet");
+				return RET_MEMORY_ERROR;
+			}
+			memcpy(par3_ctx->matrix_packet, packet, packet_size);
+			par3_ctx->matrix_packet_size = packet_size;
+			par3_ctx->matrix_packet_count = 1;
+		} else if (check_packet_exist(par3_ctx->matrix_packet, par3_ctx->matrix_packet_size, packet, packet_size) == 1){
+			// If there is the packet already, just exit.
+			return -1;
+		} else {
+			// Add this packet after other packets.
+			tmp_p = realloc(par3_ctx->matrix_packet, par3_ctx->matrix_packet_size + packet_size);
+			if (tmp_p == NULL){
+				perror("Failed to re-allocate memory for Matrix Packet");
+				return RET_MEMORY_ERROR;
+			}
+			par3_ctx->matrix_packet = tmp_p;
+			memcpy(par3_ctx->matrix_packet + par3_ctx->matrix_packet_size, packet, packet_size);
+			par3_ctx->matrix_packet_size += packet_size;
+			par3_ctx->matrix_packet_count++;
+		}
+
+	// UNIX Permissions Packet or FAT Permissions Packet
+	} else if ( (memcmp(packet_type, "PAR UNX\0", 8) == 0)
+				|| (memcmp(packet_type, "PAR FAT\0", 8) == 0) ){
+		if (par3_ctx->file_system_packet == NULL){
+			par3_ctx->file_system_packet = malloc(packet_size);
+			if (par3_ctx->file_system_packet == NULL){
+				perror("Failed to allocate memory for File System Packet");
+				return RET_MEMORY_ERROR;
+			}
+			memcpy(par3_ctx->file_system_packet, packet, packet_size);
+			par3_ctx->file_system_packet_size = packet_size;
+			par3_ctx->file_system_packet_count = 1;
+		} else if (check_packet_exist(par3_ctx->file_system_packet, par3_ctx->file_system_packet_size, packet, packet_size) == 1){
+			// If there is the packet already, just exit.
+			return -1;
+		} else {
+			// Add this packet after other packets.
+			tmp_p = realloc(par3_ctx->file_system_packet, par3_ctx->file_system_packet_size + packet_size);
+			if (tmp_p == NULL){
+				perror("Failed to re-allocate memory for File System Packet");
+				return RET_MEMORY_ERROR;
+			}
+			par3_ctx->file_system_packet = tmp_p;
+			memcpy(par3_ctx->file_system_packet + par3_ctx->file_system_packet_size, packet, packet_size);
+			par3_ctx->file_system_packet_size += packet_size;
+			par3_ctx->file_system_packet_count++;
+		}
+
 	} else {	// Unknown packet type
 		return -2;
 /*
@@ -341,39 +395,39 @@ int list_found_packet(PAR3_CTX *par3_ctx, uint8_t *packet, char *filename, int64
 		memcpy(cmp_buf, packet + 48, 16);		// checksum from Root packet
 		memcpy(cmp_buf + 16, packet + 64, 16);	// checksum from Matrix packet
 		memcpy(&index, packet + 80, 8);			// Index of recovery block
-		if (par3_ctx->rec_data_packet_list == NULL){
+		if (par3_ctx->recv_packet_list == NULL){
 			list = malloc(sizeof(PAR3_PKT_CTX));
 			if (list == NULL){
 				perror("Failed to allocate memory for Recovery Data Packet");
 				return RET_MEMORY_ERROR;
 			}
-			par3_ctx->rec_data_packet_list = list;
+			par3_ctx->recv_packet_list = list;
 			list[0].id = set_id;
 			memcpy(list[0].root, cmp_buf, 16);
 			memcpy(list[0].matrix, cmp_buf + 16, 16);
 			list[0].index = index;
 			list[0].name = filename;
 			list[0].offset = offset;
-			par3_ctx->rec_data_packet_count = 1;
-		} else if (check_item_exist(par3_ctx->rec_data_packet_list, par3_ctx->rec_data_packet_count, set_id, index, cmp_buf) == 1){
+			par3_ctx->recv_packet_count = 1;
+		} else if (check_item_exist(par3_ctx->recv_packet_list, par3_ctx->recv_packet_count, set_id, index, cmp_buf) == 1){
 			// If there is the packet already, just exit.
 			return -1;
 		} else {
 			// Add this packet after other packets.
-			count = par3_ctx->rec_data_packet_count;
-			list = realloc(par3_ctx->rec_data_packet_list, sizeof(PAR3_PKT_CTX) * (count + 1));
+			count = par3_ctx->recv_packet_count;
+			list = realloc(par3_ctx->recv_packet_list, sizeof(PAR3_PKT_CTX) * (count + 1));
 			if (list == NULL){
 				perror("Failed to re-allocate memory for Recovery Data Packet");
 				return RET_MEMORY_ERROR;
 			}
-			par3_ctx->rec_data_packet_list = list;
+			par3_ctx->recv_packet_list = list;
 			list[count].id = set_id;
 			memcpy(list[count].root, cmp_buf, 16);
 			memcpy(list[count].matrix, cmp_buf + 16, 16);
 			list[count].index = index;
 			list[count].name = filename;
 			list[count].offset = offset;
-			par3_ctx->rec_data_packet_count += 1;
+			par3_ctx->recv_packet_count += 1;
 		}
 
 	} else {
@@ -587,6 +641,24 @@ static int remove_other_packet(PAR3_CTX *par3_ctx, uint64_t *id_list, int id_cou
 			par3_ctx->root_packet_count = new_count;
 		}
 	}
+	if (par3_ctx->file_system_packet_size > 0){
+		new_size = adjust_packet_buf(par3_ctx->file_system_packet, par3_ctx->file_system_packet_size, id_list, id_count, &new_count);
+		if (new_size == 0){
+			free(par3_ctx->file_system_packet);
+			par3_ctx->file_system_packet = NULL;
+			par3_ctx->file_system_packet_size = 0;
+			par3_ctx->file_system_packet_count = 0;
+		} else if (new_size < par3_ctx->file_system_packet_size){
+			tmp_p = realloc(par3_ctx->file_system_packet, new_size);
+			if (tmp_p == NULL){
+				perror("Failed to re-allocate memory for File System Packet");
+				return RET_MEMORY_ERROR;
+			}
+			par3_ctx->file_system_packet = tmp_p;
+			par3_ctx->file_system_packet_size = new_size;
+			par3_ctx->file_system_packet_count = new_count;
+		}
+	}
 	if (par3_ctx->ext_data_packet_size > 0){
 		new_size = adjust_packet_buf(par3_ctx->ext_data_packet, par3_ctx->ext_data_packet_size, id_list, id_count, &new_count);
 		if (new_size == 0){
@@ -622,25 +694,25 @@ static int remove_other_packet(PAR3_CTX *par3_ctx, uint64_t *id_list, int id_cou
 			par3_ctx->data_packet_count = item_count;
 		}
 	}
-	if (par3_ctx->rec_data_packet_count > 0){
+	if (par3_ctx->recv_packet_count > 0){
 		if (par3_ctx->root_packet != NULL){
 			tmp_p = par3_ctx->root_packet + 8;	// checksum from Root Packet
 		} else {
 			tmp_p = NULL;
 		}
-		item_count = adjust_packet_list(par3_ctx->rec_data_packet_list, par3_ctx->rec_data_packet_count, id_list, id_count, tmp_p);
+		item_count = adjust_packet_list(par3_ctx->recv_packet_list, par3_ctx->recv_packet_count, id_list, id_count, tmp_p);
 		if (item_count == 0){
-			free(par3_ctx->rec_data_packet_list);
-			par3_ctx->rec_data_packet_list = NULL;
-			par3_ctx->rec_data_packet_count = 0;
-		} else if (item_count < par3_ctx->rec_data_packet_count){
-			list = realloc(par3_ctx->rec_data_packet_list, sizeof(PAR3_PKT_CTX) * item_count);
+			free(par3_ctx->recv_packet_list);
+			par3_ctx->recv_packet_list = NULL;
+			par3_ctx->recv_packet_count = 0;
+		} else if (item_count < par3_ctx->recv_packet_count){
+			list = realloc(par3_ctx->recv_packet_list, sizeof(PAR3_PKT_CTX) * item_count);
 			if (list == NULL){
 				perror("Failed to re-allocate memory for Recovery Data Packet");
 				return RET_MEMORY_ERROR;
 			}
-			par3_ctx->rec_data_packet_list = list;
-			par3_ctx->rec_data_packet_count = item_count;
+			par3_ctx->recv_packet_list = list;
+			par3_ctx->recv_packet_count = item_count;
 		}
 	}
 
@@ -747,7 +819,7 @@ int check_packet_set(PAR3_CTX *par3_ctx)
 			printf("\n");
 			// show SetIDs of PAR3 Sets.
 			for (i = 0; i < id_count; i++){
-				printf("InputSetID = %02"PRINT64"X %02"PRINT64"X %02"PRINT64"X %02"PRINT64"X %02"PRINT64"X %02"PRINT64"X %02"PRINT64"X %02"PRINT64"X\n",
+				printf("InputSetID = %02I64X %02I64X %02I64X %02I64X %02I64X %02I64X %02I64X %02I64X\n",
 						(id_list[i] & 0xFF), (id_list[i] >> 8) & 0xFF,
 						(id_list[i] >> 16) & 0xFF, (id_list[i] >> 24) & 0xFF,
 						(id_list[i] >> 32) & 0xFF, (id_list[i] >> 40) & 0xFF, (id_list[i] >> 48) & 0xFF, id_list[i] >> 56);
@@ -765,25 +837,27 @@ int check_packet_set(PAR3_CTX *par3_ctx)
 	if (par3_ctx->noise_level >= 1){
 		printf("\nSet packet:\n");
 		if (par3_ctx->creator_packet_count > 0)
-			printf("Number of Creator Packets       =%3u (%4"PRINT64"d bytes)\n", par3_ctx->creator_packet_count, par3_ctx->creator_packet_size);
+			printf("Number of Creator Packet       =%3u (%4" PRId64 " bytes)\n", par3_ctx->creator_packet_count, par3_ctx->creator_packet_size);
 		if (par3_ctx->comment_packet_count > 0)
-			printf("Number of Comment Packets       =%3u (%4"PRINT64"d bytes)\n", par3_ctx->comment_packet_count, par3_ctx->comment_packet_size);
+			printf("Number of Comment Packet       =%3u (%4" PRId64 " bytes)\n", par3_ctx->comment_packet_count, par3_ctx->comment_packet_size);
 		if (par3_ctx->start_packet_count > 0)
-			printf("Number of Start Packets         =%3u (%4"PRINT64"d bytes)\n", par3_ctx->start_packet_count, par3_ctx->start_packet_size);
+			printf("Number of Start Packet         =%3u (%4" PRId64 " bytes)\n", par3_ctx->start_packet_count, par3_ctx->start_packet_size);
 		if (par3_ctx->matrix_packet_count > 0)
-			printf("Number of Matrix Packets        =%3u (%4"PRINT64"d bytes)\n", par3_ctx->matrix_packet_count, par3_ctx->matrix_packet_size);
+			printf("Number of Matrix Packet        =%3u (%4" PRId64 " bytes)\n", par3_ctx->matrix_packet_count, par3_ctx->matrix_packet_size);
 		if (par3_ctx->file_packet_count > 0)
-			printf("Number of File Packets          =%3u (%4"PRINT64"d bytes)\n", par3_ctx->file_packet_count, par3_ctx->file_packet_size);
+			printf("Number of File Packet          =%3u (%4" PRId64 " bytes)\n", par3_ctx->file_packet_count, par3_ctx->file_packet_size);
 		if (par3_ctx->dir_packet_count > 0)
-			printf("Number of Directory Packets     =%3u (%4"PRINT64"d bytes)\n", par3_ctx->dir_packet_count, par3_ctx->dir_packet_size);
+			printf("Number of Directory Packet     =%3u (%4" PRId64 " bytes)\n", par3_ctx->dir_packet_count, par3_ctx->dir_packet_size);
 		if (par3_ctx->root_packet_count > 0)
-			printf("Number of Root Packets          =%3u (%4"PRINT64"d bytes)\n", par3_ctx->root_packet_count, par3_ctx->root_packet_size);
+			printf("Number of Root Packet          =%3u (%4" PRId64 " bytes)\n", par3_ctx->root_packet_count, par3_ctx->root_packet_size);
+		if (par3_ctx->file_system_packet_count > 0)
+			printf("Number of File System Packet   =%3u (%4" PRId64 " bytes)\n", par3_ctx->file_system_packet_count, par3_ctx->file_system_packet_size);
 		if (par3_ctx->ext_data_packet_count > 0)
-			printf("Number of External Data Packets =%3u (%4"PRINT64"d bytes)\n", par3_ctx->ext_data_packet_count, par3_ctx->ext_data_packet_size);
+			printf("Number of External Data Packet =%3u (%4" PRId64 " bytes)\n", par3_ctx->ext_data_packet_count, par3_ctx->ext_data_packet_size);
 		if (par3_ctx->data_packet_count > 0)
-			printf("Number of Data Packets          =%3"PRINT64"u\n", par3_ctx->data_packet_count);
-		if (par3_ctx->rec_data_packet_count > 0)
-			printf("Number of Recovery Data Packets =%3"PRINT64"u\n", par3_ctx->rec_data_packet_count);
+			printf("Number of Data Packet          =%3" PRIu64 "\n", par3_ctx->data_packet_count);
+		if (par3_ctx->recv_packet_count > 0)
+			printf("Number of Recovery Data Packet =%3" PRIu64 "\n", par3_ctx->recv_packet_count);
 	}
 
 	return 0;

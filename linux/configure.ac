@@ -35,6 +35,7 @@ AM_INIT_AUTOMAKE
 
 dnl Checks for programs.
 AC_PROG_CC
+AC_PROG_CXX
 AC_PROG_INSTALL
 
 dnl Need to define RANLIB used in making static library.
@@ -42,6 +43,11 @@ AC_PROG_RANLIB
 dnl gnu.org says the following may be needed for Microsoft libraries.
 AM_PROG_AR
 
+dnl ChatGPT recommended these when I added C++ code
+dnl Check for the C++ compiler
+AM_CONDITIONAL([HAVE_CXX], [test "$CXX" != "no"])
+dnl Set C++ compiler flags
+AC_SUBST([CXXFLAGS])
 
 dnl Set language to C
 AC_LANG(C)
