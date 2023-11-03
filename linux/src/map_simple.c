@@ -97,7 +97,7 @@ int map_input_block_simple(PAR3_CTX *par3_ctx)
 			continue;
 		}
 		if (par3_ctx->noise_level >= 2){
-			printf("file size = " PRIu64 " \"%s\"\n", file_p->size, file_p->name);
+			printf("file size = %" PRIu64 " \"%s\"\n", file_p->size, file_p->name);
 		}
 
 		fp = fopen(file_p->name, "rb");
@@ -160,7 +160,7 @@ int map_input_block_simple(PAR3_CTX *par3_ctx)
 			slice_p->tail_offset = 0;
 			slice_p->next = -1;
 			if (par3_ctx->noise_level >= 3){
-				printf("new block[%2" PRIu64 "] : slice[%2" PRIu64 "] chunk[%2u] file %d, offset " PRIu64 "\n",
+				printf("new block[%2" PRIu64 "] : slice[%2" PRIu64 "] chunk[%2u] file %d, offset %" PRIu64 "\n",
 						block_index, slice_index, chunk_index, num, file_offset);
 			}
 			slice_p++;
@@ -173,7 +173,7 @@ int map_input_block_simple(PAR3_CTX *par3_ctx)
 
 		// Calculate size of chunk tail, and read it.
 		tail_size = file_p->size - file_offset;
-		//printf("tail_size = " PRIu64 ", file size = " PRIu64 ", offset " PRIu64 "\n", tail_size, file_p->size, file_offset);
+		//printf("tail_size = %" PRIu64 ", file size = %" PRIu64 ", offset %" PRIu64 "\n", tail_size, file_p->size, file_offset);
 		if (tail_size >= 40){
 			// read chunk tail from input file
 			if (fread(work_buf, 1, (size_t)tail_size, fp) != (size_t)tail_size){
@@ -215,7 +215,7 @@ int map_input_block_simple(PAR3_CTX *par3_ctx)
 
 			if (tail_offset == 0){	// Put tail in new block
 				if (par3_ctx->noise_level >= 3){
-					printf("n t block[%2" PRIu64 "] : slice[%2" PRIu64 "] chunk[%2u] file %d, offset " PRIu64 ", tail size " PRIu64 "\n",
+					printf("n t block[%2" PRIu64 "] : slice[%2" PRIu64 "] chunk[%2u] file %d, offset %" PRIu64 ", tail size %" PRIu64 "\n",
 							block_index, slice_index, chunk_index, num, file_offset, tail_size);
 				}
 
@@ -237,7 +237,7 @@ int map_input_block_simple(PAR3_CTX *par3_ctx)
 
 			} else {	// Put tail after another tail
 				if (par3_ctx->noise_level >= 3){
-					printf("a t block[%2" PRIu64 "] : slice[%2" PRIu64 "] chunk[%2u] file %d, offset " PRIu64 ", tail size " PRIu64 ", offset %" PRId64 "\n",
+					printf("a t block[%2" PRIu64 "] : slice[%2" PRIu64 "] chunk[%2u] file %d, offset %" PRIu64 ", tail size %" PRIu64 ", offset %" PRId64 "\n",
 							slice_list[index].block, slice_index, chunk_index, num, file_offset, tail_size, tail_offset);
 				}
 				slice_list[index].next = slice_index;	// update "next" item in the front tail
@@ -282,7 +282,7 @@ int map_input_block_simple(PAR3_CTX *par3_ctx)
 			}
 			memset(buf_tail + tail_size, 0, 40 - tail_size);	// zero fill the rest bytes
 			if (par3_ctx->noise_level >= 3){
-				printf("    block no  : slice no  chunk[%2u] file %d, offset " PRIu64 ", tail size " PRIu64 "\n",
+				printf("    block no  : slice no  chunk[%2u] file %d, offset %" PRIu64 ", tail size %" PRIu64 "\n",
 						chunk_index, num, file_offset, tail_size);
 			}
 
@@ -333,7 +333,7 @@ int map_input_block_simple(PAR3_CTX *par3_ctx)
 	if (par3_ctx->noise_level >= 0){
 		if (par3_ctx->noise_level <= 2){
 			if (progress_step < progress_total)
-				printf("Didn't finish progress. " PRIu64 " / " PRIu64 "\n", progress_step, progress_total);
+				printf("Didn't finish progress. %" PRIu64 " / %" PRIu64 "\n", progress_step, progress_total);
 		}
 		clock_now = clock() - clock_now;
 		printf("done in %.1f seconds.\n", (double)clock_now / CLOCKS_PER_SEC);
@@ -361,7 +361,7 @@ int map_input_block_simple(PAR3_CTX *par3_ctx)
 
 	// Check actual number of slice info
 	if (slice_index != block_count){
-		printf("Number of input file slices = " PRIu64 " (max " PRIu64 ")\n", slice_index, block_count);
+		printf("Number of input file slices = %" PRIu64 " (max %" PRIu64 ")\n", slice_index, block_count);
 		return RET_LOGIC_ERROR;
 	}
 	par3_ctx->slice_count = slice_index;
@@ -380,7 +380,7 @@ int map_input_block_simple(PAR3_CTX *par3_ctx)
 		par3_ctx->block_list = block_p;
 	}
 	if (par3_ctx->noise_level >= 0){
-		printf("Actual block count = " PRIu64 ", Tail packing = %u\n", block_count, num_pack);
+		printf("Actual block count = %" PRIu64 ", Tail packing = %u\n", block_count, num_pack);
 	}
 
 	return 0;
@@ -424,7 +424,7 @@ int map_chunk_tail(PAR3_CTX *par3_ctx)
 			continue;
 		}
 		if (par3_ctx->noise_level >= 2){
-			printf("file size = " PRIu64 " \"%s\"\n", file_p->size, file_p->name);
+			printf("file size = %" PRIu64 " \"%s\"\n", file_p->size, file_p->name);
 		}
 
 		fp = fopen(file_p->name, "rb");
@@ -554,7 +554,7 @@ int map_input_block_trial(PAR3_CTX *par3_ctx)
 			continue;
 		}
 		if (par3_ctx->noise_level >= 2){
-			printf("file size = " PRIu64 " \"%s\"\n", file_p->size, file_p->name);
+			printf("file size = %" PRIu64 " \"%s\"\n", file_p->size, file_p->name);
 		}
 
 		// When no deduplication, chunk's index is same as file's index.
@@ -585,7 +585,7 @@ int map_input_block_trial(PAR3_CTX *par3_ctx)
 			slice_p->tail_offset = 0;
 			slice_p->next = -1;
 			if (par3_ctx->noise_level >= 3){
-				printf("new block[%2" PRIu64 "] : slice[%2" PRIu64 "] chunk[%2u] file %d, offset " PRIu64 "\n",
+				printf("new block[%2" PRIu64 "] : slice[%2" PRIu64 "] chunk[%2u] file %d, offset %" PRIu64 "\n",
 						block_index, slice_index, chunk_index, num, file_offset);
 			}
 			slice_p++;
@@ -598,7 +598,7 @@ int map_input_block_trial(PAR3_CTX *par3_ctx)
 
 		// Calculate size of chunk tail, and read it.
 		tail_size = file_p->size - file_offset;
-		//printf("tail_size = " PRIu64 ", file size = " PRIu64 ", offset " PRIu64 "\n", tail_size, file_p->size, file_offset);
+		//printf("tail_size = %" PRIu64 ", file size = %" PRIu64 ", offset %" PRIu64 "\n", tail_size, file_p->size, file_offset);
 		if (tail_size >= 40){
 			// Not calculate checksum of chunk tail
 			chunk_p->tail_crc = 0;
@@ -619,7 +619,7 @@ int map_input_block_trial(PAR3_CTX *par3_ctx)
 
 			if (tail_offset == 0){	// Put tail in new block
 				if (par3_ctx->noise_level >= 3){
-					printf("n t block[%2" PRIu64 "] : slice[%2" PRIu64 "] chunk[%2u] file %d, offset " PRIu64 ", tail size " PRIu64 "\n",
+					printf("n t block[%2" PRIu64 "] : slice[%2" PRIu64 "] chunk[%2u] file %d, offset %" PRIu64 ", tail size %" PRIu64 "\n",
 							block_index, slice_index, chunk_index, num, file_offset, tail_size);
 				}
 
@@ -640,7 +640,7 @@ int map_input_block_trial(PAR3_CTX *par3_ctx)
 
 			} else {	// Put tail after another tail
 				if (par3_ctx->noise_level >= 3){
-					printf("a t block[%2" PRIu64 "] : slice[%2" PRIu64 "] chunk[%2u] file %d, offset " PRIu64 ", tail size " PRIu64 ", offset %" PRId64 "\n",
+					printf("a t block[%2" PRIu64 "] : slice[%2" PRIu64 "] chunk[%2u] file %d, offset %" PRIu64 ", tail size %" PRIu64 ", offset %" PRId64 "\n",
 							slice_list[index].block, slice_index, chunk_index, num, file_offset, tail_size, tail_offset);
 				}
 				slice_list[index].next = slice_index;	// update "next" item in the front tail
@@ -669,7 +669,7 @@ int map_input_block_trial(PAR3_CTX *par3_ctx)
 
 		} else if (tail_size > 0){
 			if (par3_ctx->noise_level >= 3){
-				printf("    block no  : slice no  chunk[%2u] file %d, offset " PRIu64 ", tail size " PRIu64 "\n",
+				printf("    block no  : slice no  chunk[%2u] file %d, offset %" PRIu64 ", tail size %" PRIu64 "\n",
 						chunk_index, num, file_offset, tail_size);
 			}
 
@@ -709,7 +709,7 @@ int map_input_block_trial(PAR3_CTX *par3_ctx)
 
 	// Check actual number of slice info
 	if (slice_index != block_count){
-		printf("Number of input file slices = " PRIu64 " (max " PRIu64 ")\n", slice_index, block_count);
+		printf("Number of input file slices = %" PRIu64 " (max %" PRIu64 ")\n", slice_index, block_count);
 		return RET_LOGIC_ERROR;
 	}
 	par3_ctx->slice_count = slice_index;
@@ -728,7 +728,7 @@ int map_input_block_trial(PAR3_CTX *par3_ctx)
 		par3_ctx->block_list = block_p;
 	}
 	if (par3_ctx->noise_level >= 0){
-		printf("Actual block count = " PRIu64 ", Tail packing = %u\n", block_count, num_pack);
+		printf("Actual block count = %" PRIu64 ", Tail packing = %u\n", block_count, num_pack);
 	}
 
 	return 0;

@@ -32,7 +32,7 @@
 #include "verify.h"
 
 #ifdef __linux__
-static int restore_directory(char *path);
+#warning "static int restore_directory(char *path) is UNDEFINED"
 
 #elif _WIN32
 // It will restore permissions or attributes after files are repaired.
@@ -544,7 +544,7 @@ int verify_repaired_file(PAR3_CTX *par3_ctx, char *temp_path,
 	file_list = par3_ctx->input_file_list;
 
 	// Allocate buffer to store file data temporary.
-	par3_ctx->work_buf = malloc(par3_ctx->block_size);
+	par3_ctx->work_buf = malloc(par3_ctx->block_size);
 	if (par3_ctx->work_buf == NULL){
 		perror("Failed to allocate memory for input data");
 		return RET_MEMORY_ERROR;

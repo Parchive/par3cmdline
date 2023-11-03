@@ -215,7 +215,7 @@ static int parse_chunk_description(PAR3_CTX *par3_ctx, uint8_t *chunk, size_t de
 			if (chunk_size >= block_size){
 				memcpy(&(chunk_p->block), chunk + offset, 8);
 				if (chunk_p->block >= block_count){
-					printf("First block of chunk exceeds block count. " PRIu64 "\n", chunk_p->block);
+					printf("First block of chunk exceeds block count. %" PRIu64 "\n", chunk_p->block);
 					return RET_LOGIC_ERROR;
 				}
 				offset += 8;	// index of first input block holding chunk
@@ -237,7 +237,7 @@ static int parse_chunk_description(PAR3_CTX *par3_ctx, uint8_t *chunk, size_t de
 			memcpy(&(chunk_p->tail_offset), buf_tail + 32, 8);
 			if (tail_size >= 40){
 				if (chunk_p->tail_block >= block_count){
-					printf("Tail block of chunk exceeds block count. " PRIu64 "\n", chunk_p->tail_block);
+					printf("Tail block of chunk exceeds block count. %" PRIu64 "\n", chunk_p->tail_block);
 					return RET_LOGIC_ERROR;
 				}
 			}
@@ -525,7 +525,7 @@ int parse_vital_packet(PAR3_CTX *par3_ctx)
 		if (packet_size >= 89){	// To support old Start Packet for compatibility
 			// This will be removed in future, when PAR3 spec is updated.
 			len += 8;
-			//printf("Start Packet is old, " PRIu64 "\n", packet_size);
+			//printf("Start Packet is old, %" PRIu64 "\n", packet_size);
 		}
 		if (mem_or8(par3_ctx->start_packet + len) != 0){	// check parent's InputSetID
 			if (mem_or16(par3_ctx->start_packet + len + 8) == 0){	// check parent's Root packet
@@ -544,13 +544,13 @@ int parse_vital_packet(PAR3_CTX *par3_ctx)
 			par3_ctx->galois_poly |= 1 << (par3_ctx->gf_size * 8);
 		}
 		if (packet_size != len + 33 + par3_ctx->gf_size){	// check packet size is valid
-			printf("Start Packet size is wrong, " PRIu64 "\n", packet_size);
+			printf("Start Packet size is wrong, %" PRIu64 "\n", packet_size);
 			return RET_LOGIC_ERROR;
 		}
 	}
 	if (par3_ctx->noise_level >= 0){
 		printf("\n");
-		printf("Block size = " PRIu64 "\n", par3_ctx->block_size);
+		printf("Block size = %" PRIu64 "\n", par3_ctx->block_size);
 		if (par3_ctx->noise_level >= 1){
 			printf("Galois field size = %u\n", par3_ctx->gf_size);
 			printf("Galois field generator = 0x%X\n", par3_ctx->galois_poly);
@@ -568,7 +568,7 @@ int parse_vital_packet(PAR3_CTX *par3_ctx)
 	}
 	memcpy(&packet_size, par3_ctx->root_packet + 24, 8);
 	if (packet_size <= 61){
-		printf("Root Packet is too small, " PRIu64 "\n", packet_size);
+		printf("Root Packet is too small, %" PRIu64 "\n", packet_size);
 		return RET_INSUFFICIENT_DATA;
 	}
 	tmp_p = par3_ctx->root_packet + 48;	// packet body
@@ -576,7 +576,7 @@ int parse_vital_packet(PAR3_CTX *par3_ctx)
 	memcpy(&(par3_ctx->attribute), tmp_p + 8, 1);
 	memcpy(&num, tmp_p + 9, 4);	// number of options
 	if (packet_size < 48 + 8 + 1 + 4 + (16 * num)){
-		printf("Root Packet is too small, " PRIu64 "\n", packet_size);
+		printf("Root Packet is too small, %" PRIu64 "\n", packet_size);
 		return RET_INSUFFICIENT_DATA;
 	}
 	tmp_p += 8 + 1 + 4 + (16 * num);	// skip options at this time
@@ -586,7 +586,7 @@ int parse_vital_packet(PAR3_CTX *par3_ctx)
 		return RET_LOGIC_ERROR;
 	}
 	if (par3_ctx->noise_level >= 0){
-		printf("Block count = " PRIu64 "\n", par3_ctx->block_count);
+		printf("Block count = %" PRIu64 "\n", par3_ctx->block_count);
 		printf("Root attribute = %u\n", par3_ctx->attribute);
 	}
 
@@ -693,7 +693,7 @@ int parse_vital_packet(PAR3_CTX *par3_ctx)
 			file_p = par3_ctx->input_file_list;
 			num = par3_ctx->input_file_count;
 			while (num > 0){
-				printf("input file = \"%s\", size = " PRIu64 "\n", file_p->name, file_p->size);
+				printf("input file = \"%s\", size = %" PRIu64 "\n", file_p->name, file_p->size);
 				//printf("index of file = %u, index of the first chunk = %u\n", par3_ctx->input_file_count, file_p->chunk);
 
 				file_p++;
@@ -742,12 +742,12 @@ int parse_external_data_packet(PAR3_CTX *par3_ctx)
 		hash = tmp_p + 56;
 		count = packet_size - 56;
 		if (count % 24 != 0){
-			printf("External Data Packet for " PRIu64 " is bad.\n", index);
+			printf("External Data Packet for %" PRIu64 " is bad.\n", index);
 			return RET_LOGIC_ERROR;
 		}
 		count /= 24;
 		if (index + count > block_count){
-			printf("External Data Packet for " PRIu64 " is too large (" PRIu64 ").\n", index, count);
+			printf("External Data Packet for %" PRIu64 " is too large (%" PRIu64 ").\n", index, count);
 			return RET_LOGIC_ERROR;
 		}
 
@@ -774,7 +774,7 @@ int parse_external_data_packet(PAR3_CTX *par3_ctx)
 		for (index = 0; index < block_count; index++){
 			//printf("block[%2" PRIu64 "] crc = 0x%016I64x\n", index, block_list[index].crc);
 			if ((block_list[index].state & (1 | 64)) == 1){
-				printf("Warning, checksum of input block[" PRIu64 "] doesn't exist.\n", index);
+				printf("Warning, checksum of input block[%" PRIu64 "] doesn't exist.\n", index);
 			}
 		}
 	}

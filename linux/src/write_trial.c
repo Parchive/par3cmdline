@@ -46,7 +46,7 @@ uint64_t try_index_file(PAR3_CTX *par3_ctx)
 	file_size += par3_ctx->comment_packet_size;
 
 	if (par3_ctx->noise_level >= -1)
-		printf("Size of index file = " PRIu64 ", %s\n", file_size, offset_file_name(par3_ctx->par_filename));
+		printf("Size of index file = %" PRIu64 ", %s\n", file_size, offset_file_name(par3_ctx->par_filename));
 
 	return file_size;
 }
@@ -65,36 +65,36 @@ void show_sizing_scheme(PAR3_CTX *par3_ctx,
 		if (recovery_file_scheme == -1){	// Uniform
 			if (cohort_count > 1){
 				if (base_num > 0){
-					printf("Put [" PRIu64 " ~ " PRIu64 "] * %u blocks each on %u files.\n", max_count - 1, max_count, cohort_count, file_count);
+					printf("Put [%" PRIu64 " ~ %" PRIu64 "] * %u blocks each on %u files.\n", max_count - 1, max_count, cohort_count, file_count);
 				} else {
-					printf("Put " PRIu64 " * %u blocks each on %u files.\n", max_count, cohort_count, file_count);
+					printf("Put %" PRIu64 " * %u blocks each on %u files.\n", max_count, cohort_count, file_count);
 				}
 			} else {
 				if (base_num > 0){
-					printf("Put [" PRIu64 " ~ " PRIu64 "] blocks each on %u files.\n", max_count - 1, max_count, file_count);
+					printf("Put [%" PRIu64 " ~ %" PRIu64 "] blocks each on %u files.\n", max_count - 1, max_count, file_count);
 				} else {
-					printf("Put " PRIu64 " blocks each on %u files.\n", max_count, file_count);
+					printf("Put %" PRIu64 " blocks each on %u files.\n", max_count, file_count);
 				}
 			}
 		} else {	// Variable (base number * power of 2)
 			if (cohort_count > 1){
-				printf("Put [" PRIu64 " ~ " PRIu64 "] * %u blocks each on %u files.\n", base_num, max_count, cohort_count, file_count);
+				printf("Put [%" PRIu64 " ~ %" PRIu64 "] * %u blocks each on %u files.\n", base_num, max_count, cohort_count, file_count);
 			} else {
-				printf("Put [" PRIu64 " ~ " PRIu64 "] blocks each on %u files.\n", base_num, max_count, file_count);
+				printf("Put [%" PRIu64 " ~ %" PRIu64 "] blocks each on %u files.\n", base_num, max_count, file_count);
 			}
 		}
 	} else {
 		if (recovery_file_scheme == -1){	// Uniform
 			if (cohort_count > 1){
-				printf("Put " PRIu64 " * %u blocks on a single file.\n", max_count, cohort_count);
+				printf("Put %" PRIu64 " * %u blocks on a single file.\n", max_count, cohort_count);
 			} else {
-				printf("Put " PRIu64 " blocks on a single file.\n", max_count);
+				printf("Put %" PRIu64 " blocks on a single file.\n", max_count);
 			}
 		} else if (recovery_file_scheme > 0){	// Limit size
 			if (cohort_count > 1){
-				printf("Put \"power of 2\" * %u blocks on files incrementaly, until " PRIu64 " * %u blocks each.\n", cohort_count, max_count, cohort_count);
+				printf("Put \"power of 2\" * %u blocks on files incrementaly, until %" PRIu64 " * %u blocks each.\n", cohort_count, max_count, cohort_count);
 			} else {
-				printf("Put \"power of 2\" blocks on files incrementaly, until " PRIu64 " blocks each.\n", max_count);
+				printf("Put \"power of 2\" blocks on files incrementaly, until %" PRIu64 " blocks each.\n", max_count);
 			}
 		} else {	// Power of 2
 			if (cohort_count > 1){
@@ -116,7 +116,7 @@ uint64_t try_total_packet_size(PAR3_CTX *par3_ctx,
 	repeat_count = 1;
 	for (num = 2; num <= packet_count; num *= 2)	// log2(packet_count)
 		repeat_count++;
-	//printf("packet_count = " PRIu64 ", repetition = %zu\n", packet_count, repeat_count);
+	//printf("packet_count = %" PRIu64 ", repetition = %zu\n", packet_count, repeat_count);
 
 	// Creator Packet
 	file_size = par3_ctx->creator_packet_size;
@@ -168,7 +168,7 @@ uint32_t calculate_digit_max(PAR3_CTX *par3_ctx,
 					break;
 				}
 			}
-			//printf("file_count = %u, (2 pow file_count) - 1 = " PRIu64 "\n", file_count, max_count);
+			//printf("file_count = %u, (2 pow file_count) - 1 = %" PRIu64 "\n", file_count, max_count);
 			if (max_count < block_count){	// Multiply by 2
 				base_num = (block_count + max_count - 1) / max_count;	// round up
 			} else {	// Number of file is reduced.
@@ -218,9 +218,9 @@ uint32_t calculate_digit_max(PAR3_CTX *par3_ctx,
 				next_count = (1 + upper_count) / 2;
 			}
 			while (upper_count > min_count){
-				//printf("min_count = " PRIu64 ", upper_count = " PRIu64 ", next_count = " PRIu64 "\n", min_count, upper_count, next_count);
+				//printf("min_count = %" PRIu64 ", upper_count = %" PRIu64 ", next_count = %" PRIu64 "\n", min_count, upper_count, next_count);
 				total_size = try_total_packet_size(par3_ctx, packet_size, next_count);
-				//printf("total_size = " PRIu64 " (" PRIu64 ")\n", total_size, next_count);
+				//printf("total_size = %" PRIu64 " (%" PRIu64 ")\n", total_size, next_count);
 				if (total_size > limit_size){
 					upper_count = next_count;
 					next_count = (min_count + upper_count) / 2;
@@ -234,7 +234,7 @@ uint32_t calculate_digit_max(PAR3_CTX *par3_ctx,
 					break;
 			}
 			num = min_count;
-			//printf("limit_size = " PRIu64 ", limit_count = " PRIu64 "\n", limit_size, num);
+			//printf("limit_size = %" PRIu64 ", limit_count = %" PRIu64 "\n", limit_size, num);
 
 			base_num = 1;
 			each_start = 0;
@@ -278,7 +278,7 @@ uint32_t calculate_digit_max(PAR3_CTX *par3_ctx,
 	}
 
 	// Calculate how many digits for each block count.
-	//printf("max_start = " PRIu64 ", max_count = " PRIu64 "\n", each_start, max_count);
+	//printf("max_start = %" PRIu64 ", max_count = %" PRIu64 "\n", each_start, max_count);
 	digit_num1 = 1;
 	num = each_start + first_num;
 	while (num >= 10){
@@ -327,7 +327,7 @@ static uint64_t try_data_packet(PAR3_CTX *par3_ctx, char *file_name, uint64_t ea
 	packet_count = 0;	// reduce 1, because put 1st copy at first.
 	for (num = 2; num <= each_count; num *= 2)	// log2(each_count)
 		packet_count++;
-	//printf("each_count = " PRIu64 ", repetition = %zu\n", each_count, packet_count);
+	//printf("each_count = %" PRIu64 ", repetition = %zu\n", each_count, packet_count);
 	packet_count *= par3_ctx->common_packet_count;
 	//printf("number of repeated packets = %zu\n", packet_count);
 
@@ -356,7 +356,7 @@ static uint64_t try_data_packet(PAR3_CTX *par3_ctx, char *file_name, uint64_t ea
 				block_max = block_count;
 				write_count = (uint32_t)(block_max - block_index);
 			}
-			//printf("block_index = " PRIu64 ", block_max = " PRIu64 "\n", block_index, block_max);
+			//printf("block_index = %" PRIu64 ", block_max = %" PRIu64 "\n", block_index, block_max);
 			while (block_index < block_max){
 				write_size += block_list[block_index].size;
 				block_index++;
@@ -409,7 +409,7 @@ static uint64_t try_data_packet(PAR3_CTX *par3_ctx, char *file_name, uint64_t ea
 	file_size += par3_ctx->comment_packet_size;
 
 	if (par3_ctx->noise_level >= -1)
-		printf("Size of archive file = " PRIu64 ", %s\n", file_size, offset_file_name(file_name));
+		printf("Size of archive file = %" PRIu64 ", %s\n", file_size, offset_file_name(file_name));
 
 	return file_size;
 }
@@ -526,7 +526,7 @@ static uint64_t try_recovery_packet(PAR3_CTX *par3_ctx, char *file_name, uint64_
 	packet_count = 0;	// reduce 1, because put 1st copy at first.
 	for (num = 2; num <= each_count; num *= 2)	// log2(each_count)
 		packet_count++;
-	//printf("each_count = " PRIu64 ", repetition = %zu\n", each_count, packet_count);
+	//printf("each_count = %" PRIu64 ", repetition = %zu\n", each_count, packet_count);
 	packet_count *= par3_ctx->common_packet_count;
 	//printf("number of repeated packets = %zu\n", packet_count);
 
@@ -588,7 +588,7 @@ static uint64_t try_recovery_packet(PAR3_CTX *par3_ctx, char *file_name, uint64_
 	file_size += par3_ctx->comment_packet_size;
 
 	if (par3_ctx->noise_level >= -1)
-		printf("Size of recovery file = " PRIu64 ", %s\n", file_size, offset_file_name(file_name));
+		printf("Size of recovery file = %" PRIu64 ", %s\n", file_size, offset_file_name(file_name));
 
 	return file_size;
 }

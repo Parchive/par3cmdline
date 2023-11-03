@@ -46,9 +46,9 @@ static int check_matrix_packet(PAR3_CTX *par3_ctx)
 			memcpy(&hint_num, buf + offset + 64, 8);
 			if (par3_ctx->noise_level >= 1){
 				printf("Cauchy Matrix Packet:\n");
-				printf("Index of first input block         = " PRIu64 "\n", first_num);
-				printf("Index of last input block plus 1   = " PRIu64 "\n", last_num);
-				printf("hint for number of recovery blocks = " PRIu64 "\n", hint_num);
+				printf("Index of first input block         = %" PRIu64 "\n", first_num);
+				printf("Index of last input block plus 1   = %" PRIu64 "\n", last_num);
+				printf("hint for number of recovery blocks = %" PRIu64 "\n", hint_num);
 				printf("\n");
 			}
 
@@ -97,9 +97,9 @@ static int check_matrix_packet(PAR3_CTX *par3_ctx)
 			}
 			if (par3_ctx->noise_level >= 1){
 				printf("FFT Matrix Packet:\n");
-				printf("Index of first input block       = " PRIu64 "\n", first_num);
-				printf("Index of last input block plus 1 = " PRIu64 "\n", last_num);
-				printf("Max number of recovery blocks    = " PRIu64 "\n", max_num);
+				printf("Index of first input block       = %" PRIu64 "\n", first_num);
+				printf("Index of last input block plus 1 = %" PRIu64 "\n", last_num);
+				printf("Max number of recovery blocks    = %" PRIu64 "\n", max_num);
 				printf("Number of interleaving blocks    = %u\n", extra_num);
 				printf("\n");
 			}
@@ -185,14 +185,14 @@ static int calculate_extra_count(PAR3_CTX *par3_ctx)
 		if (total_count < par3_ctx->block_count + par3_ctx->max_recovery_block)
 			total_count = par3_ctx->block_count + par3_ctx->max_recovery_block;
 		if (total_count > 65536){
-			printf("Total block count " PRIu64 " are too many.\n", total_count);
+			printf("Total block count %" PRIu64 " are too many.\n", total_count);
 			return RET_LOGIC_ERROR;
 		}
 
 		if (par3_ctx->noise_level >= 0){
-			printf("Recovery block count = " PRIu64 "\n", par3_ctx->recovery_block_count);
+			printf("Recovery block count = %" PRIu64 "\n", par3_ctx->recovery_block_count);
 			if (par3_ctx->max_recovery_block > 0){
-				printf("Max recovery block count = " PRIu64 "\n", par3_ctx->max_recovery_block);
+				printf("Max recovery block count = %" PRIu64 "\n", par3_ctx->max_recovery_block);
 			}
 			printf("\n");
 		}
@@ -208,9 +208,9 @@ static int calculate_extra_count(PAR3_CTX *par3_ctx)
 		cohort_count = par3_ctx->interleave + 1; // Minimum value is 1.
 		if (cohort_count > 1){
 			if (par3_ctx->noise_level >= 0){
-				printf("Number of cohort = " PRIu64 " (Interleaving time = %u)\n", cohort_count, par3_ctx->interleave);
+				printf("Number of cohort = %" PRIu64 " (Interleaving time = %u)\n", cohort_count, par3_ctx->interleave);
 				i = (par3_ctx->block_count + cohort_count - 1) / cohort_count;	// round up
-				printf("Input block count = " PRIu64 " (" PRIu64 " per cohort)\n", par3_ctx->block_count, i);
+				printf("Input block count = %" PRIu64 " (%" PRIu64 " per cohort)\n", par3_ctx->block_count, i);
 			}
 		}
 
@@ -218,7 +218,7 @@ static int calculate_extra_count(PAR3_CTX *par3_ctx)
 		i = par3_ctx->recovery_block_count % cohort_count;
 		if (i > 0){
 			if (par3_ctx->noise_level >= 1){
-				printf("Recovery block count is increased from " PRIu64 " to " PRIu64 "\n", par3_ctx->recovery_block_count, par3_ctx->recovery_block_count + cohort_count - i);
+				printf("Recovery block count is increased from %" PRIu64 " to %" PRIu64 "\n", par3_ctx->recovery_block_count, par3_ctx->recovery_block_count + cohort_count - i);
 			}
 			par3_ctx->recovery_block_count += cohort_count - i;	// add to the remainder
 		}
@@ -226,7 +226,7 @@ static int calculate_extra_count(PAR3_CTX *par3_ctx)
 		i = par3_ctx->first_recovery_block % cohort_count;
 		if (i > 0){
 			if (par3_ctx->noise_level >= 1){
-				printf("First recovery block is decreased from " PRIu64 " to " PRIu64 "\n", par3_ctx->first_recovery_block, par3_ctx->first_recovery_block - i);
+				printf("First recovery block is decreased from %" PRIu64 " to %" PRIu64 "\n", par3_ctx->first_recovery_block, par3_ctx->first_recovery_block - i);
 			}
 			par3_ctx->first_recovery_block -= i;	// erase the remainder
 		}
@@ -237,10 +237,10 @@ static int calculate_extra_count(PAR3_CTX *par3_ctx)
 			total_count = par3_ctx->block_count + par3_ctx->max_recovery_block;
 		if (total_count > 65536 * cohort_count){
 			if (cohort_count == 1){
-				printf("Total block count " PRIu64 " are too many.\n", total_count);
+				printf("Total block count %" PRIu64 " are too many.\n", total_count);
 			} else {
 				i = (total_count + cohort_count - 1) / cohort_count;	// round up
-				printf("Total block count " PRIu64 " (" PRIu64 " per cohort) are too many.\n", total_count, i);
+				printf("Total block count %" PRIu64 " (%" PRIu64 " per cohort) are too many.\n", total_count, i);
 			}
 			return RET_LOGIC_ERROR;
 		}
@@ -251,24 +251,24 @@ static int calculate_extra_count(PAR3_CTX *par3_ctx)
 			total_count = par3_ctx->max_recovery_block;
 		if (total_count > 32768 * cohort_count){
 			if (cohort_count == 1){
-				printf("Recovery block count " PRIu64 " are too many.\n", total_count);
+				printf("Recovery block count %" PRIu64 " are too many.\n", total_count);
 			} else {
-				printf("Recovery block count " PRIu64 " (" PRIu64 " per cohort) are too many.\n", total_count, total_count / cohort_count);
+				printf("Recovery block count %" PRIu64 " (%" PRIu64 " per cohort) are too many.\n", total_count, total_count / cohort_count);
 			}
 			return RET_LOGIC_ERROR;
 		}
 
 		if (par3_ctx->noise_level >= 0){
 			if (cohort_count == 1){
-				printf("Recovery block count = " PRIu64 "\n", par3_ctx->recovery_block_count);
+				printf("Recovery block count = %" PRIu64 "\n", par3_ctx->recovery_block_count);
 			} else {
-				printf("Recovery block count = " PRIu64 " (" PRIu64 " per cohort)\n", par3_ctx->recovery_block_count, par3_ctx->recovery_block_count / cohort_count);
+				printf("Recovery block count = %" PRIu64 " (%" PRIu64 " per cohort)\n", par3_ctx->recovery_block_count, par3_ctx->recovery_block_count / cohort_count);
 			}
 			if (par3_ctx->max_recovery_block > 0){
 				if (cohort_count == 1){
-					printf("Max recovery block count = " PRIu64 "\n", par3_ctx->max_recovery_block);
+					printf("Max recovery block count = %" PRIu64 "\n", par3_ctx->max_recovery_block);
 				} else {
-					printf("Max recovery block count = " PRIu64 " (" PRIu64 " per cohort)\n", par3_ctx->max_recovery_block, par3_ctx->max_recovery_block / cohort_count);
+					printf("Max recovery block count = %" PRIu64 " (%" PRIu64 " per cohort)\n", par3_ctx->max_recovery_block, par3_ctx->max_recovery_block / cohort_count);
 				}
 			}
 			printf("\n");
@@ -398,7 +398,7 @@ int par3_extend(PAR3_CTX *par3_ctx, char command_trial, char *temp_path)
 
 		// Because a user cannot change setting to create extra recovery blocks,
 		// showing efficiency rate will be useless.
-		//printf("\nTotal size of PAR files = " PRIu64 "\n", total_par_size);
+		//printf("\nTotal size of PAR files = %" PRIu64 "\n", total_par_size);
 
 	} else {
 		// Write Index File

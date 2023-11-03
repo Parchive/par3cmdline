@@ -1,6 +1,16 @@
 // avoid error of MSVC
 #define _CRT_SECURE_NO_WARNINGS
 
+/* Redefinition of _FILE_OFFSET_BITS must happen BEFORE including stdio.h */
+#ifdef __linux__
+#define _FILE_OFFSET_BITS 64
+#define _fseeki64 fseeko
+#define _fileno fileno
+#define _chsize_s ftruncate
+#elif _WIN32
+#endif 
+
+
 #include <errno.h>
 #include <inttypes.h>
 #include <stdio.h>
@@ -8,6 +18,8 @@
 #include <string.h>
 
 #if __linux__
+
+#include <unistd.h>
 
 #elif _WIN32
 

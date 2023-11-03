@@ -70,7 +70,7 @@ int read_packet(PAR3_CTX *par3_ctx)
 		// So, a user should not set small limit.
 	}
 	if (par3_ctx->noise_level >= 2){
-		printf("buffer size for PAR files = " PRIu64 "\n", buf_size);
+		printf("buffer size for PAR files = %" PRIu64 "\n", buf_size);
 	}
 	buf = malloc(buf_size);
 	if (buf == NULL){
@@ -101,7 +101,7 @@ int read_packet(PAR3_CTX *par3_ctx)
 		read_size = buf_size;
 		if (file_size < buf_size)
 			read_size = file_size;
-		//printf("file data = " PRIu64 ", read_size = %zu, remain = %zu\n", file_size, read_size, file_size - read_size);
+		//printf("file data = %" PRIu64 ", read_size = %zu, remain = %zu\n", file_size, read_size, file_size - read_size);
 		if (fread(buf, 1, read_size, fp) != read_size){
 			printf("Failed to read \"%s\", skip to next file.\n", namez + namez_off);
 			namez_off += strlen(namez + namez_off) + 1;
@@ -130,7 +130,7 @@ int read_packet(PAR3_CTX *par3_ctx)
 				if (packet_size > buf_size){	// If packet is larger than buffer, show error and continue.
 					if (par3_ctx->noise_level >= 1){
 						memcpy(packet_type, buf + (offset + 40), 8);
-						printf("Warning, packet is too large. size = " PRIu64 ", type = %s\n", packet_size, packet_type);
+						printf("Warning, packet is too large. size = %" PRIu64 ", type = %s\n", packet_size, packet_type);
 					}
 					offset += 8;
 					continue;
@@ -143,7 +143,7 @@ int read_packet(PAR3_CTX *par3_ctx)
 
 					// slide data to top
 					memmove(buf, buf + offset, buf_size - offset);
-					//printf("file data = " PRIu64 ", offset = %zu, read_size = %zu, ", file_size, offset, read_size);
+					//printf("file data = %" PRIu64 ", offset = %zu, read_size = %zu, ", file_size, offset, read_size);
 					if (fread(buf + buf_size - offset, 1, read_size, fp) != read_size){
 						printf("Failed to read \"%s\", skip to next file.\n", namez + namez_off);
 						namez_off += strlen(namez + namez_off) + 1;
@@ -152,7 +152,7 @@ int read_packet(PAR3_CTX *par3_ctx)
 					}
 					file_size -= read_size;
 					max = buf_size - offset + read_size;
-					//printf("remain = " PRIu64 ", max = %zu\n", file_size, max);
+					//printf("remain = %" PRIu64 ", max = %zu\n", file_size, max);
 					file_offset += offset;
 					offset = 0;
 				}
@@ -196,7 +196,7 @@ int read_packet(PAR3_CTX *par3_ctx)
 
 				// slide data to top
 				memmove(buf, buf + offset, buf_size - offset);
-				//printf("file_size = " PRIu64 ", offset = %zu, read_size = %zu, ", file_size, offset, read_size);
+				//printf("file_size = %" PRIu64 ", offset = %zu, read_size = %zu, ", file_size, offset, read_size);
 				if (fread(buf + buf_size - offset, 1, read_size, fp) != read_size){
 					printf("Failed to read \"%s\", skip to next file.\n", namez + namez_off);
 					namez_off += strlen(namez + namez_off) + 1;
@@ -205,7 +205,7 @@ int read_packet(PAR3_CTX *par3_ctx)
 				}
 				file_size -= read_size;
 				max = buf_size - offset + read_size;
-				//printf("remain = " PRIu64 ", max = %zu\n", file_size, max);
+				//printf("remain = %" PRIu64 ", max = %zu\n", file_size, max);
 				file_offset += offset;
 				offset = 0;
 			}
@@ -218,7 +218,7 @@ int read_packet(PAR3_CTX *par3_ctx)
 		}
 
 		if (par3_ctx->noise_level >= 0){
-			printf("Loaded " PRIu64 " new packets (found " PRIu64 " packets)\n", new_packet_count, packet_count);
+			printf("Loaded %" PRIu64 " new packets (found %" PRIu64 " packets)\n", new_packet_count, packet_count);
 		}
 
 		namez_off += strlen(namez + namez_off) + 1;
@@ -377,7 +377,7 @@ void show_data_size(PAR3_CTX *par3_ctx)
 	par3_ctx->total_file_size = total_size;
 	par3_ctx->max_file_size = max_size;
 
-	printf("Total file size = " PRIu64 "\n", total_size);
-	printf("Max file size = " PRIu64 "\n", max_size);
+	printf("Total file size = %" PRIu64 "\n", total_size);
+	printf("Max file size = %" PRIu64 "\n", max_size);
 }
 

@@ -819,7 +819,7 @@ int check_packet_set(PAR3_CTX *par3_ctx)
 			printf("\n");
 			// show SetIDs of PAR3 Sets.
 			for (i = 0; i < id_count; i++){
-				printf("InputSetID = %02I64X %02I64X %02I64X %02I64X %02I64X %02I64X %02I64X %02I64X\n",
+				printf("InputSetID = %02" PRIx64 " %02" PRIx64 " %02" PRIx64 " %02" PRIx64 " %02" PRIx64 " %02" PRIx64 " %02" PRIx64 " %02" PRIx64 "\n",
 						(id_list[i] & 0xFF), (id_list[i] >> 8) & 0xFF,
 						(id_list[i] >> 16) & 0xFF, (id_list[i] >> 24) & 0xFF,
 						(id_list[i] >> 32) & 0xFF, (id_list[i] >> 40) & 0xFF, (id_list[i] >> 48) & 0xFF, id_list[i] >> 56);

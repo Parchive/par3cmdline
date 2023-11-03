@@ -2,6 +2,15 @@
 // avoid error of MSVC
 #define _CRT_SECURE_NO_WARNINGS
 
+/* Redefinition of _FILE_OFFSET_BITS must happen BEFORE including stdio.h */
+#ifdef __linux__
+#define _FILE_OFFSET_BITS 64
+#define _fseeki64 fseeko
+#define _ftelli64 ftello
+#elif _WIN32
+#endif 
+
+
 #include <errno.h>
 #include <inttypes.h>
 #include <stdio.h>
@@ -108,7 +117,7 @@ int insert_space_zip(PAR3_CTX *par3_ctx, int footer_size, int repeat_count)
 				ret = region_check_parity(buf_p, region_size);
 			}
 			if (ret != 0){
-				printf("Parity of recovery block[" PRIu64 "] is different.\n", block_index);
+				printf("Parity of recovery block[%" PRIu64 "] is different.\n", block_index);
 				fclose(fp);
 				return RET_LOGIC_ERROR;
 			}

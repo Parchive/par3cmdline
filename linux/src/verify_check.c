@@ -6,6 +6,7 @@
 #ifdef __linux__
 #define _FILE_OFFSET_BITS 64
 #define _fseeki64 fseeko
+#define _fileno fileno
 #elif _WIN32
 #endif 
 
@@ -17,6 +18,21 @@
 #include <time.h>
 
 #ifdef __linux__
+
+/* Based on code from: https://stackoverflow.com/questions/50119172/how-to-get-the-file-length-in-c-on-linux  */
+int64_t _filelengthi64(int filedes)
+{
+    off_t pos = lseek(filedes, 0, SEEK_CUR);
+    if (pos != (off_t)-1)
+    {
+        off_t size = lseek(filedes, 0, SEEK_END);
+        lseek(filedes, pos, SEEK_SET);
+        return (int64_t)size;
+    }
+    return (int64_t)-1;
+}
+
+
 #elif _WIN32
 // MSVC headers
 #include <io.h>
@@ -68,7 +84,7 @@ int check_complete_file(PAR3_CTX *par3_ctx, char *filename, uint32_t file_id,
 	chunk_num = file_p->chunk_num;
 	if (offset_next != NULL){	// Don't show this after repair.
 		if (par3_ctx->noise_level >= 1){
-			printf("chunk count = %u, current file size = " PRIu64 ", original size = " PRIu64 "\n", chunk_num, current_size, file_size);
+			printf("chunk count = %u, current file size = %" PRIu64 ", original size = %" PRIu64 "\n", chunk_num, current_size, file_size);
 		}
 		if ( (file_p->state & 0x80000000) && (par3_ctx->noise_level >= 2) ){
 			chunk_list = par3_ctx->chunk_list;
@@ -106,7 +122,7 @@ int check_complete_file(PAR3_CTX *par3_ctx, char *filename, uint32_t file_id,
 		int file_no = _fileno(fp);
 		if (file_no >= 0){
 			current_size = _filelengthi64(file_no);
-			//printf("file_size = " PRIu64 ", current_size = " PRIu64 "\n", file_size, current_size);
+			//printf("file_size = %" PRIu64 ", current_size = %" PRIu64 "\n", file_size, current_size);
 			if (current_size < file_size){
 				fclose(fp);
 				return -1;
@@ -132,7 +148,7 @@ int check_complete_file(PAR3_CTX *par3_ctx, char *filename, uint32_t file_id,
 	chunk_size = chunk_list[chunk_index].size;
 	block_index = chunk_list[chunk_index].block;
 	if (par3_ctx->noise_level >= 3){
-		printf("first chunk = %u, size = " PRIu64 ", block index = %" PRId64 "\n", chunk_index, chunk_size, block_index);
+		printf("first chunk = %u, size = %" PRIu64 ", block index = %" PRId64 "\n", chunk_index, chunk_size, block_index);
 	}
 	blake3_hasher_init(&hasher);
 	flag_unknown = 0;
@@ -152,7 +168,7 @@ int check_complete_file(PAR3_CTX *par3_ctx, char *filename, uint32_t file_id,
 			chunk_size = chunk_list[chunk_index].size;
 			block_index = chunk_list[chunk_index].block;
 			if (par3_ctx->noise_level >= 3){
-				printf("next chunk = %u, size = " PRIu64 ", block index = %" PRId64 "\n", chunk_index, chunk_size, block_index);
+				printf("next chunk = %u, size = %" PRIu64 ", block index = %" PRId64 "\n", chunk_index, chunk_size, block_index);
 			}
 		}
 	}
@@ -215,7 +231,7 @@ int check_complete_file(PAR3_CTX *par3_ctx, char *filename, uint32_t file_id,
 						blake3(work_buf, (size_t)block_size, buf_hash);
 						if (memcmp(buf_hash, block_list[block_index].hash, 16) == 0){
 							if (par3_ctx->noise_level >= 3){
-								printf("full block[%2" PRId64 "] : slice[%2" PRIu64 "] chunk[%2u] file %d, offset = " PRIu64 "\n",
+								printf("full block[%2" PRId64 "] : slice[%2" PRIu64 "] chunk[%2u] file %d, offset = %" PRIu64 "\n",
 										block_index, slice_index, chunk_index, file_id, file_offset);
 							}
 							slice_list[slice_index].find_name = file_p->name;
@@ -309,7 +325,7 @@ int check_complete_file(PAR3_CTX *par3_ctx, char *filename, uint32_t file_id,
 					blake3(work_buf, (size_t)tail_size, buf_hash);
 					if (memcmp(buf_hash, chunk_list[chunk_index].tail_hash, 16) == 0){
 						if (par3_ctx->noise_level >= 3){
-							printf("tail block[%2" PRId64 "] : slice[%2" PRIu64 "] chunk[%2u] file %d, offset = " PRIu64 ", size = " PRIu64 "\n",
+							printf("tail block[%2" PRId64 "] : slice[%2" PRIu64 "] chunk[%2u] file %d, offset = %" PRIu64 ", size = %" PRIu64 "\n",
 									block_index, slice_index, chunk_index, file_id, file_offset, tail_size);
 						}
 						slice_list[slice_index].find_name = file_p->name;
@@ -369,7 +385,7 @@ int check_complete_file(PAR3_CTX *par3_ctx, char *filename, uint32_t file_id,
 				// Compare bytes directly.
 				if (memcmp(work_buf, buf_tail, (size_t)tail_size) == 0){
 					if (par3_ctx->noise_level >= 3){
-						printf("tail block no  : slice no  chunk[%2u] file %d, offset = " PRIu64 ", size = " PRIu64 "\n",
+						printf("tail block no  : slice no  chunk[%2u] file %d, offset = %" PRIu64 ", size = %" PRIu64 "\n",
 								chunk_index, file_id, file_offset, tail_size);
 					}
 					// Tiny chunk tail isn't counted as searching slice.
@@ -394,7 +410,7 @@ int check_complete_file(PAR3_CTX *par3_ctx, char *filename, uint32_t file_id,
 			chunk_size = chunk_list[chunk_index].size;
 			block_index = chunk_list[chunk_index].block;
 			if (par3_ctx->noise_level >= 3){
-				printf("next chunk = %u, size = " PRIu64 ", block index = %" PRId64 "\n", chunk_index, chunk_size, block_index);
+				printf("next chunk = %u, size = %" PRIu64 ", block index = %" PRId64 "\n", chunk_index, chunk_size, block_index);
 			}
 			if (chunk_size == 0){	// zeros if not protected
 				// Seek to end of unprotected chunk
@@ -448,7 +464,7 @@ int check_complete_file(PAR3_CTX *par3_ctx, char *filename, uint32_t file_id,
 				while (chunk_size >= block_size){
 					if (slice_list[slice_index].find_name == NULL){	// When this slice was not found.
 						if (par3_ctx->noise_level >= 3){
-							printf("full block[%2" PRId64 "] : slice[%2" PRIu64 "] chunk[%2u] file %d, offset = " PRIu64 ", no checksum\n",
+							printf("full block[%2" PRId64 "] : slice[%2" PRIu64 "] chunk[%2u] file %d, offset = %" PRIu64 ", no checksum\n",
 									block_index, slice_index, chunk_index, file_id, file_offset);
 						}
 						slice_list[slice_index].find_name = file_p->name;
@@ -522,7 +538,7 @@ int check_damaged_file(PAR3_CTX *par3_ctx, char *filename,
 		return 0;
 	}
 	if (par3_ctx->noise_level >= 1){
-		printf("current file size = " PRIu64 ", start = " PRIu64 ", \"%s\"\n", file_size, file_offset, filename);
+		printf("current file size = %" PRIu64 ", start = %" PRIu64 ", \"%s\"\n", file_size, file_offset, filename);
 	}
 
 	// File data till file_offset is available.
@@ -583,7 +599,7 @@ int check_damaged_file(PAR3_CTX *par3_ctx, char *filename,
 		fclose(fp);
 		return RET_FILE_IO_ERROR;
 	}
-	//printf("file_offset = " PRIu64 ", read_size = " PRIu64 "\n", file_offset, read_size);
+	//printf("file_offset = %" PRIu64 ", read_size = %" PRIu64 "\n", file_offset, read_size);
 	if (file_hash != NULL){
 		blake3_hasher_init(&hasher);
 		blake3_hasher_update(&hasher, work_buf, (size_t)read_size);
@@ -613,7 +629,7 @@ int check_damaged_file(PAR3_CTX *par3_ctx, char *filename,
 			slice_index = next_slice;
 			next_offset = -1;	// Copied values and reset
 			tail_size = slice_list[slice_index].size;
-			//printf("Check at first, offset = %" PRId64 ", slice = %" PRId64 ", size = " PRIu64 "\n", slide_offset, slice_index, tail_size);
+			//printf("Check at first, offset = %" PRId64 ", slice = %" PRId64 ", size = %" PRIu64 "\n", slide_offset, slice_index, tail_size);
 			if (tail_size == block_size){	// Full size slice
 				block_index = slice_list[slice_index].block;	// index of block
 				temp_crc = crc64(work_buf + slide_offset, block_size, 0);
@@ -621,7 +637,7 @@ int check_damaged_file(PAR3_CTX *par3_ctx, char *filename,
 					blake3(work_buf + slide_offset, block_size, buf_hash);
 					if (memcmp(buf_hash, block_list[block_index].hash, 16) == 0){
 						if (par3_ctx->noise_level >= 3){
-							printf("p fu block[%2" PRId64 "] : slice[%2" PRId64 "] offset = " PRIu64 " + " PRIu64 "\n",
+							printf("p fu block[%2" PRId64 "] : slice[%2" PRId64 "] offset = %" PRIu64 " + %" PRIu64 "\n",
 									block_index, slice_index, file_offset, slide_offset);
 						}
 						if ((block_list[block_index].state & 4) == 0){	// When this block was not found yet.
@@ -641,7 +657,7 @@ int check_damaged_file(PAR3_CTX *par3_ctx, char *filename,
 							if (find_index + 1 < crc_count)
 								memmove(crc_list + find_index, crc_list + find_index + 1, sizeof(PAR3_CMP_CTX) * (crc_count - find_index - 1));
 							crc_count--;
-							//printf("Remove item[%" PRId64 "] : block[" PRIu64 "] from crc_list. crc_count = " PRIu64 "\n", find_index, block_index, crc_count);
+							//printf("Remove item[%" PRId64 "] : block[" PRIu64 "] from crc_list. crc_count = %" PRIu64 "\n", find_index, block_index, crc_count);
 						}
 
 						// When predicted slice was found, cancel slide search.
@@ -664,7 +680,7 @@ int check_damaged_file(PAR3_CTX *par3_ctx, char *filename,
 					if (memcmp(buf_hash, chunk_list[slice_list[slice_index].chunk].tail_hash, 16) == 0){
 						block_index = slice_list[slice_index].block;	// index of block
 						if (par3_ctx->noise_level >= 3){
-							printf("p ta block[%2" PRId64 "] : slice[%2" PRId64 "] offset = " PRIu64 " + " PRIu64 ", tail size = " PRIu64 ", offset = " PRIu64 "\n",
+							printf("p ta block[%2" PRId64 "] : slice[%2" PRId64 "] offset = %" PRIu64 " + %" PRIu64 ", tail size = %" PRIu64 ", offset = %" PRIu64 "\n",
 									block_index, slice_index, file_offset, slide_offset, tail_size, slice_list[slice_index].tail_offset);
 						}
 						if (slice_list[slice_index].find_name == NULL){	// When this slice was not found yet.
@@ -684,7 +700,7 @@ int check_damaged_file(PAR3_CTX *par3_ctx, char *filename,
 							if (find_index + 1 < tail_count)
 								memmove(tail_list + find_index, tail_list + find_index + 1, sizeof(PAR3_CMP_CTX) * (tail_count - find_index - 1));
 							tail_count--;
-							//printf("Remove item[%" PRId64 "] : block[" PRIu64 "] from tail_list. tail_count = " PRIu64 "\n", find_index, block_index, tail_count);
+							//printf("Remove item[%" PRId64 "] : block[" PRIu64 "] from tail_list. tail_count = %" PRIu64 "\n", find_index, block_index, tail_count);
 						}
 
 						// Even when predicted slice was found, continue slide search.
@@ -711,7 +727,7 @@ int check_damaged_file(PAR3_CTX *par3_ctx, char *filename,
 
 		// Compare current CRC-64 with full size blocks.
 		if ( ((flag_slide & 4) == 0) && (crc_count > 0) && (file_offset + slide_start + block_size <= file_size) ){
-			//printf("slide: offset = " PRIu64 " + " PRIu64 ", block crc = 0x%016I64x\n", file_offset, slide_start, crc);
+			//printf("slide: offset = %" PRIu64 " + %" PRIu64 ", block crc = 0x%016I64x\n", file_offset, slide_start, crc);
 			hash_counter = 0;
 			hash_offset = 0;
 			time_slide = clock();	// Store starting time of slide search.
@@ -730,12 +746,12 @@ int check_damaged_file(PAR3_CTX *par3_ctx, char *filename,
 						if (hash_counter == 0)
 							hash_offset = slide_offset;
 						hash_counter++;
-						//printf("block[" PRIu64 "], hashing = %d, offset = " PRIu64 " + " PRIu64 ".\n", block_index, hash_counter, file_offset, slide_offset);
+						//printf("block[" PRIu64 "], hashing = %d, offset = %" PRIu64 " + %" PRIu64 ".\n", block_index, hash_counter, file_offset, slide_offset);
 					}
 					if (memcmp(buf_hash, block_list[block_index].hash, 16) == 0){
 						slice_index = block_list[block_index].slice;
 						if (par3_ctx->noise_level >= 3){
-							printf("full block[%2" PRId64 "] : slice[%2" PRId64 "] offset = " PRIu64 " + " PRIu64 "\n",
+							printf("full block[%2" PRId64 "] : slice[%2" PRId64 "] offset = %" PRIu64 " + %" PRIu64 "\n",
 									block_index, slice_index, file_offset, slide_offset);
 						}
 						if ((block_list[block_index].state & 4) == 0){	// When this block was not found yet.
@@ -763,7 +779,7 @@ int check_damaged_file(PAR3_CTX *par3_ctx, char *filename,
 						crc_count--;
 						// The same block won't be found in this file anymore.
 						// It may be found in another damaged or extra file.
-						//printf("Remove item[%" PRId64 "] : block[" PRIu64 "] from crc_list. crc_count = " PRIu64 "\n", find_index, block_index, crc_count);
+						//printf("Remove item[%" PRId64 "] : block[" PRIu64 "] from crc_list. crc_count = %" PRIu64 "\n", find_index, block_index, crc_count);
 						// If the block was found in another file already, find and remove the item again.
 
 					} else {	// Goto next item
@@ -787,7 +803,7 @@ int check_damaged_file(PAR3_CTX *par3_ctx, char *filename,
 						// When sliding over than time limit.
 						if (clock() - time_slide >= time_limit){
 							if (par3_ctx->noise_level >= 1){
-								printf("Interrupt slide block by time out. offset = " PRIu64 " + " PRIu64 ".\n", file_offset, slide_offset);
+								printf("Interrupt slide block by time out. offset = %" PRIu64 " + %" PRIu64 ".\n", file_offset, slide_offset);
 							}
 							flag_slide |= 1;
 							break;
@@ -810,7 +826,7 @@ int check_damaged_file(PAR3_CTX *par3_ctx, char *filename,
 						}
 						uniform_end = slide_offset;	// Offset of the last byte of uniform data
 						if (par3_ctx->noise_level >= 3){
-							printf("Because data is uniform, skip from " PRIu64 " to " PRIu64 ".\n", uniform_start, slide_offset);
+							printf("Because data is uniform, skip from %" PRIu64 " to %" PRIu64 ".\n", uniform_start, slide_offset);
 						}
 					}
 				}
@@ -837,7 +853,7 @@ int check_damaged_file(PAR3_CTX *par3_ctx, char *filename,
 
 		// Compare current CRC-64 with chunk tails.
 		if ( ((flag_slide & 4) == 0) && (tail_count > 0) && (file_offset + slide_start + 40 <= file_size) ){
-			//printf("slide: offset = " PRIu64 " + " PRIu64 ", tail crc = 0x%016I64x\n", file_offset, slide_start, crc40);
+			//printf("slide: offset = %" PRIu64 " + %" PRIu64 ", tail crc = 0x%016I64x\n", file_offset, slide_start, crc40);
 			hash_counter = 0;
 			hash_offset = 0;
 			time_slide = clock();	// Store starting time of slide search.
@@ -854,7 +870,7 @@ int check_damaged_file(PAR3_CTX *par3_ctx, char *filename,
 
 						if ( (uniform_end > 0) && (slide_offset + tail_size < uniform_end + block_size) ){
 							// Don't compare hash value, while uniform data.
-							//printf("Skip slice[" PRIu64 "] in uniform data. offset = " PRIu64 " + " PRIu64 ".\n", slice_index, file_offset, slide_offset);
+							//printf("Skip slice[" PRIu64 "] in uniform data. offset = %" PRIu64 " + %" PRIu64 ".\n", slice_index, file_offset, slide_offset);
 							memset(buf_hash, 0, 16);
 
 						} else if (file_offset + slide_offset + tail_size <= file_size){
@@ -864,7 +880,7 @@ int check_damaged_file(PAR3_CTX *par3_ctx, char *filename,
 							if (hash_counter == 0)
 								hash_offset = slide_offset;
 							hash_counter++;
-							//printf("slice[" PRIu64 "], hashing = %d, offset = " PRIu64 " + " PRIu64 ".\n", slice_index, hash_counter, file_offset, slide_offset);
+							//printf("slice[" PRIu64 "], hashing = %d, offset = %" PRIu64 " + %" PRIu64 ".\n", slice_index, hash_counter, file_offset, slide_offset);
 
 						} else {
 							// When chunk tail exceeds file data, hash value becomes zero.
@@ -875,7 +891,7 @@ int check_damaged_file(PAR3_CTX *par3_ctx, char *filename,
 						// When a chunk tail was found while slide search.
 						block_index = slice_list[slice_index].block;
 						if (par3_ctx->noise_level >= 3){
-							printf("tail block[%2" PRIu64 "] : slice[%2" PRId64 "] offset = " PRIu64 " + " PRIu64 ", tail size = " PRIu64 ", offset = " PRIu64 "\n",
+							printf("tail block[%2" PRIu64 "] : slice[%2" PRId64 "] offset = %" PRIu64 " + %" PRIu64 ", tail size = %" PRIu64 ", offset = %" PRIu64 "\n",
 									block_index, slice_index, file_offset, slide_offset, tail_size, slice_list[slice_index].tail_offset);
 						}
 						if (slice_list[slice_index].find_name == NULL){	// When this slice was not found yet.
@@ -899,7 +915,7 @@ int check_damaged_file(PAR3_CTX *par3_ctx, char *filename,
 						if (find_index + 1 < tail_count)
 							memmove(tail_list + find_index, tail_list + find_index + 1, sizeof(PAR3_CMP_CTX) * (tail_count - find_index - 1));
 						tail_count--;
-						//printf("Remove item[%" PRId64 "] : block[" PRIu64 "] from tail_list. tail_count = " PRIu64 "\n", find_index, block_index, tail_count);
+						//printf("Remove item[%" PRId64 "] : block[" PRIu64 "] from tail_list. tail_count = %" PRIu64 "\n", find_index, block_index, tail_count);
 
 					} else {	// Goto next item
 						find_index++;
@@ -922,7 +938,7 @@ int check_damaged_file(PAR3_CTX *par3_ctx, char *filename,
 						// When sliding over than time limit.
 						if (clock() - time_slide >= time_limit){
 							if (par3_ctx->noise_level >= 1){
-								printf("Interrupt slide tail by time out. offset = " PRIu64 " + " PRIu64 ".\n", file_offset, slide_offset);
+								printf("Interrupt slide tail by time out. offset = %" PRIu64 " + %" PRIu64 ".\n", file_offset, slide_offset);
 							}
 							flag_slide |= 2;
 							break;
@@ -937,7 +953,7 @@ int check_damaged_file(PAR3_CTX *par3_ctx, char *filename,
 						// Skip the area of uniform data.
 						slide_offset = uniform_end;
 						if (par3_ctx->noise_level >= 3){
-							printf("While data is uniform, skip from " PRIu64 " to " PRIu64 ".\n", uniform_start, uniform_end);
+							printf("While data is uniform, skip from %" PRIu64 " to %" PRIu64 ".\n", uniform_start, uniform_end);
 						}
 						// No need to re-calculate CRC-64 after skip, because the value is same for uniform data.
 						// Chunk tail is smaller than block size always.
@@ -951,13 +967,13 @@ int check_damaged_file(PAR3_CTX *par3_ctx, char *filename,
 		if ( (find_min < file_size) && (find_min > find_last) )
 			damage_size += find_min - find_last;
 		find_last = find_max;
-		//printf("file_offset = " PRIu64 ", find_min = " PRIu64 ", find_max " PRIu64 ", damage_size = " PRIu64 "\n",
+		//printf("file_offset = %" PRIu64 ", find_min = %" PRIu64 ", find_max %" PRIu64 ", damage_size = %" PRIu64 "\n",
 		//		file_offset, find_min, find_max, damage_size);
 
 		// Read next block on second position.
 		file_offset += block_size;
 		if (file_offset >= file_size){
-			//printf("file_offset = " PRIu64 ", file_size = " PRIu64 ", EOF\n", file_offset, file_size);
+			//printf("file_offset = %" PRIu64 ", file_size = %" PRIu64 ", EOF\n", file_offset, file_size);
 			break;
 		}
 		read_size = block_size;
@@ -968,7 +984,7 @@ int check_damaged_file(PAR3_CTX *par3_ctx, char *filename,
 		} else if (file_offset + block_size * 2 > file_size){
 			read_size = file_size - file_offset - block_size;
 		}
-		//printf("file_offset = " PRIu64 ", read_size = " PRIu64 "\n", file_offset, read_size);
+		//printf("file_offset = %" PRIu64 ", read_size = %" PRIu64 "\n", file_offset, read_size);
 		if (read_size > 0){
 			// Slide block of second position to former position.
 			memcpy(work_buf, work_buf + block_size, (size_t)block_size);

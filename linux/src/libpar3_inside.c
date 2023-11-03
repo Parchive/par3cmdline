@@ -116,7 +116,7 @@ int par3_insert_zip(PAR3_CTX *par3_ctx, char command_trial)
 			// rate of "Additional PAR data" = "additional data size" / "original file size"
 			// rate of "Redundancy in blocks" = "number of recovery blocks" / "number of input blocks"
 			// rate of "Efficiency of PAR data" = "total size of recovery blocks" / "additional data size"
-			printf("\nSize of Outside file = " PRIu64 "\n", original_file_size + best_total_size + copy_size);
+			printf("\nSize of Outside file = %" PRIu64 "\n", original_file_size + best_total_size + copy_size);
 			// Truncate two decimal places (use integer instead of showing double directly)
 			//printf("rate1 = %f, rate2 = %f\n", rate1, rate2);
 			rate = (double)(best_total_size + copy_size) / (double)original_file_size;

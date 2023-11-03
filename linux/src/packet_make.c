@@ -41,8 +41,7 @@ void make_packet_header(uint8_t *buf, uint64_t packet_size, uint8_t *set_id, uin
 
 #if __linux__
 
-static void generate_set_id(PAR3_CTX *par3_ctx, uint8_t *buf, size_t body_size);
-
+#warning "static void generate_set_id(PAR3_CTX *par3_ctx, uint8_t *buf, size_t body_size) is UNDEFINED"
 
 #elif _WIN32
 

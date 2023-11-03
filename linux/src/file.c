@@ -12,6 +12,16 @@
 
 #if __linux__
 
+#warning "Assuming this Linux system uses 64-bit time."
+/* There doesn't seem to be a preprocessor test for 64-bit time_t! 
+   sizeof() is not available to the preprocessor.  */
+/* NOTE: ctime is not threadsafe.  It returns a pointer to a static buffer.
+   we should consider using ctime_r().  */
+/* Using this, rather than pound-define, to fix signed/unsigned issue */
+char *_ctime64( const uint64_t *sourceTime ) {
+  return ctime( (const int64_t *) sourceTime);
+}
+
 #elif _WIN32
 
 // MSVC headers
@@ -290,6 +300,9 @@ void read_file_system_option(PAR3_CTX *par3_ctx, int packet_type, int64_t offset
 
 
 #if __linux__
+
+#warning "static int check_file_system_info(PAR3_CTX *par3_ctx, uint8_t *checksum, void *stat_p) is UNDEFINED"
+
 #elif _WIN32
 
 // For verification
@@ -425,6 +438,9 @@ int check_file_system_option(PAR3_CTX *par3_ctx, int packet_type, int64_t offset
 
 
 #if __linux__
+
+#warning "static int reset_file_system_info(PAR3_CTX *par3_ctx, uint8_t *checksum, char *file_name); is UNDEFINED"
+
 #elif _WIN32
 
 // For repair
