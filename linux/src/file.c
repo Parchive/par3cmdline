@@ -17,10 +17,8 @@
    sizeof() is not available to the preprocessor.  */
 /* NOTE: ctime is not threadsafe.  It returns a pointer to a static buffer.
    we should consider using ctime_r().  */
-/* Using this, rather than pound-define, to fix signed/unsigned issue */
-char *_ctime64( const uint64_t *sourceTime ) {
-  return ctime( (const int64_t *) sourceTime);
-}
+#define __time64_t int64_t  
+#define _ctime64 ctime
 
 #elif _WIN32
 
@@ -192,7 +190,8 @@ static void show_file_system_info(PAR3_CTX *par3_ctx, uint8_t *checksum)
 	uint8_t *packet_checksum, *packet_type, *buf;
 	size_t offset, total_size;
 	uint32_t item_value4;
-	uint64_t packet_size, item_value8;
+	uint64_t packet_size;
+	__time64_t item_value8;
 
 	buf = par3_ctx->file_system_packet;
 	total_size = par3_ctx->file_system_packet_size;
@@ -312,7 +311,8 @@ static int check_file_system_info(PAR3_CTX *par3_ctx, uint8_t *checksum, void *s
 	int ret;
 	size_t offset, total_size;
 	uint32_t item_value4;
-	uint64_t packet_size, item_value8;
+	uint64_t packet_size;
+	__time64_t item_value8;
 	struct _stat64 *stat_buf;
 
 	stat_buf = stat_p;
@@ -450,7 +450,8 @@ static int reset_file_system_info(PAR3_CTX *par3_ctx, uint8_t *checksum, char *f
 	int ret;
 	size_t offset, total_size;
 	uint32_t item_value4;
-	uint64_t packet_size, item_value8;
+	uint64_t packet_size;
+	__time64_t item_value8;
 	struct _stat64 stat_buf;
 
 	buf = par3_ctx->file_system_packet;
