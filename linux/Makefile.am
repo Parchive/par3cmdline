@@ -59,6 +59,7 @@ libpar3_a_SOURCES = src/block_check.c \
 	src/read.h \
 	src/reedsolomon16.c \
 	src/reedsolomon8.c \
+	src/reedsolomon.c \
 	src/reedsolomon.h \
 	src/repair.c \
 	src/repair.h \
@@ -98,12 +99,11 @@ man_MANS = man/par3.1
 par3_SOURCES = src/main.c \
 	src/common.h \
 	src/common.c
-par3_LDADD = libpar3.a libblake3.a libleopard.a
+par3_LDADD = libpar3.a libblake3.a libleopard.a -lstdc++
 
 # -mavx supports AVX instructions
 AM_CFLAGS = -Wall -mavx -mavx2 -mavx512f -mavx512vl -mavx512bw
 AM_CXXFLAGS = -Wall -mavx -mavx2 -mavx512f -mavx512vl -mavx512bw
-
 
 install-exec-hook :
 	cd $(DESTDIR)$(bindir)/ && \
