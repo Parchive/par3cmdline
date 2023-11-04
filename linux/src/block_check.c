@@ -97,10 +97,10 @@ int find_identical_block(PAR3_CTX *par3_ctx)
 /*
 	// for debug
 	for (i = 0; i < par3_ctx->crc_count; i++){
-		printf("crc_list[%2"PRIu64"] = 0x%016I64x , block = %"PRIu64"\n", i, par3_ctx->crc_list[i].crc, par3_ctx->crc_list[i].index);
+		printf("crc_list[%2"PRIu64"] = 0x%016"PRIx64" , block = %"PRIu64"\n", i, par3_ctx->crc_list[i].crc, par3_ctx->crc_list[i].index);
 	}
 	for (i = 0; i < par3_ctx->tail_count; i++){
-		printf("tail_list[%2"PRIu64"] = 0x%016I64x , slice = %"PRIu64"\n", i, par3_ctx->tail_list[i].crc, par3_ctx->tail_list[i].index);
+		printf("tail_list[%2"PRIu64"] = 0x%016"PRIx64" , slice = %"PRIu64"\n", i, par3_ctx->tail_list[i].crc, par3_ctx->tail_list[i].index);
 	}
 */
 
