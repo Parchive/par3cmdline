@@ -17,7 +17,7 @@ I could not use MinGW (gcc for Windows).
 
 
  This is for testing usage only.
-The implementation may be change largely.
+The implementation may be changed largely.
 Though I tried to follow the style of par2cmdline,
 some options or behavior or output text may be different.
 
@@ -164,7 +164,7 @@ If you add other type files, they will be verified as input files.
  Even when there are not enough blocks to repair all files,
 it may try to repair as possible as it can.
 When it could not reapir any files at all, this command returns RET_REPAIR_NOT_POSSIBLE(2).
-When it reapired some files, this command returns RET_REPAIR_FAILED(2).
+When it reapired some files, this command returns RET_REPAIR_FAILED(5).
 
 
 
