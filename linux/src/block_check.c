@@ -41,7 +41,7 @@ int substitute_input_block(PAR3_CTX *par3_ctx)
 	for (item_index = 0; item_index < packet_count; item_index++){
 		block_index = packet_list[item_index].index;
 		if (block_index >= block_count){
-			printf("Data Packet for block[%"PRIu64"u] is wrong.\n", block_index);
+			printf("Data Packet for block[%"PRIu64"] is wrong.\n", block_index);
 			return RET_LOGIC_ERROR;
 		}
 
@@ -73,7 +73,7 @@ int substitute_input_block(PAR3_CTX *par3_ctx)
 					flag_show++;
 					printf("\nSubstituting for lost blocks:\n\n");
 				}
-				printf("Map block[%2"PRIu64"d] to Data Packet.\n", block_index);
+				printf("Map block[%2"PRIi64"] to Data Packet.\n", block_index);
 			}
 		}
 	}
@@ -97,10 +97,10 @@ int find_identical_block(PAR3_CTX *par3_ctx)
 /*
 	// for debug
 	for (i = 0; i < par3_ctx->crc_count; i++){
-		printf("crc_list[%2"PRIu64"u] = 0x%016"PRIu64"x , block = %"PRIu64"u\n", i, par3_ctx->crc_list[i].crc, par3_ctx->crc_list[i].index);
+		printf("crc_list[%2"PRIu64"] = 0x%016I64x , block = %"PRIu64"\n", i, par3_ctx->crc_list[i].crc, par3_ctx->crc_list[i].index);
 	}
 	for (i = 0; i < par3_ctx->tail_count; i++){
-		printf("tail_list[%2"PRIu64"u] = 0x%016"PRIu64"x , slice = %"PRIu64"u\n", i, par3_ctx->tail_list[i].crc, par3_ctx->tail_list[i].index);
+		printf("tail_list[%2"PRIu64"] = 0x%016I64x , slice = %"PRIu64"\n", i, par3_ctx->tail_list[i].crc, par3_ctx->tail_list[i].index);
 	}
 */
 
@@ -116,7 +116,7 @@ int find_identical_block(PAR3_CTX *par3_ctx)
 				block_index_i = cmp_list[i].index;
 				block_index_j = cmp_list[j].index;
 				if (memcmp(block_list[block_index_i].hash, block_list[block_index_j].hash, 16) == 0){
-					//printf("block[%"PRIu64"u] and [%"PRIu64"u] are same.\n", block_index_i, block_index_j);
+					//printf("block[%"PRIu64"] and [%"PRIu64"] are same.\n", block_index_i, block_index_j);
 					if (block_list[block_index_i].state & 4){	// block[i] is found.
 						if ((block_list[block_index_j].state & 4) == 0){	// block[j] isn't found.
 							if (par3_ctx->noise_level >= 2){
@@ -124,7 +124,7 @@ int find_identical_block(PAR3_CTX *par3_ctx)
 									flag_show++;
 									printf("\nComparing lost slices to found slices:\n\n");
 								}
-								printf("Map block[%2"PRIu64"u] to identical block[%2"PRIu64"u].\n", block_index_j, block_index_i);
+								printf("Map block[%2"PRIu64"] to identical block[%2"PRIu64"].\n", block_index_j, block_index_i);
 							}
 							slice_index = block_list[block_index_j].slice;
 							find_index = block_list[block_index_i].slice;
@@ -134,7 +134,7 @@ int find_identical_block(PAR3_CTX *par3_ctx)
 							}
 							if (find_index == -1){
 								// When there is no valid slice.
-								printf("Mapping information for block[%"PRIu64"u] is wrong.\n", block_index_i);
+								printf("Mapping information for block[%"PRIu64"] is wrong.\n", block_index_i);
 								return RET_LOGIC_ERROR;
 							}
 							// Copy reading source to another.
@@ -148,7 +148,7 @@ int find_identical_block(PAR3_CTX *par3_ctx)
 								flag_show++;
 								printf("\nComparing lost slices to found slices:\n\n");
 							}
-							printf("Map block[%2"PRIu64"u] to identical block[%2"PRIu64"u].\n", block_index_i, block_index_j);
+							printf("Map block[%2"PRIu64"] to identical block[%2"PRIu64"].\n", block_index_i, block_index_j);
 						}
 						slice_index = block_list[block_index_i].slice;
 						find_index = block_list[block_index_j].slice;
@@ -158,7 +158,7 @@ int find_identical_block(PAR3_CTX *par3_ctx)
 						}
 						if (find_index == -1){
 							// When there is no valid slice.
-							printf("Mapping information for block[%"PRIu64"u] is wrong.\n", block_index_j);
+							printf("Mapping information for block[%"PRIu64"] is wrong.\n", block_index_j);
 							return RET_LOGIC_ERROR;
 						}
 						// Copy reading source to another.
@@ -184,7 +184,7 @@ int find_identical_block(PAR3_CTX *par3_ctx)
 			}
 			if (find_index == -1){
 				// When there is no valid slice.
-				printf("Mapping information for block[%"PRIu64"u] is wrong.\n", block_index_i);
+				printf("Mapping information for block[%"PRIu64"] is wrong.\n", block_index_i);
 				return RET_LOGIC_ERROR;
 			}
 			// Map other slices.
@@ -195,7 +195,7 @@ int find_identical_block(PAR3_CTX *par3_ctx)
 							flag_show++;
 							printf("\nComparing lost slices to found slices:\n\n");
 						}
-						printf("Map slice[%2"PRIu64"d] to identical slice[%2"PRIu64"d] in block[%2"PRIu64"u].\n",
+						printf("Map slice[%2"PRIi64"] to identical slice[%2"PRIi64"] in block[%2"PRIu64"].\n",
 								slice_index, find_index, block_index_i);
 					}
 					slice_list[slice_index].find_name = slice_list[find_index].find_name;
@@ -218,7 +218,7 @@ int find_identical_block(PAR3_CTX *par3_ctx)
 				slice_index_j = cmp_list[j].index;
 				if (slice_list[slice_index_i].size == slice_list[slice_index_j].size){
 					if (memcmp(chunk_list[slice_list[slice_index_i].chunk].tail_hash, chunk_list[slice_list[slice_index_j].chunk].tail_hash, 16) == 0){
-						//printf("slice[%"PRIu64"u] and [%"PRIu64"u] are same.\n", slice_index_i, slice_index_j);
+						//printf("slice[%"PRIu64"] and [%"PRIu64"] are same.\n", slice_index_i, slice_index_j);
 						if (slice_list[slice_index_i].find_name != NULL){	// slice[i] is found.
 							if (slice_list[slice_index_j].find_name == NULL){	// slice[j] isn't found.
 								if (par3_ctx->noise_level >= 2){
@@ -226,7 +226,7 @@ int find_identical_block(PAR3_CTX *par3_ctx)
 										flag_show++;
 										printf("\nComparing lost slices to found slices:\n\n");
 									}
-									printf("Map slice[%2"PRIu64"u] to identical slice[%2"PRIu64"u].\n", slice_index_j, slice_index_i);
+									printf("Map slice[%2"PRIu64"] to identical slice[%2"PRIu64"].\n", slice_index_j, slice_index_i);
 								}
 								// Copy reading source to another.
 								block_index_j = slice_list[slice_index_j].block;
@@ -240,7 +240,7 @@ int find_identical_block(PAR3_CTX *par3_ctx)
 									flag_show++;
 									printf("\nComparing lost slices to found slices:\n\n");
 								}
-								printf("Map slice[%2"PRIu64"d] to identical slice[%2"PRIu64"d].\n", slice_index_i, slice_index_j);
+								printf("Map slice[%2"PRIi64"] to identical slice[%2"PRIi64"].\n", slice_index_i, slice_index_j);
 							}
 							// Copy reading source to another.
 							block_index_i = slice_list[slice_index_i].block;
@@ -289,17 +289,17 @@ uint64_t aggregate_input_block(PAR3_CTX *par3_ctx)
 				if (slice_list[slice_index].find_name != NULL){
 					if (slice_list[slice_index].tail_offset > available_size){
 						skip_count++;
-						//printf("block[%"PRIu64"u]: skip_count = %"PRIu64"u\n", block_index, skip_count);
+						//printf("block[%"PRIu64"]: skip_count = %"PRIu64"\n", block_index, skip_count);
 					} else if (slice_list[slice_index].tail_offset + slice_list[slice_index].size >= available_size){
 						available_size = slice_list[slice_index].tail_offset + slice_list[slice_index].size;
-						//printf("block[%"PRIu64"u]: available = %"PRIu64"u / %"PRIu64"u\n", block_index, available_size, total_size);
+						//printf("block[%"PRIu64"]: available = %"PRIu64" / %"PRIu64"\n", block_index, available_size, total_size);
 					}
 				//} else {
-				//	printf("slice[%"PRIu64"d] is missing.\n", slice_index);
+				//	printf("slice[%"PRIi64"] is missing.\n", slice_index);
 				}
 				slice_index = slice_list[slice_index].next;
 				if ( (slice_index == -1) && (available_size < total_size) && (skip_count != old_count) ){
-					//printf("block[%"PRIu64"u]: skip_count = %"PRIu64"u / %"PRIu64"u, try again\n", block_index, skip_count, old_count);
+					//printf("block[%"PRIu64"]: skip_count = %"PRIu64" / %"PRIu64", try again\n", block_index, skip_count, old_count);
 					old_count = skip_count;
 					skip_count = 0;
 
@@ -361,11 +361,11 @@ uint64_t aggregate_recovery_block(PAR3_CTX *par3_ctx)
 			// hint for number of recovery blocks
 			memcpy(&hint_num, buf + offset + 64, 8);
 			if (par3_ctx->noise_level >= 0){
-				printf("You have %"PRIu64"u recovery blocks available for Cauchy Reed-Solomon Codes.\n", find_count);
+				printf("You have %"PRIu64" recovery blocks available for Cauchy Reed-Solomon Codes.\n", find_count);
 			}
 			if (par3_ctx->noise_level >= 1){
 				if (hint_num > 0){
-					printf("Number of recovery blocks would be %"PRIu64"u.\n", hint_num);
+					printf("Number of recovery blocks would be %"PRIu64".\n", hint_num);
 				}
 			}
 			if (find_count > find_count_max){
@@ -401,14 +401,14 @@ uint64_t aggregate_recovery_block(PAR3_CTX *par3_ctx)
 				max_num *= extra_num + 1;	// When interleaving, max count is multiplied by number of cohorts.
 			}
 			if (par3_ctx->noise_level >= 0){
-				printf("You have %" PRIu64 " recovery blocks available for FFT based Reed-Solomon Codes.\n", find_count);
+				printf("You have %"PRIu64" recovery blocks available for FFT based Reed-Solomon Codes.\n", find_count);
 			}
 			if (par3_ctx->noise_level >= 1){
-				printf("Max recovery block count = %" PRIu64 "\n", max_num);
+				printf("Max recovery block count = %"PRIu64"\n", max_num);
 				if (extra_num > 0){
 					printf("Number of cohort = %u (Interleaving = %u)\n", extra_num + 1, extra_num);
-					printf("Input block count per cohort = %" PRIu64 "\n", (par3_ctx->block_count + extra_num) / (extra_num + 1));
-					printf("Max recovery block count per cohort = %" PRIu64 "\n", max_num / (extra_num + 1));
+					printf("Input block count per cohort = %"PRIu64"\n", (par3_ctx->block_count + extra_num) / (extra_num + 1));
+					printf("Max recovery block count per cohort = %"PRIu64"\n", max_num / (extra_num + 1));
 				}
 			}
 			if (find_count > find_count_max){
@@ -463,7 +463,7 @@ uint32_t check_possible_restore(PAR3_CTX *par3_ctx)
 			chunk_index = file_list[file_index].chunk;		// index of the first chunk
 			chunk_num = file_list[file_index].chunk_num;	// number of chunk descriptions
 			slice_index = file_list[file_index].slice;		// index of the first slice
-			//printf("chunk = %u+%u, slice = %" PRId64 " ~, %s\n", chunk_index, chunk_num, slice_index, file_list[file_index].name);
+			//printf("chunk = %u+%u, slice = %"PRIi64" ~, %s\n", chunk_index, chunk_num, slice_index, file_list[file_index].name);
 			while (chunk_num > 0){
 				chunk_size = chunk_list[chunk_index].size;
 				file_size += chunk_size;
@@ -471,7 +471,7 @@ uint32_t check_possible_restore(PAR3_CTX *par3_ctx)
 					slice_size = slice_list[slice_index].size;
 					find_name = slice_list[slice_index].find_name;
 					if (find_name == NULL){
-						//printf("slice[%" PRId64 "] isn't found.\n", slice_index);
+						//printf("slice[%"PRIi64"] isn't found.\n", slice_index);
 						file_size--;
 						chunk_num = 1;
 						break;
@@ -485,7 +485,7 @@ uint32_t check_possible_restore(PAR3_CTX *par3_ctx)
 				chunk_num--;
 			}
 
-			//printf("file_size = %" PRIu64 ", %" PRIu64 "\n", file_size, file_list[file_index].size);
+			//printf("file_size = %"PRIu64", %"PRIu64"\n", file_size, file_list[file_index].size);
 			if (file_size == file_list[file_index].size){
 				// Sign of repairable file
 				file_list[file_index].state |= 0x200;
@@ -543,7 +543,7 @@ int make_block_list(PAR3_CTX *par3_ctx, uint64_t lost_count, uint32_t lost_count
 		// Search only Recovery Data Packets belong to using Matrix Packet
 		if (memcmp(packet_list[index].matrix, packet_checksum, 16) == 0){
 			recv_id[id] = (int)(packet_list[index].index);
-			//printf("recv_id[" PRIu64 "] = %d\n", id, recv_id[id]);
+			//printf("recv_id[%"PRIu64"] = %d\n", id, recv_id[id]);
 			id++;
 
 			// If there are more blocks than required, just ignore them.
@@ -569,7 +569,7 @@ int make_block_list(PAR3_CTX *par3_ctx, uint64_t lost_count, uint32_t lost_count
 				}
 
 				lost_id[id] = (int)index;
-				//printf("lost_id[" PRIu64 "] = %d\n", id, lost_id[id]);
+				//printf("lost_id[%"PRIu64"] = %d\n", id, lost_id[id]);
 				id++;
 			}
 		}
@@ -608,10 +608,10 @@ uint64_t aggregate_block_cohort(PAR3_CTX *par3_ctx, uint32_t *lost_count_cohort,
 		// Search only Recovery Data Packets belong to using Matrix Packet
 		if (memcmp(packet_list[index].matrix, packet_checksum, 16) == 0){
 			id = packet_list[index].index;
-			//printf("recv_packet[" PRIu64 "] = %" PRIu64 ", ", index, id);
+			//printf("recv_packet[%"PRIu64"] = %"PRIu64", ", index, id);
 			id %= cohort_count;	// modulo
 			recv_list[id] += 1;
-			//printf("recv_list[" PRIu64 "] = %" PRIu64 "\n", id, recv_list[id]);
+			//printf("recv_list[%"PRIu64"] = %"PRIu64"\n", id, recv_list[id]);
 		}
 	}
 
@@ -622,7 +622,7 @@ uint64_t aggregate_block_cohort(PAR3_CTX *par3_ctx, uint32_t *lost_count_cohort,
 		if ((block_list[index].state & (4 | 16)) == 0){
 			id = index % cohort_count;
 			lost_list[id] += 1;
-			//printf("lost block[" PRIu64 "] : lost_list[" PRIu64 "] = %u\n", index, id, lost_list[id]);
+			//printf("lost block[%"PRIu64"] : lost_list[%"PRIu64"] = %u\n", index, id, lost_list[id]);
 		}
 	}
 

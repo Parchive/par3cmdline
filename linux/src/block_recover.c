@@ -8,7 +8,7 @@
 #define _fileno fileno
 #define _chsize_s ftruncate
 #elif _WIN32
-#endif 
+#endif
 
 
 #include <errno.h>
@@ -155,7 +155,7 @@ int recover_lost_block(PAR3_CTX *par3_ctx, char *temp_path, int lost_count)
 			file_offset = slice_list[slice_index].find_offset;
 			slice_size = slice_list[slice_index].size;
 			if (par3_ctx->noise_level >= 3){
-				printf("Reading %zu bytes of slice[%" PRId64 "] for input block[%d]\n", slice_size, slice_index, block_index);
+				printf("Reading %zu bytes of slice[%"PRIi64"] for input block[%d]\n", slice_size, slice_index, block_index);
 			}
 			if ( (fp_read == NULL) || (file_name != name_prev) ){
 				if (fp_read != NULL){	// Close previous input file.
@@ -188,13 +188,13 @@ int recover_lost_block(PAR3_CTX *par3_ctx, char *temp_path, int lost_count)
 
 		} else if (block_list[block_index].state & 16){	// All tail data is available. (one tail or packed tails)
 			if (par3_ctx->noise_level >= 3){
-				printf("Reading %" PRIu64 " bytes for input block[%d]\n", data_size, block_index);
+				printf("Reading %"PRIu64" bytes for input block[%d]\n", data_size, block_index);
 			}
 			tail_offset = 0;
 			while (tail_offset < data_size){	// Read tails until data end.
 				slice_index = block_list[block_index].slice;
 				while (slice_index != -1){
-					//printf("block = %d, size = %" PRIu64 ", offset = %" PRIu64 ", slice = %" PRId64 "\n", block_index, data_size, tail_offset, slice_index);
+					//printf("block = %d, size = %"PRIu64", offset = %"PRIu64", slice = %"PRIi64"\n", block_index, data_size, tail_offset, slice_index);
 					// Even when chunk tails are overlaped, it will find tail slice of next position.
 					if ( (slice_list[slice_index].tail_offset + slice_list[slice_index].size > tail_offset)
 							&& (slice_list[slice_index].tail_offset <= tail_offset) ){
@@ -266,7 +266,7 @@ int recover_lost_block(PAR3_CTX *par3_ctx, char *temp_path, int lost_count)
 					file_offset = slice_list[slice_index].offset;
 					tail_offset = slice_list[slice_index].tail_offset;
 					if (par3_ctx->noise_level >= 3){
-						printf("Writing %zu bytes of slice[%" PRId64 "] on file[%u]:%" PRId64 " in input block[%d]\n", slice_size, slice_index, file_index, file_offset, block_index);
+						printf("Writing %zu bytes of slice[%"PRIi64"] on file[%u]:%"PRIi64" in input block[%d]\n", slice_size, slice_index, file_index, file_offset, block_index);
 					}
 					if ( (fp_write == NULL) || (file_index != file_prev) ){
 						if (fp_write != NULL){	// Close previous temporary file.
@@ -356,7 +356,7 @@ int recover_lost_block(PAR3_CTX *par3_ctx, char *temp_path, int lost_count)
 		file_name = packet_list[packet_index].name;
 		file_offset = packet_list[packet_index].offset + 48 + 40;	// offset of the recovery block data
 		if (par3_ctx->noise_level >= 3){
-			printf("Reading Recovery Data[%" PRIu64 "] for recovery block[%d]\n", packet_index, block_index);
+			printf("Reading Recovery Data[%"PRIu64"] for recovery block[%d]\n", packet_index, block_index);
 		}
 		if ( (fp_read == NULL) || (file_name != name_prev) ){
 			if (fp_read != NULL){	// Close previous recovery file.
@@ -459,7 +459,7 @@ int recover_lost_block(PAR3_CTX *par3_ctx, char *temp_path, int lost_count)
 				file_offset = slice_list[slice_index].offset;
 				tail_offset = slice_list[slice_index].tail_offset;
 				if (par3_ctx->noise_level >= 3){
-					printf("Writing %zu bytes of slice[%" PRId64 "] on file[%u]:%" PRId64 " in lost block[%d]\n", slice_size, slice_index, file_index, file_offset, block_index);
+					printf("Writing %zu bytes of slice[%"PRIi64"] on file[%u]:%"PRIi64" in lost block[%d]\n", slice_size, slice_index, file_index, file_offset, block_index);
 				}
 				if ( (fp_write == NULL) || (file_index != file_prev) ){
 					if (fp_write != NULL){	// Close previous temporary file.
@@ -508,7 +508,7 @@ int recover_lost_block(PAR3_CTX *par3_ctx, char *temp_path, int lost_count)
 					if (chunk_num == 1){	// When unprotected chunk is the last in the input file, set end of file.
 						int file_no;
 						if (par3_ctx->noise_level >= 3){
-							printf("Zero padding unprotected chunk[%u] on file[%u]:%" PRId64 "\n", chunk_index, file_index, file_size);
+							printf("Zero padding unprotected chunk[%u] on file[%u]:%"PRIi64"\n", chunk_index, file_index, file_size);
 						}
 						if ( (fp_write == NULL) || (file_index != file_prev) ){
 							if (fp_write != NULL){	// Close previous temporary file.
@@ -557,7 +557,7 @@ int recover_lost_block(PAR3_CTX *par3_ctx, char *temp_path, int lost_count)
 
 						// Write tail slice on temporary file.
 						if (par3_ctx->noise_level >= 3){
-							printf("Writing %zu bytes of chunk[%u] tail on file[%u]:%" PRId64 "\n", slice_size, chunk_index, file_index, file_offset);
+							printf("Writing %zu bytes of chunk[%u] tail on file[%u]:%"PRIi64"\n", slice_size, chunk_index, file_index, file_offset);
 						}
 						if ( (fp_write == NULL) || (file_index != file_prev) ){
 							if (fp_write != NULL){	// Close previous temporary file.
@@ -708,7 +708,7 @@ int recover_lost_block_split(PAR3_CTX *par3_ctx, char *temp_path, uint64_t lost_
 			split_size = block_size;
 		split_count = (uint32_t)((block_size + split_size - 1) / split_size);
 		if (par3_ctx->noise_level >= 1){
-			printf("\nSplit block to %u pieces of %" PRIu64 " bytes.\n", split_count, split_size);
+			printf("\nSplit block to %u pieces of %"PRIu64" bytes.\n", split_count, split_size);
 		}
 	} else {
 		split_count = 1;
@@ -724,15 +724,15 @@ int recover_lost_block_split(PAR3_CTX *par3_ctx, char *temp_path, uint64_t lost_
 		region_size = (split_size + 4 + 63) & ~63;
 		alloc_size = region_size * (block_count + work_count);
 		if (par3_ctx->noise_level >= 2){
-			printf("\nAligned size of block data = %" PRIu64 "\n", region_size);
-			printf("Allocated memory size = %" PRIu64 " * (%" PRIu64 " + %u) = %" PRIu64 "\n", region_size, block_count, work_count, alloc_size);
+			printf("\nAligned size of block data = %"PRIu64"\n", region_size);
+			printf("Allocated memory size = %"PRIu64" * (%"PRIu64" + %u) = %"PRIu64"\n", region_size, block_count, work_count, alloc_size);
 		}
 	} else {	// Reed-Solomon Erasure Codes
 		region_size = (split_size + 4 + 3) & ~3;
 		alloc_size = region_size * (block_count + lost_count);
 		if (par3_ctx->noise_level >= 2){
-			printf("\nAligned size of block data = %" PRIu64 "\n", region_size);
-			printf("Allocated memory size = %" PRIu64 " * (%" PRIu64 " + %" PRIu64 ") = %" PRIu64 "\n", region_size, block_count, lost_count, alloc_size);
+			printf("\nAligned size of block data = %"PRIu64"\n", region_size);
+			printf("Allocated memory size = %"PRIu64" * (%"PRIu64" + %"PRIu64") = %"PRIu64"\n", region_size, block_count, lost_count, alloc_size);
 		}
 	}
 	block_data = malloc(alloc_size);
@@ -816,7 +816,7 @@ int recover_lost_block_split(PAR3_CTX *par3_ctx, char *temp_path, uint64_t lost_
 					slice_index = slice_list[slice_index].next;
 				}
 				if (slice_index == -1){	// When there is no valid slice.
-					printf("Mapping information for block[%" PRIu64 "] is wrong.\n", block_index);
+					printf("Mapping information for block[%"PRIu64"] is wrong.\n", block_index);
 					if (fp != NULL)
 						fclose(fp);
 					return RET_LOGIC_ERROR;
@@ -827,7 +827,7 @@ int recover_lost_block_split(PAR3_CTX *par3_ctx, char *temp_path, uint64_t lost_
 				file_offset = slice_list[slice_index].find_offset + split_offset;
 				io_size = part_size;
 				if (par3_ctx->noise_level >= 3){
-					printf("Reading %zu bytes of slice[%" PRId64 "] for input block[%" PRIu64 "]\n", io_size, slice_index, block_index);
+					printf("Reading %zu bytes of slice[%"PRIi64"] for input block[%"PRIu64"]\n", io_size, slice_index, block_index);
 				}
 				if ( (fp == NULL) || (file_name != name_prev) ){
 					if (fp != NULL){	// Close previous input file.
@@ -855,13 +855,13 @@ int recover_lost_block_split(PAR3_CTX *par3_ctx, char *temp_path, uint64_t lost_
 			// All tail data is available. (one tail or packed tails)
 			} else if ( (data_size > split_offset) && (block_list[block_index].state & 16) ){
 				if (par3_ctx->noise_level >= 3){
-					printf("Reading %" PRIu64 " bytes for input block[%" PRIu64 "]\n", part_size, block_index);
+					printf("Reading %"PRIu64" bytes for input block[%"PRIu64"]\n", part_size, block_index);
 				}
 				tail_offset = split_offset;
 				while (tail_offset < split_offset + part_size){	// Read tails until data end.
 					slice_index = block_list[block_index].slice;
 					while (slice_index != -1){
-						//printf("block = %d, size = %" PRIu64 ", offset = %" PRIu64 ", slice = %" PRId64 "\n", block_index, data_size, tail_offset, slice_index);
+						//printf("block = %d, size = %"PRIu64", offset = %"PRIu64", slice = %"PRIi64"\n", block_index, data_size, tail_offset, slice_index);
 						// Even when chunk tails are overlaped, it will find tail slice of next position.
 						if ( (slice_list[slice_index].tail_offset + slice_list[slice_index].size > tail_offset)
 								&& (slice_list[slice_index].tail_offset <= tail_offset) ){
@@ -870,7 +870,7 @@ int recover_lost_block_split(PAR3_CTX *par3_ctx, char *temp_path, uint64_t lost_
 						slice_index = slice_list[slice_index].next;
 					}
 					if (slice_index == -1){	// When there is no valid slice.
-						printf("Mapping information for block[%" PRIu64 "] is wrong.\n", block_index);
+						printf("Mapping information for block[%"PRIu64"] is wrong.\n", block_index);
 						if (fp != NULL)
 							fclose(fp);
 						return RET_LOGIC_ERROR;
@@ -975,7 +975,7 @@ int recover_lost_block_split(PAR3_CTX *par3_ctx, char *temp_path, uint64_t lost_
 					break;
 			}
 			if (packet_index >= packet_count){
-				printf("Packet information for block[%" PRIu64 "] is wrong.\n", block_index);
+				printf("Packet information for block[%"PRIu64"] is wrong.\n", block_index);
 				if (fp != NULL)
 					fclose(fp);
 				return RET_LOGIC_ERROR;
@@ -985,7 +985,7 @@ int recover_lost_block_split(PAR3_CTX *par3_ctx, char *temp_path, uint64_t lost_
 			file_name = packet_list[packet_index].name;
 			file_offset = packet_list[packet_index].offset + 48 + 40 + split_offset;	// offset of the recovery block data
 			if (par3_ctx->noise_level >= 3){
-				printf("Reading Recovery Data[%" PRIu64 "] for recovery block[%" PRIu64 "]\n", packet_index, block_index);
+				printf("Reading Recovery Data[%"PRIu64"] for recovery block[%"PRIu64"]\n", packet_index, block_index);
 			}
 			if ( (fp == NULL) || (file_name != name_prev) ){
 				if (fp != NULL){	// Close previous recovery file.
@@ -1057,12 +1057,12 @@ int recover_lost_block_split(PAR3_CTX *par3_ctx, char *temp_path, uint64_t lost_
 
 /*
 if (par3_ctx->ecc_method & 8){	// FFT based Reed-Solomon Codes
-	printf("\n read block ok, progress = %" PRIu64 " / %" PRIu64 "\n", progress_step, progress_total);
+	printf("\n read block ok, progress = %"PRIu64" / %"PRIu64"\n", progress_step, progress_total);
 	for (block_index = 0; block_index < block_count; block_index++){
-		printf("original_data[%2%" PRIu64 "] = %p\n", block_index, original_data[block_index]);
+		printf("original_data[%2"PRIu64"] = %p\n", block_index, original_data[block_index]);
 	}
 	for (block_index = 0; block_index < max_recovery_block; block_index++){
-		printf("recovery_data[%2%" PRIu64 "] = %p\n", block_index, recovery_data[block_index]);
+		printf("recovery_data[%2"PRIu64"] = %p\n", block_index, recovery_data[block_index]);
 	}
 }
 */
@@ -1116,7 +1116,7 @@ if (par3_ctx->ecc_method & 8){	// FFT based Reed-Solomon Codes
 					}
 				}
 				if (ret != 0){
-					printf("Parity of recovered block[%" PRIu64 "] is different.\n", block_index);
+					printf("Parity of recovered block[%"PRIu64"] is different.\n", block_index);
 					return RET_LOGIC_ERROR;
 				}
 			} else if ( (par3_ctx->ecc_method & 8) && (gf_size == 2) ){
@@ -1147,7 +1147,7 @@ if (par3_ctx->ecc_method & 8){	// FFT based Reed-Solomon Codes
 						}
 						io_size = part_size;
 						if (par3_ctx->noise_level >= 3){
-							printf("Writing %zu bytes of slice[%" PRId64 "] on file[%u]:%" PRId64 " in block[%" PRIu64 "]\n", io_size, slice_index, file_index, file_offset, block_index);
+							printf("Writing %zu bytes of slice[%"PRIi64"] on file[%u]:%"PRIi64" in block[%"PRIu64"]\n", io_size, slice_index, file_index, file_offset, block_index);
 						}
 						if ( (fp == NULL) || (file_index != file_prev) ){
 							if (fp != NULL){	// Close previous temporary file.
@@ -1214,7 +1214,7 @@ if (par3_ctx->ecc_method & 8){	// FFT based Reed-Solomon Codes
 					if (chunk_num == 1){	// When unprotected chunk is the last in the input file, set end of file.
 						int file_no;
 						if (par3_ctx->noise_level >= 3){
-							printf("Zero padding unprotected chunk[%u] on file[%u]:%" PRId64 "\n", chunk_index, file_index, file_size);
+							printf("Zero padding unprotected chunk[%u] on file[%u]:%"PRIi64"\n", chunk_index, file_index, file_size);
 						}
 						if ( (fp == NULL) || (file_index != file_prev) ){
 							if (fp != NULL){	// Close previous temporary file.
@@ -1263,7 +1263,7 @@ if (par3_ctx->ecc_method & 8){	// FFT based Reed-Solomon Codes
 
 						// Write tail slice on temporary file.
 						if (par3_ctx->noise_level >= 3){
-							printf("Writing %zu bytes of chunk[%u] tail on file[%u]:%" PRId64 "\n", io_size, chunk_index, file_index, file_offset);
+							printf("Writing %zu bytes of chunk[%u] tail on file[%u]:%"PRIi64"\n", io_size, chunk_index, file_index, file_offset);
 						}
 						if ( (fp == NULL) || (file_index != file_prev) ){
 							if (fp != NULL){	// Close previous temporary file.
@@ -1315,7 +1315,7 @@ if (par3_ctx->ecc_method & 8){	// FFT based Reed-Solomon Codes
 	if (par3_ctx->noise_level >= 0){
 		if (par3_ctx->noise_level <= 2){
 			if (progress_step < progress_total)
-				printf("Didn't finish progress. %" PRIu64 " / %" PRIu64 "\n", progress_step, progress_total);
+				printf("Didn't finish progress. %"PRIu64" / %"PRIu64"\n", progress_step, progress_total);
 		}
 		clock_now = clock() - clock_now;
 		printf("done in %.1f seconds.\n", (double)clock_now / CLOCKS_PER_SEC);
@@ -1398,7 +1398,7 @@ int recover_lost_block_cohort(PAR3_CTX *par3_ctx, char *temp_path)
 	max_recovery_block2 = par3_ctx->max_recovery_block / cohort_count;
 	lost_list = par3_ctx->lost_list;	// This was set at aggregate_block_cohort().
 	recv_list = lost_list + cohort_count;
-	//printf("cohort_count = %u, block_count2 = %" PRIu64 ", max_recovery_block2 = %" PRIu64 "\n", cohort_count, block_count2, max_recovery_block2);
+	//printf("cohort_count = %u, block_count2 = %"PRIu64", max_recovery_block2 = %"PRIu64"\n", cohort_count, block_count2, max_recovery_block2);
 	//for (cohort_index = 0; cohort_index < cohort_count; cohort_index++){
 	//	printf("lost_count2 = %u, recovery_block_count2 = %u\n", lost_list[cohort_index], recv_list[cohort_index]);
 	//}
@@ -1431,7 +1431,7 @@ int recover_lost_block_cohort(PAR3_CTX *par3_ctx, char *temp_path)
 			split_size = block_size;
 		split_count = (uint32_t)((block_size + split_size - 1) / split_size);
 		if (par3_ctx->noise_level >= 1){
-			printf("\nSplit block to %u pieces of %" PRIu64 " bytes.\n", split_count, split_size);
+			printf("\nSplit block to %u pieces of %"PRIu64" bytes.\n", split_count, split_size);
 		}
 	} else {
 		split_count = 1;
@@ -1448,8 +1448,8 @@ int recover_lost_block_cohort(PAR3_CTX *par3_ctx, char *temp_path)
 	if (alloc_size < block_size)
 		alloc_size = block_size;	// This buffer size must be enough large to copy a slice.
 	if (par3_ctx->noise_level >= 2){
-		printf("\nAligned size of block data = %" PRIu64 "\n", region_size);
-		printf("Allocated memory size = %" PRIu64 " * (%" PRIu64 " + %u) = %" PRIu64 "\n", region_size, block_count2, work_count, alloc_size);
+		printf("\nAligned size of block data = %"PRIu64"\n", region_size);
+		printf("Allocated memory size = %"PRIu64" * (%"PRIu64" + %u) = %"PRIu64"\n", region_size, block_count2, work_count, alloc_size);
 	}
 	block_data = malloc(alloc_size);
 	if (block_data == NULL){
@@ -1532,7 +1532,7 @@ int recover_lost_block_cohort(PAR3_CTX *par3_ctx, char *temp_path)
 						file_offset = slice_list[slice_index].find_offset;
 						io_size = slice_list[slice_index].size;
 						if (par3_ctx->noise_level >= 3){
-							printf("Reading %zu bytes of slice[%" PRId64 "] for input block[%" PRIu64 "]\n", io_size, slice_index, block_index);
+							printf("Reading %zu bytes of slice[%"PRIi64"] for input block[%"PRIu64"]\n", io_size, slice_index, block_index);
 						}
 						if ( (fp_read == NULL) || (file_name != name_prev) ){
 							if (fp_read != NULL){	// Close previous input file.
@@ -1566,7 +1566,7 @@ int recover_lost_block_cohort(PAR3_CTX *par3_ctx, char *temp_path)
 						// Write slice data on temporary file.
 						file_offset = slice_list[slice_index].offset;
 						if (par3_ctx->noise_level >= 3){
-							printf("Writing %zu bytes of slice[%" PRId64 "] on file[%u]\n", io_size, slice_index, file_index);
+							printf("Writing %zu bytes of slice[%"PRIi64"] on file[%u]\n", io_size, slice_index, file_index);
 						}
 						if ( (fp_write == NULL) || (file_index != file_prev) ){
 							if (fp_write != NULL){	// Close previous temporary file.
@@ -1627,7 +1627,7 @@ int recover_lost_block_cohort(PAR3_CTX *par3_ctx, char *temp_path)
 			printf("cohort[%u] : lost = %u, recovery = %u\n", cohort_index, lost_list[cohort_index], recv_list[cohort_index]);
 		}
 		for (split_offset = 0; split_offset < block_size; split_offset += split_size){
-			//printf("cohort_index = %u, split_offset = %" PRIu64 "\n", cohort_index, split_offset);
+			//printf("cohort_index = %u, split_offset = %"PRIu64"\n", cohort_index, split_offset);
 			buf_p = block_data;	// Starting position of input blocks
 			lost_index = 0;
 
@@ -1659,7 +1659,7 @@ int recover_lost_block_cohort(PAR3_CTX *par3_ctx, char *temp_path)
 						slice_index = slice_list[slice_index].next;
 					}
 					if (slice_index == -1){	// When there is no valid slice.
-						printf("Mapping information for block[%" PRIu64 "] is wrong.\n", block_index);
+						printf("Mapping information for block[%"PRIu64"] is wrong.\n", block_index);
 						if (fp_read != NULL)
 							fclose(fp_read);
 						return RET_LOGIC_ERROR;
@@ -1670,7 +1670,7 @@ int recover_lost_block_cohort(PAR3_CTX *par3_ctx, char *temp_path)
 					file_offset = slice_list[slice_index].find_offset + split_offset;
 					io_size = part_size;
 					if (par3_ctx->noise_level >= 3){
-						printf("Reading %zu bytes of slice[%" PRId64 "] for input block[%" PRIu64 "]\n", io_size, slice_index, block_index);
+						printf("Reading %zu bytes of slice[%"PRIi64"] for input block[%"PRIu64"]\n", io_size, slice_index, block_index);
 					}
 					if ( (fp_read == NULL) || (file_name != name_prev) ){
 						if (fp_read != NULL){	// Close previous input file.
@@ -1698,13 +1698,13 @@ int recover_lost_block_cohort(PAR3_CTX *par3_ctx, char *temp_path)
 				// All tail data is available. (one tail or packed tails)
 				} else if ( (data_size > split_offset) && (block_list[block_index].state & 16) ){
 					if (par3_ctx->noise_level >= 3){
-						printf("Reading %" PRIu64 " bytes for input block[%" PRIu64 "]\n", part_size, block_index);
+						printf("Reading %"PRIu64" bytes for input block[%"PRIu64"]\n", part_size, block_index);
 					}
 					tail_offset = split_offset;
 					while (tail_offset < split_offset + part_size){	// Read tails until data end.
 						slice_index = block_list[block_index].slice;
 						while (slice_index != -1){
-							//printf("block = %d, size = %" PRIu64 ", offset = %" PRIu64 ", slice = %" PRId64 "\n", block_index, data_size, tail_offset, slice_index);
+							//printf("block = %d, size = %"PRIu64", offset = %"PRIu64", slice = %"PRIi64"\n", block_index, data_size, tail_offset, slice_index);
 							// Even when chunk tails are overlaped, it will find tail slice of next position.
 							if ( (slice_list[slice_index].tail_offset + slice_list[slice_index].size > tail_offset)
 									&& (slice_list[slice_index].tail_offset <= tail_offset) ){
@@ -1713,7 +1713,7 @@ int recover_lost_block_cohort(PAR3_CTX *par3_ctx, char *temp_path)
 							slice_index = slice_list[slice_index].next;
 						}
 						if (slice_index == -1){	// When there is no valid slice.
-							printf("Mapping information for block[%" PRIu64 "] is wrong.\n", block_index);
+							printf("Mapping information for block[%"PRIu64"] is wrong.\n", block_index);
 							if (fp_read != NULL)
 								fclose(fp_read);
 							return RET_LOGIC_ERROR;
@@ -1794,14 +1794,14 @@ int recover_lost_block_cohort(PAR3_CTX *par3_ctx, char *temp_path)
 
 			// When the last input block doesn't exist in this cohort, zero fill it.
 			if (block_index < block_count2 * cohort_count){
-				//printf("zero fill %" PRIu64 ", block_count2 * cohort_count = %" PRIu64 "\n", block_index, block_count2 * cohort_count);
+				//printf("zero fill %"PRIu64", block_count2 * cohort_count = %"PRIu64"\n", block_index, block_count2 * cohort_count);
 				memset(buf_p, 0, region_size);
 				original_data[block_index / cohort_count] = buf_p;
 				if ( (par3_ctx->noise_level >= 0) && (par3_ctx->noise_level <= 2) ){
 					progress_step++;
 				}
 			}
-			//printf("\n read input block ok, lost_index = %u, progress = %" PRIu64 " / %" PRIu64 "\n", lost_index, progress_step, progress_total);
+			//printf("\n read input block ok, lost_index = %u, progress = %"PRIu64" / %"PRIu64"\n", lost_index, progress_step, progress_total);
 
 			// At first, clear position of recovery block.
 			for (block_index = 0; block_index < max_recovery_block2; block_index++){
@@ -1823,7 +1823,7 @@ int recover_lost_block_cohort(PAR3_CTX *par3_ctx, char *temp_path)
 				if (block_index % cohort_count != cohort_index)
 					continue;	// Ignore useless recovery block in other cohorts.
 
-				//printf("lost_index = %u, recovery block = %" PRIu64 " \n", lost_index, block_index);
+				//printf("lost_index = %u, recovery block = %"PRIu64" \n", lost_index, block_index);
 				buf_p = block_data + region_size * lost_id[lost_index];	// Address of the recovery block
 				// Set position of lost input block = address of using recovery block
 				recovery_data[block_index / cohort_count] = buf_p;
@@ -1833,7 +1833,7 @@ int recover_lost_block_cohort(PAR3_CTX *par3_ctx, char *temp_path)
 				file_name = packet_list[packet_index].name;
 				file_offset = packet_list[packet_index].offset + 48 + 40 + split_offset;	// offset of the recovery block data
 				if (par3_ctx->noise_level >= 3){
-					printf("Reading Recovery Data[%" PRIu64 "] for recovery block[%" PRIu64 "]\n", packet_index, block_index);
+					printf("Reading Recovery Data[%"PRIu64"] for recovery block[%"PRIu64"]\n", packet_index, block_index);
 				}
 				if ( (fp_read == NULL) || (file_name != name_prev) ){
 					if (fp_read != NULL){	// Close previous recovery file.
@@ -1894,16 +1894,16 @@ int recover_lost_block_cohort(PAR3_CTX *par3_ctx, char *temp_path)
 			}
 
 /*
-printf("\n read recovery block ok, lost_index = %u, progress = %" PRIu64 " / %" PRIu64 "\n", lost_index, progress_step, progress_total);
+printf("\n read recovery block ok, lost_index = %u, progress = %"PRIu64" / %"PRIu64"\n", lost_index, progress_step, progress_total);
 
 for (block_index = 0; block_index < block_count2; block_index++){
-	printf("original_data[%2%" PRIu64 "] = %p\n", block_index, original_data[block_index]);
+	printf("original_data[%2"PRIu64"] = %p\n", block_index, original_data[block_index]);
 }
 for (block_index = 0; block_index < max_recovery_block2; block_index++){
-	printf("recovery_data[%2%" PRIu64 "] = %p\n", block_index, recovery_data[block_index]);
+	printf("recovery_data[%2"PRIu64"] = %p\n", block_index, recovery_data[block_index]);
 }
 for (block_index = 0; block_index < work_count; block_index++){
-	printf("work_data[%2%" PRIu64 "] = %p\n", block_index, work_data[block_index]);
+	printf("work_data[%2"PRIu64"] = %p\n", block_index, work_data[block_index]);
 }
 
 {	// for debug
@@ -1922,7 +1922,7 @@ fclose(fp2);
 				printf("Failed to call Leopard-RS library (%d)\n", ret);
 				return RET_LOGIC_ERROR;
 			}
-			//printf("\n decode ok, progress = %" PRIu64 " / %" PRIu64 "\n", progress_step, progress_total);
+			//printf("\n decode ok, progress = %"PRIu64" / %"PRIu64"\n", progress_step, progress_total);
 
 			// Restore recovered data
 			buf_p = block_data;
@@ -1945,7 +1945,7 @@ fp2 = fopen("after_recover.bin", "wb");
 fwrite(block_data, 1, region_size * (block_count2 + work_count), fp2);
 fclose(fp2);
 }
-printf("\n recover ok, progress = %" PRIu64 " / %" PRIu64 "\n", progress_step, progress_total);
+printf("\n recover ok, progress = %"PRIu64" / %"PRIu64"\n", progress_step, progress_total);
 */
 
 			// Restore all input blocks
@@ -1959,7 +1959,7 @@ printf("\n recover ok, progress = %" PRIu64 " / %" PRIu64 "\n", progress_step, p
 						ret = region_check_parity(buf_p, region_size);
 					}
 					if (ret != 0){
-						printf("Parity of recovered block[%" PRIu64 "] is different.\n", block_index);
+						printf("Parity of recovered block[%"PRIu64"] is different.\n", block_index);
 						return RET_LOGIC_ERROR;
 					}
 				} else if (gf_size == 2){
@@ -1990,7 +1990,7 @@ printf("\n recover ok, progress = %" PRIu64 " / %" PRIu64 "\n", progress_step, p
 							}
 							io_size = part_size;
 							if (par3_ctx->noise_level >= 3){
-								printf("Writing %zu bytes of slice[%" PRId64 "] on file[%u]:%" PRId64 " in block[%" PRIu64 "]\n", io_size, slice_index, file_index, file_offset, block_index);
+								printf("Writing %zu bytes of slice[%"PRIi64"] on file[%u]:%"PRIi64" in block[%"PRIu64"]\n", io_size, slice_index, file_index, file_offset, block_index);
 							}
 							if ( (fp_write == NULL) || (file_index != file_prev) ){
 								if (fp_write != NULL){	// Close previous temporary file.
@@ -2044,7 +2044,7 @@ printf("\n recover ok, progress = %" PRIu64 " / %" PRIu64 "\n", progress_step, p
 					progress_step++;
 				}
 			}
-			//printf("\n restore ok, progress = %" PRIu64 " / %" PRIu64 "\n", progress_step, progress_total);
+			//printf("\n restore ok, progress = %"PRIu64" / %"PRIu64"\n", progress_step, progress_total);
 		}
 	}
 
@@ -2077,7 +2077,7 @@ printf("\n recover ok, progress = %" PRIu64 " / %" PRIu64 "\n", progress_step, p
 					if (chunk_num == 1){	// When unprotected chunk is the last in the input file, set end of file.
 						int file_no;
 						if (par3_ctx->noise_level >= 3){
-							printf("Zero padding unprotected chunk[%u] on file[%u]:%" PRId64 "\n", chunk_index, file_index, file_size);
+							printf("Zero padding unprotected chunk[%u] on file[%u]:%"PRIi64"\n", chunk_index, file_index, file_size);
 						}
 						if ( (fp_write == NULL) || (file_index != file_prev) ){
 							if (fp_write != NULL){	// Close previous temporary file.
@@ -2126,7 +2126,7 @@ printf("\n recover ok, progress = %" PRIu64 " / %" PRIu64 "\n", progress_step, p
 
 						// Write tail slice on temporary file.
 						if (par3_ctx->noise_level >= 3){
-							printf("Writing %zu bytes of chunk[%u] tail on file[%u]:%" PRId64 "\n", io_size, chunk_index, file_index, file_offset);
+							printf("Writing %zu bytes of chunk[%u] tail on file[%u]:%"PRIi64"\n", io_size, chunk_index, file_index, file_offset);
 						}
 						if ( (fp_write == NULL) || (file_index != file_prev) ){
 							if (fp_write != NULL){	// Close previous temporary file.
@@ -2178,7 +2178,7 @@ printf("\n recover ok, progress = %" PRIu64 " / %" PRIu64 "\n", progress_step, p
 	if (par3_ctx->noise_level >= 0){
 		if (par3_ctx->noise_level <= 2){
 			if (progress_step < progress_total)
-				printf("Didn't finish progress. %" PRIu64 " / %" PRIu64 "\n", progress_step, progress_total);
+				printf("Didn't finish progress. %"PRIu64" / %"PRIu64"\n", progress_step, progress_total);
 		}
 		clock_now = clock() - clock_now;
 		printf("done in %.1f seconds.\n", (double)clock_now / CLOCKS_PER_SEC);
