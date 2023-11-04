@@ -1,14 +1,32 @@
 // avoid error of MSVC
 #define _CRT_SECURE_NO_WARNINGS
 
+/* Redefinition of _FILE_OFFSET_BITS must happen BEFORE including stdio.h */
+#ifdef __linux__
+#define _FILE_OFFSET_BITS 64
+#define _fseeki64 fseeko
+#define _fileno fileno
+#define _chsize_s ftruncate
+#elif _WIN32
+#endif
+
+
 #include <errno.h>
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+#if __linux__
+
+#include <unistd.h>
+
+#elif _WIN32
+
 // MSVC headers
 #include <io.h>
+
+#endif
 
 #include "libpar3.h"
 #include "hash.h"
@@ -191,7 +209,7 @@ uint64_t inside_zip_size(PAR3_CTX *par3_ctx,
 	// [ data chunk ] [ footer chunk ] [ unprotected chunk ] [ duplicated footer chunk ]
 	data_size = par3_ctx->total_file_size - footer_size;
 	if (par3_ctx->noise_level >= 2){
-		printf("data_size = %I64d, footer_size = %d, block_size = %I64d\n", data_size, footer_size, block_size);
+		printf("data_size = %"PRId64", footer_size = %d, block_size = %"PRId64"\n", data_size, footer_size, block_size);
 	}
 	// On the other hand, there are 1 protected chunk in 7-Zip.
 	// [ data chunk ] [ unprotected chunk ]
@@ -230,13 +248,13 @@ uint64_t inside_zip_size(PAR3_CTX *par3_ctx,
 	}
 
 	if (par3_ctx->noise_level >= 2){
-		printf("data_block = %I64d, footer_block = %d, tail_block = %d\n", data_block_count, footer_block_count, tail_block_count);
-		printf("input_block_count = %I64d, recovery_block_count = %I64d\n", input_block_count, recovery_block_count);
+		printf("data_block = %"PRId64", footer_block = %d, tail_block = %d\n", data_block_count, footer_block_count, tail_block_count);
+		printf("input_block_count = %"PRId64", recovery_block_count = %"PRId64"\n", input_block_count, recovery_block_count);
 	}
 
 	// Creator Packet
 	if (par3_ctx->noise_level >= 1){
-		printf("Creator Packet size = %I64d\n", par3_ctx->creator_packet_size);
+		printf("Creator Packet size = %"PRId64"\n", par3_ctx->creator_packet_size);
 	}
 
 	// Start Packet
@@ -245,7 +263,7 @@ uint64_t inside_zip_size(PAR3_CTX *par3_ctx,
 		start_packet_size++;	// Use GF(2^16) for many blocks
 	common_packet_size = start_packet_size;
 	if (par3_ctx->noise_level >= 1){
-		printf("Start Packet size = %I64d\n", start_packet_size);
+		printf("Start Packet size = %"PRId64"\n", start_packet_size);
 	}
 
 	// External Data Packet
@@ -255,7 +273,7 @@ uint64_t inside_zip_size(PAR3_CTX *par3_ctx,
 		ext_data_packet_size += 48 + 8 + 24 * footer_block_count;	// 2nd chunk
 	common_packet_size += ext_data_packet_size;
 	if (par3_ctx->noise_level >= 1){
-		printf("External Data Packet size = %I64d\n", ext_data_packet_size);
+		printf("External Data Packet size = %"PRId64"\n", ext_data_packet_size);
 	}
 
 	// Matrix Packet
@@ -263,13 +281,13 @@ uint64_t inside_zip_size(PAR3_CTX *par3_ctx,
 	matrix_packet_size = 48 + 24;
 	common_packet_size += matrix_packet_size;
 	if (par3_ctx->noise_level >= 1){
-		printf("Cauchy Matrix Packet size = %I64d\n", matrix_packet_size);
+		printf("Cauchy Matrix Packet size = %"PRId64"\n", matrix_packet_size);
 	}
 
 	// Recovery Data Packet
 	recv_data_packet_size = 48 + 40 + block_size;
 	if (par3_ctx->noise_level >= 1){
-		printf("Recovery Data Packet size = %I64d\n", recv_data_packet_size);
+		printf("Recovery Data Packet size = %"PRId64"\n", recv_data_packet_size);
 	}
 
 	// File Packet
@@ -310,14 +328,14 @@ uint64_t inside_zip_size(PAR3_CTX *par3_ctx,
 	}
 	common_packet_size += file_packet_size;
 	if (par3_ctx->noise_level >= 1){
-		printf("File Packet size = %I64d\n", file_packet_size);
+		printf("File Packet size = %"PRId64"\n", file_packet_size);
 	}
 
 	// Root Packet
 	root_packet_size = 48 + 13 + 16;
 	common_packet_size += root_packet_size;
 	if (par3_ctx->noise_level >= 1){
-		printf("Root Packet size = %I64d\n", root_packet_size);
+		printf("Root Packet size = %"PRId64"\n", root_packet_size);
 	}
 
 	// How many times to duplicate common packets
@@ -364,8 +382,8 @@ uint64_t inside_zip_size(PAR3_CTX *par3_ctx,
 	total_packet_size += common_packet_size * repeat_count;
 	total_packet_size += recv_data_packet_size * recovery_block_count;
 	if (par3_ctx->noise_level >= 1){
-		printf("Common packet size = %I64d\n", common_packet_size);
-		printf("Total packet size = %I64d\n\n", total_packet_size);
+		printf("Common packet size = %"PRId64"\n", common_packet_size);
+		printf("Total packet size = %"PRId64"\n\n", total_packet_size);
 	}
 
 	*block_count = input_block_count;
@@ -497,7 +515,7 @@ int delete_inside_data(PAR3_CTX *par3_ctx)
 			return RET_LOGIC_ERROR;
 		}
 		if (par3_ctx->noise_level >= 0){
-			printf("Original ZIP file size = %I64d\n", cdh_offset + cdh_size + ecdr_size);
+			printf("Original ZIP file size = %"PRId64"\n", cdh_offset + cdh_size + ecdr_size);
 		}
 
 		// Delete appended data by resizing to the original ZIP file
@@ -530,7 +548,7 @@ int delete_inside_data(PAR3_CTX *par3_ctx)
 			return RET_LOGIC_ERROR;
 		}
 		if (par3_ctx->noise_level >= 0){
-			printf("Original 7z file size = %I64d\n", 32 + offset + header_size);
+			printf("Original 7z file size = %"PRId64"\n", 32 + offset + header_size);
 		}
 
 		// Check end mark at original position
@@ -617,7 +635,7 @@ int copy_inside_data(PAR3_CTX *par3_ctx, char *temp_path)
 	if (chunk_offset == 0)
 		return RET_LOGIC_ERROR;
 	if (par3_ctx->noise_level >= 2){
-		printf("\nUnprotected Chunk: offset = %I64d, size = %I64d\n", chunk_offset, chunk_size);
+		printf("\nUnprotected Chunk: offset = %"PRId64", size = %"PRId64"\n", chunk_offset, chunk_size);
 	}
 
 	// Buffer size must be larger than each packet size.
@@ -649,7 +667,7 @@ int copy_inside_data(PAR3_CTX *par3_ctx, char *temp_path)
 		}
 	}
 	if (par3_ctx->noise_level >= 3){
-		printf("alloc_size = %I64d, packet_size = %I64d\n", alloc_size, packet_size);
+		printf("alloc_size = %"PRId64", packet_size = %"PRId64"\n", alloc_size, packet_size);
 	}
 
 	// Allocate buffer to keep PAR3 packet
@@ -690,7 +708,7 @@ int copy_inside_data(PAR3_CTX *par3_ctx, char *temp_path)
 				slice_offset = slice_list[slice_index].find_offset;
 				slice_size = slice_list[slice_index].size;
 				if ( (slice_offset + slice_size > file_offset) && (slice_offset < file_offset + 48) ){
-					//printf("file_offset = %I64d, slice_index = %I64d\n", file_offset, slice_index);
+					//printf("file_offset = %"PRId64", slice_index = %"PRId64"\n", file_offset, slice_index);
 					file_offset = slice_offset + slice_size;
 					// Check again from the first slice
 					slice_index = 0;
@@ -709,7 +727,7 @@ int copy_inside_data(PAR3_CTX *par3_ctx, char *temp_path)
 		// Read some packets at once
 		buf_size = fread(buf, 1, alloc_size, fp_read);
 		if (par3_ctx->noise_level >= 3){
-			printf("file_offset = %I64d, buf_size = %I64d\n", file_offset, buf_size);
+			printf("file_offset = %"PRId64", buf_size = %"PRId64"\n", file_offset, buf_size);
 		}
 		offset = 0;
 		while (offset + 48 < buf_size){
@@ -728,7 +746,7 @@ int copy_inside_data(PAR3_CTX *par3_ctx, char *temp_path)
 					// read following data
 					buf_size = buf_size - offset + fread(buf + buf_size - offset, 1, offset, fp_read);
 					if (par3_ctx->noise_level >= 3){
-						printf("file_offset = %I64d, buf_size = %I64d, offset = %I64d, packet_size = %I64d\n", file_offset, buf_size, offset, packet_size);
+						printf("file_offset = %"PRId64", buf_size = %"PRId64", offset = %"PRId64", packet_size = %"PRId64"\n", file_offset, buf_size, offset, packet_size);
 					}
 					offset = 0;
 					if (packet_size > buf_size){
@@ -745,7 +763,7 @@ int copy_inside_data(PAR3_CTX *par3_ctx, char *temp_path)
 					continue;
 				}
 				if (par3_ctx->noise_level >= 3){
-					printf("Complete packet: offset = %I64d + %I64d, size = %I64d\n", file_offset, offset, packet_size);
+					printf("Complete packet: offset = %"PRId64" + %"PRId64", size = %"PRId64"\n", file_offset, offset, packet_size);
 				}
 
 				// write packet on temporary file
@@ -783,7 +801,7 @@ int copy_inside_data(PAR3_CTX *par3_ctx, char *temp_path)
 	par3_ctx->work_buf = NULL;
 
 	if (par3_ctx->noise_level >= 2){
-		printf("Total size of copied complete packets = %I64d\n", total_packet_size);
+		printf("Total size of copied complete packets = %"PRId64"\n", total_packet_size);
 	}
 
 	return 0;

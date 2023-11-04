@@ -4,15 +4,31 @@
 
 #include <errno.h>
 #include <inttypes.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
+
+#if __linux__
+
+#warning "Assuming this Linux system uses 64-bit time."
+/* There doesn't seem to be a preprocessor test for 64-bit time_t! 
+   sizeof() is not available to the preprocessor.  */
+/* NOTE: ctime is not threadsafe.  It returns a pointer to a static buffer.
+   we should consider using ctime_r().  */
+#define __time64_t int64_t
+#define _ctime64 ctime
+
+#elif _WIN32
+
 // MSVC headers
 #include <io.h>
 #include <sys/stat.h>
 #include <sys/utime.h>
+
+#endif
 
 #include "libpar3.h"
 #include "packet.h"
@@ -40,6 +56,9 @@ static uint64_t FileTimeToTimet(uint64_t file_time)
 	return unix_time;
 }
 
+
+#if __linux__
+#elif _WIN32
 
 // File System Specific Packets (optional packets)
 /*
@@ -74,7 +93,7 @@ int make_unix_permission_packet(PAR3_CTX *par3_ctx, char *file_name, uint8_t *ch
 
 /*
 	printf("Status information of \"%s\"\n", file_name);
-	//printf("st_mtime = %016I64x\n", stat_buf.st_mtime);
+	//printf("st_mtime = %016"PRIx64"\n", stat_buf.st_mtime);
 	printf("st_mtime = %s", _ctime64(&(stat_buf.st_mtime)));
 	printf("st_mode = 0x%04x\n\n", stat_buf.st_mode);
 */
@@ -164,7 +183,7 @@ int make_fat_permission_packet(PAR3_CTX *par3_ctx, char *file_name, uint8_t *che
 
 	return 0;
 }
-
+#endif
 
 // For showing file list
 static void show_file_system_info(PAR3_CTX *par3_ctx, uint8_t *checksum)
@@ -172,7 +191,8 @@ static void show_file_system_info(PAR3_CTX *par3_ctx, uint8_t *checksum)
 	uint8_t *packet_checksum, *packet_type, *buf;
 	size_t offset, total_size;
 	uint32_t item_value4;
-	uint64_t packet_size, item_value8;
+	uint64_t packet_size;
+	__time64_t item_value8;
 
 	buf = par3_ctx->file_system_packet;
 	total_size = par3_ctx->file_system_packet_size;
@@ -184,7 +204,7 @@ static void show_file_system_info(PAR3_CTX *par3_ctx, uint8_t *checksum)
 		packet_type = buf + offset + 40;
 
 		if (memcmp(packet_checksum, checksum, 16) == 0){
-			//printf("packet_size = %I64u\n", packet_size);
+			//printf("packet_size = %"PRIu64"\n", packet_size);
 			if (memcmp(packet_type, "PAR UNX\0", 8) == 0){	// UNIX Permissions Packet
 				if (par3_ctx->file_system & 3){
 					printf("UNIX Permissions: ");
@@ -279,6 +299,12 @@ void read_file_system_option(PAR3_CTX *par3_ctx, int packet_type, int64_t offset
 }
 
 
+#if __linux__
+
+#warning "static int check_file_system_info(PAR3_CTX *par3_ctx, uint8_t *checksum, void *stat_p) is UNDEFINED"
+
+#elif _WIN32
+
 // For verification
 static int check_file_system_info(PAR3_CTX *par3_ctx, uint8_t *checksum, void *stat_p)
 {
@@ -286,7 +312,8 @@ static int check_file_system_info(PAR3_CTX *par3_ctx, uint8_t *checksum, void *s
 	int ret;
 	size_t offset, total_size;
 	uint32_t item_value4;
-	uint64_t packet_size, item_value8;
+	uint64_t packet_size;
+	__time64_t item_value8;
 	struct _stat64 *stat_buf;
 
 	stat_buf = stat_p;
@@ -304,7 +331,7 @@ static int check_file_system_info(PAR3_CTX *par3_ctx, uint8_t *checksum, void *s
 		packet_type = buf + offset + 40;
 
 		if (memcmp(packet_checksum, checksum, 16) == 0){
-			//printf("packet_size = %I64u\n", packet_size);
+			//printf("packet_size = %"PRIu64"\n", packet_size);
 			if (memcmp(packet_type, "PAR UNX\0", 8) == 0){	// UNIX Permissions Packet
 				if (par3_ctx->file_system & 3){
 					if (par3_ctx->file_system & 2){	// i_mode
@@ -350,6 +377,8 @@ static int check_file_system_info(PAR3_CTX *par3_ctx, uint8_t *checksum, void *s
 
 	return ret;
 }
+#endif
+
 
 // packet_type: 1 = file, 2 = directory, 3 = root
 int check_file_system_option(PAR3_CTX *par3_ctx, int packet_type, int64_t offset, void *stat_p)
@@ -409,6 +438,12 @@ int check_file_system_option(PAR3_CTX *par3_ctx, int packet_type, int64_t offset
 }
 
 
+#if __linux__
+
+#warning "static int reset_file_system_info(PAR3_CTX *par3_ctx, uint8_t *checksum, char *file_name); is UNDEFINED"
+
+#elif _WIN32
+
 // For repair
 static int reset_file_system_info(PAR3_CTX *par3_ctx, uint8_t *checksum, char *file_name)
 {
@@ -416,7 +451,8 @@ static int reset_file_system_info(PAR3_CTX *par3_ctx, uint8_t *checksum, char *f
 	int ret;
 	size_t offset, total_size;
 	uint32_t item_value4;
-	uint64_t packet_size, item_value8;
+	uint64_t packet_size;
+	__time64_t item_value8;
 	struct _stat64 stat_buf;
 
 	buf = par3_ctx->file_system_packet;
@@ -430,7 +466,7 @@ static int reset_file_system_info(PAR3_CTX *par3_ctx, uint8_t *checksum, char *f
 		packet_type = buf + offset + 40;
 
 		if (memcmp(packet_checksum, checksum, 16) == 0){
-			//printf("packet_size = %I64u\n", packet_size);
+			//printf("packet_size = %"PRIu64"\n", packet_size);
 			if (memcmp(packet_type, "PAR UNX\0", 8) == 0){	// UNIX Permissions Packet
 				// Recover infomation, only when scuucess.
 				if (_stat64(file_name, &stat_buf) == 0){
@@ -505,6 +541,8 @@ static int reset_file_system_info(PAR3_CTX *par3_ctx, uint8_t *checksum, char *f
 
 	return ret;
 }
+#endif
+
 
 // packet_type: 1 = file, 2 = directory, 3 = root
 int test_file_system_option(PAR3_CTX *par3_ctx, int packet_type, int64_t offset, char *file_name)

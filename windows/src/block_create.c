@@ -150,7 +150,7 @@ int create_recovery_block(PAR3_CTX *par3_ctx)
 			file_offset = slice_list[slice_index].offset;
 			read_size = data_size;
 			if (par3_ctx->noise_level >= 3){
-				printf("Reading %zu bytes of slice[%"PRIi64"] for input block[%d]\n", read_size, slice_index, block_index);
+				printf("Reading %zu bytes of slice[%"PRId64"] for input block[%d]\n", read_size, slice_index, block_index);
 			}
 			if ( (fp == NULL) || (file_index != file_prev) ){
 				if (fp != NULL){	// Close previous input file.
@@ -183,7 +183,7 @@ int create_recovery_block(PAR3_CTX *par3_ctx)
 			while (tail_offset < data_size){	// Read tails until data end.
 				slice_index = block_list[block_index].slice;
 				while (slice_index != -1){
-					//printf("block = %"PRIu64", size = %zu, offset = %zu, slice = %"PRIi64"\n", block_index, data_size, tail_offset, slice_index);
+					//printf("block = %"PRIu64", size = %zu, offset = %zu, slice = %"PRId64"\n", block_index, data_size, tail_offset, slice_index);
 					// Even when chunk tails are overlaped, it will find tail slice of next position.
 					if ( (slice_list[slice_index].tail_offset + slice_list[slice_index].size > tail_offset)
 							&& (slice_list[slice_index].tail_offset <= tail_offset) ){
@@ -200,7 +200,7 @@ int create_recovery_block(PAR3_CTX *par3_ctx)
 
 				// Read one slice from a file.
 				tail_gap = tail_offset - slice_list[slice_index].tail_offset;	// This tail slice may start before tail_offset.
-				//printf("tail_gap for slice[%"PRIi64"] = %zu.\n", slice_index, tail_gap);
+				//printf("tail_gap for slice[%"PRId64"] = %zu.\n", slice_index, tail_gap);
 				file_index = slice_list[slice_index].file;
 				file_offset = slice_list[slice_index].offset + tail_gap;
 				read_size = slice_list[slice_index].size - tail_gap;
@@ -477,7 +477,7 @@ int create_recovery_block_split(PAR3_CTX *par3_ctx)
 				file_offset = slice_list[slice_index].offset + split_offset;
 				io_size = part_size;
 				if (par3_ctx->noise_level >= 3){
-					printf("Reading %zu bytes of slice[%"PRIi64"] for input block[%"PRIu64"]\n", io_size, slice_index, block_index);
+					printf("Reading %zu bytes of slice[%"PRId64"] for input block[%"PRIu64"]\n", io_size, slice_index, block_index);
 				}
 				if ( (fp == NULL) || (file_index != file_prev) ){
 					if (fp != NULL){	// Close previous input file.
@@ -510,7 +510,7 @@ int create_recovery_block_split(PAR3_CTX *par3_ctx)
 				while (tail_offset < split_offset + part_size){	// Read tails until data end.
 					slice_index = block_list[block_index].slice;
 					while (slice_index != -1){
-						//printf("block = %"PRIu64", size = %zu, offset = %zu, slice = %"PRIi64"\n", block_index, data_size, tail_offset, slice_index);
+						//printf("block = %"PRIu64", size = %zu, offset = %zu, slice = %"PRId64"\n", block_index, data_size, tail_offset, slice_index);
 						// Even when chunk tails are overlaped, it will find tail slice of next position.
 						if ( (slice_list[slice_index].tail_offset + slice_list[slice_index].size > tail_offset)
 								&& (slice_list[slice_index].tail_offset <= tail_offset) ){
@@ -532,7 +532,7 @@ int create_recovery_block_split(PAR3_CTX *par3_ctx)
 					io_size = slice_list[slice_index].size - tail_gap;
 					if (io_size > part_size)
 						io_size = part_size;
-					//printf("tail_gap for slice[%"PRIi64"] = %zu, io_size = %zu\n", slice_index, tail_gap, io_size);
+					//printf("tail_gap for slice[%"PRId64"] = %zu, io_size = %zu\n", slice_index, tail_gap, io_size);
 					if ( (fp == NULL) || (file_index != file_prev) ){
 						if (fp != NULL){	// Close previous input file.
 							fclose(fp);
@@ -1016,7 +1016,7 @@ int create_recovery_block_cohort(PAR3_CTX *par3_ctx)
 					file_offset = slice_list[slice_index].offset + split_offset;
 					io_size = part_size;
 					if (par3_ctx->noise_level >= 3){
-						printf("Reading %zu bytes of slice[%"PRIi64"] for input block[%"PRIu64"]\n", io_size, slice_index, block_index);
+						printf("Reading %zu bytes of slice[%"PRId64"] for input block[%"PRIu64"]\n", io_size, slice_index, block_index);
 					}
 					if ( (fp == NULL) || (file_index != file_prev) ){
 						if (fp != NULL){	// Close previous input file.
@@ -1049,7 +1049,7 @@ int create_recovery_block_cohort(PAR3_CTX *par3_ctx)
 					while (tail_offset < split_offset + part_size){	// Read tails until data end.
 						slice_index = block_list[block_index].slice;
 						while (slice_index != -1){
-							//printf("block = %"PRIu64", size = %zu, offset = %zu, slice = %"PRIi64"\n", block_index, data_size, tail_offset, slice_index);
+							//printf("block = %"PRIu64", size = %zu, offset = %zu, slice = %"PRId64"\n", block_index, data_size, tail_offset, slice_index);
 							// Even when chunk tails are overlaped, it will find tail slice of next position.
 							if ( (slice_list[slice_index].tail_offset + slice_list[slice_index].size > tail_offset)
 									&& (slice_list[slice_index].tail_offset <= tail_offset) ){
@@ -1071,7 +1071,7 @@ int create_recovery_block_cohort(PAR3_CTX *par3_ctx)
 						io_size = slice_list[slice_index].size - tail_gap;
 						if (io_size > part_size)
 							io_size = part_size;
-						//printf("tail_gap for slice[%"PRIi64"] = %zu, io_size = %zu\n", slice_index, tail_gap, io_size);
+						//printf("tail_gap for slice[%"PRId64"] = %zu, io_size = %zu\n", slice_index, tail_gap, io_size);
 						if ( (fp == NULL) || (file_index != file_prev) ){
 							if (fp != NULL){	// Close previous input file.
 								fclose(fp);
