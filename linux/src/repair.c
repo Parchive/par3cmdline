@@ -6,6 +6,7 @@
 #ifdef __linux__
 #define _FILE_OFFSET_BITS 64
 #define _fseeki64 fseeko
+#define _stat64 stat
 #elif _WIN32
 #endif
 
@@ -17,11 +18,18 @@
 
 #ifdef __linux__
 
+#include <sys/stat.h>
+
+// default permissions on directory is read, write and search by owner
+#define _mkdir(dirname) mkdir(dirname, S_IRUSR | S_IWUSR | S_IXUSR)
+
 #elif _WIN32
 
 // MSVC headers
 #include <direct.h>
 #include <sys/stat.h>
+
+#define S_ISDIR(m) (((m) & _S_IFDIR) == _S_IFDIR)
 
 #endif
 
@@ -31,10 +39,6 @@
 #include "inside.h"
 #include "verify.h"
 
-#ifdef __linux__
-#warning "static int restore_directory(char *path) is UNDEFINED"
-
-#elif _WIN32
 // It will restore permissions or attributes after files are repaired.
 // return 0 = no need repair, 1 = restored successfully, 2 = failed
 // 0x8000 = not directory
@@ -51,13 +55,13 @@ static int restore_directory(char *path)
 		}
 
 	} else {
-		if ((stat_buf.st_mode & _S_IFDIR) == 0)
+		if (!S_ISDIR(stat_buf.st_mode))
 			return 0x8000;
 	}
 
 	return 0;
 }
-#endif
+
 
 // Reconstruct directory tree of input set
 uint32_t reconstruct_directory_tree(PAR3_CTX *par3_ctx)

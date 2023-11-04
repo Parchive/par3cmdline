@@ -2,6 +2,13 @@
 // avoid error of MSVC
 #define _CRT_SECURE_NO_WARNINGS
 
+/* Redefinition of _FILE_OFFSET_BITS must happen BEFORE including stdio.h */
+#ifdef __linux__
+#define _FILE_OFFSET_BITS 64
+#define _stat64 stat
+#elif _WIN32
+#endif 
+
 #include <errno.h>
 #include <inttypes.h>
 #include <stdio.h>
@@ -9,9 +16,15 @@
 #include <string.h>
 
 #ifdef __linux__
+#include <sys/stat.h>
 #elif _WIN32
 // MSVC headers
 #include <sys/stat.h>
+
+// _S_IFDIR = 0x4000
+#define S_ISDIR(m) (((m) & _S_IFDIR) == _S_IFDIR)
+// _S_IFREG = 0x8000
+#define S_ISREG(m) (((m) & _S_IFREG) == _S_IFREG)
 #endif
 
 #include "blake3/blake3.h"
@@ -22,11 +35,6 @@
 #include "verify.h"
 
 
-#ifdef __linux__
-#warning "int check_directory(PAR3_CTX *par3_ctx, char *path, int64_t offset) undefined"
-int check_directory(PAR3_CTX *par3_ctx, char *path, int64_t offset);
-
-#elif _WIN32
 // This will check permission and attributes in future.
 // return 0 = exist, 1 = missing
 // 0x8000 = not directory
@@ -39,8 +47,7 @@ int check_directory(PAR3_CTX *par3_ctx, char *path, int64_t offset)
 	if (_stat64(path, &stat_buf) != 0)
 		return 1;
 
-	// _S_IFDIR = 0x4000
-	if ((stat_buf.st_mode & _S_IFDIR) == 0)
+	if (!S_ISDIR(stat_buf.st_mode))
 		return 0x8000;
 
 	if ( (offset >= 0) && ((par3_ctx->file_system & 4) != 0) && ((par3_ctx->file_system & 3) != 0) ){
@@ -50,7 +57,7 @@ int check_directory(PAR3_CTX *par3_ctx, char *path, int64_t offset)
 
 	return 0;
 }
-#endif
+
 
 // Check existense of each input directory.
 // Return number of missing directories.
@@ -112,11 +119,6 @@ void check_input_directory(PAR3_CTX *par3_ctx, uint32_t *missing_dir_count, uint
 }
 
 
-#ifdef __linux__
-#warning "static int check_file(PAR3_CTX *par3_ctx, char *path, uint64_t *current_size, int64_t offset) undefined"
-static int check_file(PAR3_CTX *par3_ctx, char *path, uint64_t *current_size, int64_t offset);
-
-#elif _WIN32
 
 // This will check permission and attributes, only when you set an option.
 // return 0 = exist, 1 = missing
@@ -133,8 +135,7 @@ static int check_file(PAR3_CTX *par3_ctx, char *path, uint64_t *current_size, in
 	// Get size of existing file.
 	*current_size = stat_buf.st_size;	// This may be different from original size.
 
-	// _S_IFREG = 0x8000
-	if ((stat_buf.st_mode & _S_IFREG) == 0)
+	if (!S_ISREG(stat_buf.st_mode))
 		return 0x8000;
 
 	if ( (offset >= 0) && (par3_ctx->file_system & 0x10003) ){
@@ -144,7 +145,7 @@ static int check_file(PAR3_CTX *par3_ctx, char *path, uint64_t *current_size, in
 
 	return 0;
 }
-#endif
+
 
 // Check existense and content of each input file.
 int verify_input_file(PAR3_CTX *par3_ctx, uint32_t *missing_file_count, uint32_t *damaged_file_count, uint32_t *bad_file_count)
