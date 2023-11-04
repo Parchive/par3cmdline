@@ -13,6 +13,7 @@
 
 /* This definition of _MAX_FNAME works for GCC on POSIX systems */
 #include <limits.h>
+#include <sys/stat.h>
 #define _MAX_FNAME NAME_MAX
 
 #define _strnicmp strncasecmp
@@ -26,6 +27,46 @@
 
 #include "common.h"
 
+
+
+#if __linux__
+
+// Reproduce Windows system call with Linux's fstat 
+int64_t _filelengthi64(int fd) {
+  struct stat buffer;
+  int result;
+
+  result = fstat(fd, &buffer);
+  if (result == 0) {
+    // success
+    return buffer.st_size;
+  }
+  else {
+    // failure
+    return (int64_t) -1;  // this should sign-extend
+  }
+}
+
+
+/* This is based on code from: https://stackoverflow.com/questions/50119172/how-to-get-the-file-length-in-c-on-linux  
+   Why lseek instead of fstat??
+int64_t _filelengthi64(int filedes)
+{
+    off_t pos = lseek(filedes, 0, SEEK_CUR);
+    if (pos != (off_t)-1)
+    {
+        off_t size = lseek(filedes, 0, SEEK_END);
+        lseek(filedes, pos, SEEK_SET);
+        return (int64_t)size;
+    }
+    return (int64_t)-1;
+}
+*/
+
+
+
+#elif _WIN32
+#endif
 
 // return pointer of filename
 char * offset_file_name(char *file_path)

@@ -1,3 +1,19 @@
+#ifndef __COMMON_H__
+#define __COMMON_H__
+
+#if __linux__
+
+#include <linux/limits.h>
+#define _MAX_PATH PATH_MAX
+
+// Windows system call 
+int64_t _filelengthi64(int fd);
+
+#elif _WIN32
+
+#endif
+
+
 
 char * offset_file_name(char *file_path);
 int sanitize_file_name(char *name);
@@ -22,3 +38,4 @@ int popcount32(uint32_t x);
 int roundup_log2(uint64_t x);
 uint64_t next_pow2(uint64_t x);
 
+#endif // __COMMON_H__
