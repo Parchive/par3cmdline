@@ -73,7 +73,7 @@ int substitute_input_block(PAR3_CTX *par3_ctx)
 					flag_show++;
 					printf("\nSubstituting for lost blocks:\n\n");
 				}
-				printf("Map block[%2"PRIi64"] to Data Packet.\n", block_index);
+				printf("Map block[%2"PRId64"] to Data Packet.\n", block_index);
 			}
 		}
 	}
@@ -195,7 +195,7 @@ int find_identical_block(PAR3_CTX *par3_ctx)
 							flag_show++;
 							printf("\nComparing lost slices to found slices:\n\n");
 						}
-						printf("Map slice[%2"PRIi64"] to identical slice[%2"PRIi64"] in block[%2"PRIu64"].\n",
+						printf("Map slice[%2"PRId64"] to identical slice[%2"PRId64"] in block[%2"PRIu64"].\n",
 								slice_index, find_index, block_index_i);
 					}
 					slice_list[slice_index].find_name = slice_list[find_index].find_name;
@@ -240,7 +240,7 @@ int find_identical_block(PAR3_CTX *par3_ctx)
 									flag_show++;
 									printf("\nComparing lost slices to found slices:\n\n");
 								}
-								printf("Map slice[%2"PRIi64"] to identical slice[%2"PRIi64"].\n", slice_index_i, slice_index_j);
+								printf("Map slice[%2"PRId64"] to identical slice[%2"PRId64"].\n", slice_index_i, slice_index_j);
 							}
 							// Copy reading source to another.
 							block_index_i = slice_list[slice_index_i].block;
@@ -295,7 +295,7 @@ uint64_t aggregate_input_block(PAR3_CTX *par3_ctx)
 						//printf("block[%"PRIu64"]: available = %"PRIu64" / %"PRIu64"\n", block_index, available_size, total_size);
 					}
 				//} else {
-				//	printf("slice[%"PRIi64"] is missing.\n", slice_index);
+				//	printf("slice[%"PRId64"] is missing.\n", slice_index);
 				}
 				slice_index = slice_list[slice_index].next;
 				if ( (slice_index == -1) && (available_size < total_size) && (skip_count != old_count) ){
@@ -463,7 +463,7 @@ uint32_t check_possible_restore(PAR3_CTX *par3_ctx)
 			chunk_index = file_list[file_index].chunk;		// index of the first chunk
 			chunk_num = file_list[file_index].chunk_num;	// number of chunk descriptions
 			slice_index = file_list[file_index].slice;		// index of the first slice
-			//printf("chunk = %u+%u, slice = %"PRIi64" ~, %s\n", chunk_index, chunk_num, slice_index, file_list[file_index].name);
+			//printf("chunk = %u+%u, slice = %"PRId64" ~, %s\n", chunk_index, chunk_num, slice_index, file_list[file_index].name);
 			while (chunk_num > 0){
 				chunk_size = chunk_list[chunk_index].size;
 				file_size += chunk_size;
@@ -471,7 +471,7 @@ uint32_t check_possible_restore(PAR3_CTX *par3_ctx)
 					slice_size = slice_list[slice_index].size;
 					find_name = slice_list[slice_index].find_name;
 					if (find_name == NULL){
-						//printf("slice[%"PRIi64"] isn't found.\n", slice_index);
+						//printf("slice[%"PRId64"] isn't found.\n", slice_index);
 						file_size--;
 						chunk_num = 1;
 						break;

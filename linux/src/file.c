@@ -4,6 +4,7 @@
 
 #include <errno.h>
 #include <inttypes.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -17,7 +18,7 @@
    sizeof() is not available to the preprocessor.  */
 /* NOTE: ctime is not threadsafe.  It returns a pointer to a static buffer.
    we should consider using ctime_r().  */
-#define __time64_t int64_t  
+#define __time64_t int64_t
 #define _ctime64 ctime
 
 #elif _WIN32
@@ -92,7 +93,7 @@ int make_unix_permission_packet(PAR3_CTX *par3_ctx, char *file_name, uint8_t *ch
 
 /*
 	printf("Status information of \"%s\"\n", file_name);
-	//printf("st_mtime = %016I64x\n", stat_buf.st_mtime);
+	//printf("st_mtime = %016"PRIx64"\n", stat_buf.st_mtime);
 	printf("st_mtime = %s", _ctime64(&(stat_buf.st_mtime)));
 	printf("st_mode = 0x%04x\n\n", stat_buf.st_mode);
 */
@@ -203,7 +204,7 @@ static void show_file_system_info(PAR3_CTX *par3_ctx, uint8_t *checksum)
 		packet_type = buf + offset + 40;
 
 		if (memcmp(packet_checksum, checksum, 16) == 0){
-			//printf("packet_size = " PRIu64 "\n", packet_size);
+			//printf("packet_size = %"PRIu64"\n", packet_size);
 			if (memcmp(packet_type, "PAR UNX\0", 8) == 0){	// UNIX Permissions Packet
 				if (par3_ctx->file_system & 3){
 					printf("UNIX Permissions: ");
@@ -330,7 +331,7 @@ static int check_file_system_info(PAR3_CTX *par3_ctx, uint8_t *checksum, void *s
 		packet_type = buf + offset + 40;
 
 		if (memcmp(packet_checksum, checksum, 16) == 0){
-			//printf("packet_size = " PRIu64 "\n", packet_size);
+			//printf("packet_size = %"PRIu64"\n", packet_size);
 			if (memcmp(packet_type, "PAR UNX\0", 8) == 0){	// UNIX Permissions Packet
 				if (par3_ctx->file_system & 3){
 					if (par3_ctx->file_system & 2){	// i_mode
@@ -465,7 +466,7 @@ static int reset_file_system_info(PAR3_CTX *par3_ctx, uint8_t *checksum, char *f
 		packet_type = buf + offset + 40;
 
 		if (memcmp(packet_checksum, checksum, 16) == 0){
-			//printf("packet_size = " PRIu64 "\n", packet_size);
+			//printf("packet_size = %"PRIu64"\n", packet_size);
 			if (memcmp(packet_type, "PAR UNX\0", 8) == 0){	// UNIX Permissions Packet
 				// Recover infomation, only when scuucess.
 				if (_stat64(file_name, &stat_buf) == 0){
