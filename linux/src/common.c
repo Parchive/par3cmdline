@@ -9,9 +9,20 @@
 #include <string.h>
 #include <wchar.h>
 
+#if __linux__
+
+/* This definition of _MAX_FNAME works for GCC on POSIX systems */
+#include <limits.h>
+#define _MAX_FNAME NAME_MAX
+
+#define _strnicmp strncasecmp
+#define _stricmp strcasecmp
+
+#elif _WIN32
 // MSVC headers
 #include <search.h>
 #include <io.h>
+#endif
 
 #include "common.h"
 
@@ -111,6 +122,10 @@ int sanitize_file_name(char *name)
 	return ret;
 }
 
+
+#if __linux__
+#warning "int get_absolute_path(char *absolute_path, char *relative_path, size_t max) is UNDEFINED"
+#elif _WIN32
 // convert relative path to absolute path
 int get_absolute_path(char *absolute_path, char *relative_path, size_t max)
 {
@@ -185,6 +200,7 @@ int get_absolute_path(char *absolute_path, char *relative_path, size_t max)
 
 	return 0;
 }
+#endif
 
 // copy filename, remove cover, replace directory mark
 size_t path_copy(char *dst, char *src, size_t max)
