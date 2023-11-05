@@ -1,6 +1,7 @@
-
+#ifdef _WIN32
 // avoid error of MSVC
 #define _CRT_SECURE_NO_WARNINGS
+#endif
 
 #include <errno.h>
 #include <inttypes.h>
@@ -9,14 +10,34 @@
 #include <string.h>
 #include <math.h>
 
-// MSVC headers
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <direct.h>
-#include <io.h>
+
+#if __linux__
+
+#define _stat64 stat
+
+#include <strings.h>
+#define _strnicmp strncasecmp
+#define _stricmp strcasecmp
+
+#elif _WIN32
+#endif
 
 #include "libpar3.h"
 #include "common.h"
+
+
+
+
+#if __linux__
+
+// MSVC headers
+#elif _WIN32
+
+// MSVC headers
+#include <direct.h>
+#include <io.h>
 
 
 // recursive search into sub-directories
@@ -38,7 +59,7 @@ static int path_search_recursive(PAR3_CTX *par3_ctx, char *sub_dir)
 	new_dir[dir_len] = 0;
 
 	handle = _findfirst64("*", &c_file);
-	if (handle != -1){
+	if (handle != (intptr_t) -1){
 		do {
 			// ignore "." or ".."
 			if ( (strcmp(c_file.name, ".") == 0) || (strcmp(c_file.name, "..") == 0) )
@@ -182,7 +203,7 @@ int path_search(PAR3_CTX *par3_ctx, char *match_path, int flag_recursive)
 			tmp_p[0] = 0;
 			//printf("path component = \"%s\"\n", new_dir);
 			handle = _findfirst64(new_dir, &c_file);
-			if (handle != -1){
+			if (handle != (intptr_t) -1){
 				// If case is different, use the original case.
 				//printf("found component = \"%s\"\n", c_file.name);
 				len = strlen(c_file.name);
@@ -205,7 +226,7 @@ int path_search(PAR3_CTX *par3_ctx, char *match_path, int flag_recursive)
 	}
 
 	handle = _findfirst64(match_name, &c_file);
-	if (handle != -1){
+	if (handle != (intptr_t) -1){
 		do {
 			// ignore "." or ".."
 			if ( (strcmp(c_file.name, ".") == 0) || (strcmp(c_file.name, "..") == 0) )
@@ -358,7 +379,7 @@ int extra_search(PAR3_CTX *par3_ctx, char *match_path)
 			tmp_p[0] = 0;
 			//printf("path component = \"%s\"\n", new_dir);
 			handle = _findfirst64(new_dir, &c_file);
-			if (handle != -1){
+			if (handle != (intptr_t) -1){
 				// If case is different, use the original case.
 				//printf("found component = \"%s\"\n", c_file.name);
 				len = strlen(c_file.name);
@@ -427,7 +448,7 @@ int extra_search(PAR3_CTX *par3_ctx, char *match_path)
 
 	//printf("extra file search \"%s\"\n", match_name);
 	handle = _findfirst64(match_name, &c_file);
-	if (handle != -1){
+	if (handle != (intptr_t) -1){
 		do {
 			// ignore "." or ".."
 			if ( (strcmp(c_file.name, ".") == 0) || (strcmp(c_file.name, "..") == 0) )
@@ -471,6 +492,9 @@ int extra_search(PAR3_CTX *par3_ctx, char *match_path)
 
 	return 0;
 }
+
+#endif
+
 
 // get information of input files
 int get_file_status(PAR3_CTX *par3_ctx)
@@ -568,8 +592,8 @@ int get_file_status(PAR3_CTX *par3_ctx)
 	}
 
 	if (par3_ctx->noise_level >= 0){
-		printf("Total file size = %I64u\n", par3_ctx->total_file_size);
-		printf("Max file size = %I64u\n", par3_ctx->max_file_size);
+		printf("Total file size = %"PRIu64"\n", par3_ctx->total_file_size);
+		printf("Max file size = %"PRIu64"\n", par3_ctx->max_file_size);
 	}
 
 	return 0;
@@ -607,12 +631,12 @@ uint64_t suggest_block_size(PAR3_CTX *par3_ctx)
 	block_count = 8;
 	while (block_count * 2 <= block_size)
 		block_count *= 2;
-	//printf("block_size = %I64u, power of 2 = %I64u\n", block_size, block_count);
+	//printf("block_size = %"PRIu64", power of 2 = %"PRIu64"\n", block_size, block_count);
 	block_size = block_count;
 
 	// test possible number of blocks
 	block_count = calculate_block_count(par3_ctx, block_size);
-	//printf("1st block_count = %I64u\n", block_count);
+	//printf("1st block_count = %"PRIu64"\n", block_count);
 	if (block_count > 128){	// If range is 16-bit Reed Solomon Codes, more block count is possible.
 		if (block_count <= 1000){	// When there are too few blocks
 			block_size /= 2;
@@ -624,7 +648,7 @@ uint64_t suggest_block_size(PAR3_CTX *par3_ctx)
 		block_size *= 2;
 		block_count = calculate_block_count(par3_ctx, block_size);
 	}
-	//printf("2nd block_count = %I64u\n", block_count);
+	//printf("2nd block_count = %"PRIu64"\n", block_count);
 
 	// If total number of input blocks is equal or less than 128,
 	// PAR3 uses 8-bit Reed-Solomon Codes.
@@ -776,7 +800,7 @@ int sort_input_set(PAR3_CTX *par3_ctx)
 			} else {
 				file_p->chk[0] = 0;
 			}
-			//printf("file size = %I64u, tail size = %I64u\n", file_size, tail_size);
+			//printf("file size = %"PRIu64", tail size = %"PRIu64"\n", file_size, tail_size);
 
 			file_p++;
 			num--;
@@ -792,7 +816,7 @@ int sort_input_set(PAR3_CTX *par3_ctx)
 
 		if (par3_ctx->noise_level >= 0){
 			while (num > 0){
-				printf("input file = \"%s\" %I64u / %I64u\n", file_p->name, file_p->chk[0], file_p->size);
+				printf("input file = \"%s\" %"PRIu64" / %"PRIu64"\n", file_p->name, file_p->chk[0], file_p->size);
 
 				file_p++;
 				num--;
@@ -827,6 +851,9 @@ int sort_input_set(PAR3_CTX *par3_ctx)
 }
 
 
+#ifdef __linux__
+#elif _WIN32
+
 // search other par files from base filename
 int par_search(PAR3_CTX *par3_ctx, char *base_name, int flag_other)
 {
@@ -848,9 +875,9 @@ int par_search(PAR3_CTX *par3_ctx, char *base_name, int flag_other)
 	//printf("dir_len = %zu\n", dir_len);
 
 	handle = _findfirst64(find_path, &c_file);
-	if (handle != -1){
+	if (handle != (intptr_t) -1){
 		strcpy(find_path + dir_len, c_file.name);
-		//printf("found = \"%s\", size = %I64d\n", find_path, c_file.size);
+		//printf("found = \"%s\", size = %"PRId64"\n", find_path, c_file.size);
 		if (max_file_size < (uint64_t)c_file.size)
 			max_file_size = c_file.size;
 		file_count++;
@@ -890,7 +917,7 @@ int par_search(PAR3_CTX *par3_ctx, char *base_name, int flag_other)
 		//printf("find path = \"%s\"\n", find_path);
 
 		handle = _findfirst64(find_path, &c_file);
-		if (handle != -1){
+		if (handle != (intptr_t) -1){
 			do {
 				// ignore hidden or system files or directory
 				if ( ((c_file.attrib & _A_HIDDEN) != 0) || ((c_file.attrib & _A_SYSTEM) != 0) || ((c_file.attrib & _A_SUBDIR) != 0) )
@@ -908,7 +935,7 @@ int par_search(PAR3_CTX *par3_ctx, char *base_name, int flag_other)
 				if (namez_search(par3_ctx->par_file_name, par3_ctx->par_file_name_len, find_path) != NULL)
 					continue;
 
-				//printf("found = \"%s\", size = %I64d\n", find_path, c_file.size);
+				//printf("found = \"%s\", size = %"PRId64"\n", find_path, c_file.size);
 				if (max_file_size < (uint64_t)c_file.size)
 					max_file_size = c_file.size;
 				file_count++;
@@ -949,7 +976,7 @@ int par_search(PAR3_CTX *par3_ctx, char *base_name, int flag_other)
 					if (namez_search(par3_ctx->par_file_name, par3_ctx->par_file_name_len, find_path) == NULL){
 						struct _stat64 stat_buf;
 						if (_stat64(find_path, &stat_buf) == 0){
-							//printf("found = \"%s\", size = %I64d\n", find_path, stat_buf.st_size);
+							//printf("found = \"%s\", size = %"PRId64"\n", find_path, stat_buf.st_size);
 							if (max_file_size < (uint64_t)stat_buf.st_size)
 								max_file_size = stat_buf.st_size;
 							file_count++;
@@ -1012,11 +1039,12 @@ int par_search(PAR3_CTX *par3_ctx, char *base_name, int flag_other)
 	par3_ctx->max_file_size = max_file_size;
 	if (par3_ctx->noise_level >= 1){
 		printf("Number of PAR file = %d\n", file_count);
-		printf("Max par file size = %I64u\n", par3_ctx->max_file_size);
+		printf("Max par file size = %"PRIu64"\n", par3_ctx->max_file_size);
 	}
 
 	return 0;
 }
+#endif
 
 
 // This function releases all allocated memory.

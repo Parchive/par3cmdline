@@ -1,7 +1,3 @@
-
-// avoid error of MSVC
-#define _CRT_SECURE_NO_WARNINGS
-
 #include <errno.h>
 #include <inttypes.h>
 #include <stdio.h>
@@ -19,6 +15,7 @@
 #define _stricmp strcasecmp
 
 #elif _WIN32
+
 // MSVC headers
 #include <search.h>
 #include <io.h>

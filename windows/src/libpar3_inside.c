@@ -1,6 +1,3 @@
-// avoid error of MSVC
-#define _CRT_SECURE_NO_WARNINGS
-
 #include <errno.h>
 #include <inttypes.h>
 #include <stdio.h>
@@ -74,7 +71,7 @@ int par3_insert_zip(PAR3_CTX *par3_ctx, char command_trial)
 	copy_size = 350;
 */
 	if (par3_ctx->noise_level >= 1){
-		printf("\nTesting block size from %I64d:\n\n", block_size);
+		printf("\nTesting block size from %"PRId64":\n\n", block_size);
 	}
 	best_block_size = block_size;
 	best_total_size = inside_zip_size(par3_ctx, block_size, copy_size, &best_block_count, &best_recv_block_count, &best_repeat_count);
@@ -105,7 +102,7 @@ int par3_insert_zip(PAR3_CTX *par3_ctx, char command_trial)
 	par3_ctx->max_recovery_block = best_recv_block_count;
 	repeat_count = best_repeat_count;
 	if (par3_ctx->noise_level >= 1){
-		printf("Best block size = %I64d\nblock count = %I64d, recvory block count = %I64d, repeat count = %d\n",
+		printf("Best block size = %"PRId64"\nblock count = %"PRId64", recvory block count = %"PRId64", repeat count = %d\n",
 				best_block_size, best_block_count, best_recv_block_count, repeat_count);
 	}
 
@@ -116,7 +113,7 @@ int par3_insert_zip(PAR3_CTX *par3_ctx, char command_trial)
 			// rate of "Additional PAR data" = "additional data size" / "original file size"
 			// rate of "Redundancy in blocks" = "number of recovery blocks" / "number of input blocks"
 			// rate of "Efficiency of PAR data" = "total size of recovery blocks" / "additional data size"
-			printf("\nSize of Outside file = %I64u\n", original_file_size + best_total_size + copy_size);
+			printf("\nSize of Outside file = %"PRIu64"\n", original_file_size + best_total_size + copy_size);
 			// Truncate two decimal places (use integer instead of showing double directly)
 			//printf("rate1 = %f, rate2 = %f\n", rate1, rate2);
 			rate = (double)(best_total_size + copy_size) / (double)original_file_size;
