@@ -1,14 +1,9 @@
-
-// avoid error of MSVC
-#define _CRT_SECURE_NO_WARNINGS
-
 /* Redefinition of _FILE_OFFSET_BITS must happen BEFORE including stdio.h */
 #ifdef __linux__
 #define _FILE_OFFSET_BITS 64
 #define _stat64 stat
 #elif _WIN32
-#endif 
-
+#endif
 
 #include <errno.h>
 #include <inttypes.h>
@@ -242,13 +237,13 @@ int make_start_packet(PAR3_CTX *par3_ctx, int flag_trial)
 			if (par3_ctx->interleave > 0)
 				possible_count = (possible_count + par3_ctx->interleave) / (par3_ctx->interleave + 1);
 			m = next_pow2(possible_count);
-			//printf("m = next_pow2(%" PRIu64 ") = %" PRIu64 "\n", possible_count, m);
+			//printf("m = next_pow2(%"PRIu64") = %"PRIu64"\n", possible_count, m);
 			possible_count = par3_ctx->block_count;
 			// Number of input block per cohort
 			if (par3_ctx->interleave > 0)
 				possible_count = (possible_count + par3_ctx->interleave) / (par3_ctx->interleave + 1);
 			n = next_pow2(m + possible_count);
-			//printf("n = next_pow2(%" PRIu64 " + %" PRIu64 ") = %" PRIu64 "\n", m, possible_count, n);
+			//printf("n = next_pow2(%"PRIu64" + %"PRIu64") = %"PRIu64"\n", m, possible_count, n);
 			if (n <= 256){	// LEO_HAS_FF8
 				par3_ctx->galois_poly = 0x11D;
 				par3_ctx->gf_size = 1;
@@ -415,7 +410,7 @@ int make_matrix_packet(PAR3_CTX *par3_ctx)
 			packet_size = 69;
 		}
 		make_packet_header(par3_ctx->matrix_packet, packet_size, par3_ctx->set_id, "PAR FFT\0", 1);
-		//printf("max_recovery_block = %" PRIu64 ", interleave = %u\n", par3_ctx->max_recovery_block, par3_ctx->interleave);
+		//printf("max_recovery_block = %"PRIu64", interleave = %u\n", par3_ctx->max_recovery_block, par3_ctx->interleave);
 
 	} else {
 		printf("The specified Error Correction Codes (%u) isn't implemented yet.\n", par3_ctx->ecc_method);
@@ -644,7 +639,7 @@ int make_file_packet(PAR3_CTX *par3_ctx)
 							// index of first input block holding chunk
 							memcpy(tmp_p + packet_size, &(chunk_p[chunk_index].block), 8);
 							packet_size += 8;
-							//printf("chunk[%2u], block[%2" PRIu64 "], %s\n", chunk_index, chunk_p[chunk_index].index, file_p->name);
+							//printf("chunk[%2u], block[%2"PRIu64"], %s\n", chunk_index, chunk_p[chunk_index].index, file_p->name);
 						}
 						tail_size = chunk_p[chunk_index].size % block_size;
 						if (tail_size >= 40){
@@ -677,7 +672,7 @@ int make_file_packet(PAR3_CTX *par3_ctx)
 
 				// When all chunks are protected, check total size of chunks.
 				if ( ((file_p->state & 0x80000000) == 0) && (total_size != file_p->size) ){
-					printf("Error: total size of chunks = %" PRIu64 ", file size = %" PRIu64 "\n", total_size, file_p->size);
+					printf("Error: total size of chunks = %"PRIu64", file size = %"PRIu64"\n", total_size, file_p->size);
 					return RET_LOGIC_ERROR;
 				}
 			}
@@ -693,7 +688,7 @@ int make_file_packet(PAR3_CTX *par3_ctx)
 			for (i = 0; i < max; i++){
 				if ( (file_p->chk[0] == file_list[i].chk[0]) && (file_p->chk[1] == file_list[i].chk[1]) ){
 					//printf("find duplicated File Packet ! %u and %u\n", i, max);
-					//printf("offset %" PRId64 " and %" PRId64 "\n", file_list[i].offset, file_p->offset);
+					//printf("offset %"PRId64" and %"PRId64"\n", file_list[i].offset, file_p->offset);
 					file_p->offset = file_list[i].offset;
 					break;
 				}
@@ -1077,7 +1072,7 @@ int make_ext_data_packet(PAR3_CTX *par3_ctx)
 	block_count = par3_ctx->block_count;
 	block_size = par3_ctx->block_size;
 	block_p = par3_ctx->block_list;
-	//printf("Number of input blocks = %" PRIu64 "\n", block_count);
+	//printf("Number of input blocks = %"PRIu64"\n", block_count);
 	find_block_count = 0;
 	write_packet_count = 0;
 	while (block_count > 0){
@@ -1103,7 +1098,7 @@ int make_ext_data_packet(PAR3_CTX *par3_ctx)
 
 	// If there is no full size blocks, checksums are saved in File Packets.
 	if (par3_ctx->noise_level >= 2){
-		printf("Number of External Data Packet = %zu (number of full size blocks = %" PRId64 ")\n", write_packet_count, find_block_count);
+		printf("Number of External Data Packet = %zu (number of full size blocks = %"PRId64")\n", write_packet_count, find_block_count);
 	}
 	if (write_packet_count == 0)
 		return 0;
