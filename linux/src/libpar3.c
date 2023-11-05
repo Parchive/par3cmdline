@@ -1,6 +1,7 @@
-
+#ifdef _WIN32
 // avoid error of MSVC
 #define _CRT_SECURE_NO_WARNINGS
+#endif
 
 #include <errno.h>
 #include <inttypes.h>
@@ -578,6 +579,7 @@ int get_file_status(PAR3_CTX *par3_ctx)
 		file_p->name = list_name;	// pointer to the file name
 		file_p->size = file_size;	// 64-bit unsigned integer
 		file_p->crc = 0;
+		file_p->state = 0;
 
 		par3_ctx->total_file_size += file_size;
 		if (par3_ctx->max_file_size < file_size)
@@ -590,8 +592,8 @@ int get_file_status(PAR3_CTX *par3_ctx)
 	}
 
 	if (par3_ctx->noise_level >= 0){
-		printf("Total file size = %"PRIu64"u\n", par3_ctx->total_file_size);
-		printf("Max file size = %"PRIu64"u\n", par3_ctx->max_file_size);
+		printf("Total file size = %"PRIu64"\n", par3_ctx->total_file_size);
+		printf("Max file size = %"PRIu64"\n", par3_ctx->max_file_size);
 	}
 
 	return 0;
@@ -629,12 +631,12 @@ uint64_t suggest_block_size(PAR3_CTX *par3_ctx)
 	block_count = 8;
 	while (block_count * 2 <= block_size)
 		block_count *= 2;
-	//printf("block_size = %"PRIu64"u, power of 2 = %"PRIu64"u\n", block_size, block_count);
+	//printf("block_size = %"PRIu64", power of 2 = %"PRIu64"\n", block_size, block_count);
 	block_size = block_count;
 
 	// test possible number of blocks
 	block_count = calculate_block_count(par3_ctx, block_size);
-	//printf("1st block_count = %"PRIu64"u\n", block_count);
+	//printf("1st block_count = %"PRIu64"\n", block_count);
 	if (block_count > 128){	// If range is 16-bit Reed Solomon Codes, more block count is possible.
 		if (block_count <= 1000){	// When there are too few blocks
 			block_size /= 2;
@@ -646,7 +648,7 @@ uint64_t suggest_block_size(PAR3_CTX *par3_ctx)
 		block_size *= 2;
 		block_count = calculate_block_count(par3_ctx, block_size);
 	}
-	//printf("2nd block_count = %"PRIu64"u\n", block_count);
+	//printf("2nd block_count = %"PRIu64"\n", block_count);
 
 	// If total number of input blocks is equal or less than 128,
 	// PAR3 uses 8-bit Reed-Solomon Codes.
@@ -798,7 +800,7 @@ int sort_input_set(PAR3_CTX *par3_ctx)
 			} else {
 				file_p->chk[0] = 0;
 			}
-			//printf("file size = %"PRIu64"u, tail size = %"PRIu64"u\n", file_size, tail_size);
+			//printf("file size = %"PRIu64", tail size = %"PRIu64"\n", file_size, tail_size);
 
 			file_p++;
 			num--;
@@ -814,7 +816,7 @@ int sort_input_set(PAR3_CTX *par3_ctx)
 
 		if (par3_ctx->noise_level >= 0){
 			while (num > 0){
-				printf("input file = \"%s\" %"PRIu64"u / %"PRIu64"u\n", file_p->name, file_p->chk[0], file_p->size);
+				printf("input file = \"%s\" %"PRIu64" / %"PRIu64"\n", file_p->name, file_p->chk[0], file_p->size);
 
 				file_p++;
 				num--;
@@ -875,7 +877,7 @@ int par_search(PAR3_CTX *par3_ctx, char *base_name, int flag_other)
 	handle = _findfirst64(find_path, &c_file);
 	if (handle != (intptr_t) -1){
 		strcpy(find_path + dir_len, c_file.name);
-		//printf("found = \"%s\", size = %"PRIu64"d\n", find_path, c_file.size);
+		//printf("found = \"%s\", size = %"PRId64"\n", find_path, c_file.size);
 		if (max_file_size < (uint64_t)c_file.size)
 			max_file_size = c_file.size;
 		file_count++;
@@ -933,7 +935,7 @@ int par_search(PAR3_CTX *par3_ctx, char *base_name, int flag_other)
 				if (namez_search(par3_ctx->par_file_name, par3_ctx->par_file_name_len, find_path) != NULL)
 					continue;
 
-				//printf("found = \"%s\", size = %"PRIu64"d\n", find_path, c_file.size);
+				//printf("found = \"%s\", size = %"PRId64"\n", find_path, c_file.size);
 				if (max_file_size < (uint64_t)c_file.size)
 					max_file_size = c_file.size;
 				file_count++;
@@ -974,7 +976,7 @@ int par_search(PAR3_CTX *par3_ctx, char *base_name, int flag_other)
 					if (namez_search(par3_ctx->par_file_name, par3_ctx->par_file_name_len, find_path) == NULL){
 						struct _stat64 stat_buf;
 						if (_stat64(find_path, &stat_buf) == 0){
-							//printf("found = \"%s\", size = %" PRId64 "\n", find_path, stat_buf.st_size);
+							//printf("found = \"%s\", size = %"PRId64"\n", find_path, stat_buf.st_size);
 							if (max_file_size < (uint64_t)stat_buf.st_size)
 								max_file_size = stat_buf.st_size;
 							file_count++;
@@ -1037,7 +1039,7 @@ int par_search(PAR3_CTX *par3_ctx, char *base_name, int flag_other)
 	par3_ctx->max_file_size = max_file_size;
 	if (par3_ctx->noise_level >= 1){
 		printf("Number of PAR file = %d\n", file_count);
-		printf("Max par file size = %"PRIu64"u\n", par3_ctx->max_file_size);
+		printf("Max par file size = %"PRIu64"\n", par3_ctx->max_file_size);
 	}
 
 	return 0;

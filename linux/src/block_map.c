@@ -1,6 +1,3 @@
-// avoid error of MSVC
-#define _CRT_SECURE_NO_WARNINGS
-
 #include <errno.h>
 #include <inttypes.h>
 #include <stdio.h>

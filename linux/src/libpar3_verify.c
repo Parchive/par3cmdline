@@ -1,6 +1,3 @@
-// avoid error of MSVC
-#define _CRT_SECURE_NO_WARNINGS
-
 #include <errno.h>
 #include <inttypes.h>
 #include <stdio.h>
@@ -164,7 +161,7 @@ int par3_verify(PAR3_CTX *par3_ctx)
 			printf("%u files are ok.\n", par3_ctx->input_file_count - missing_file_count - damaged_file_count - misnamed_file_count - bad_file_count);
 		}
 		if (missing_file_count + damaged_file_count > 0){
-			printf("You have %" PRIu64 " out of %" PRIu64 " input blocks available.\n", block_available, block_count);
+			printf("You have %"PRIu64" out of %"PRIu64" input blocks available.\n", block_available, block_count);
 		}
 	}
 
@@ -188,9 +185,9 @@ int par3_verify(PAR3_CTX *par3_ctx)
 				printf("None of the recovery blocks will be used for the repair.\n");
 			} else {
 				if (block_available + recovery_block_available > block_count){
-					printf("You have an excess of %" PRIu64 " recovery blocks.\n", block_available + recovery_block_available - block_count);
+					printf("You have an excess of %"PRIu64" recovery blocks.\n", block_available + recovery_block_available - block_count);
 				}
-				printf("%" PRIu64 " recovery blocks will be used to repair.\n", block_count - block_available);
+				printf("%"PRIu64" recovery blocks will be used to repair.\n", block_count - block_available);
 			}
 		}
 		return RET_REPAIR_POSSIBLE;
@@ -204,9 +201,9 @@ int par3_verify(PAR3_CTX *par3_ctx)
 				printf("Repair is not possible.\n");
 			}
 			if (par3_ctx->interleave == 0){
-				printf("You need %" PRIu64 " more recovery blocks to be able to repair.\n", recovery_block_lack);
+				printf("You need %"PRIu64" more recovery blocks to be able to repair.\n", recovery_block_lack);
 			} else {
-				printf("You need %" PRIu64 " more recovery blocks (%u volumes) to be able to repair.\n", recovery_block_lack, lack_count_cohort);
+				printf("You need %"PRIu64" more recovery blocks (%u volumes) to be able to repair.\n", recovery_block_lack, lack_count_cohort);
 			}
 		}
 		return RET_REPAIR_NOT_POSSIBLE;
@@ -335,7 +332,7 @@ int par3_repair(PAR3_CTX *par3_ctx, char *temp_path)
 			printf("%u files are ok.\n", par3_ctx->input_file_count - missing_file_count - damaged_file_count - misnamed_file_count - bad_file_count);
 		}
 		if (missing_file_count + damaged_file_count > 0){
-			printf("You have %" PRIu64 " out of %" PRIu64 " input blocks available.\n", block_available, block_count);
+			printf("You have %"PRIu64" out of %"PRIu64" input blocks available.\n", block_available, block_count);
 		}
 	}
 
@@ -360,9 +357,9 @@ int par3_repair(PAR3_CTX *par3_ctx, char *temp_path)
 				printf("None of the recovery blocks will be used for the repair.\n");
 			} else {
 				if (block_available + recovery_block_available > block_count){
-					printf("You have an excess of %" PRIu64 " recovery blocks.\n", block_available + recovery_block_available - block_count);
+					printf("You have an excess of %"PRIu64" recovery blocks.\n", block_available + recovery_block_available - block_count);
 				}
-				printf("%" PRIu64 " recovery blocks will be used to repair.\n", block_count - block_available);
+				printf("%"PRIu64" recovery blocks will be used to repair.\n", block_count - block_available);
 			}
 		}
 
@@ -375,9 +372,9 @@ int par3_repair(PAR3_CTX *par3_ctx, char *temp_path)
 				printf("Repair is not possible.\n");
 			}
 			if (par3_ctx->interleave == 0){
-				printf("You need %" PRIu64 " more recovery blocks to be able to repair.\n", recovery_block_lack);
+				printf("You need %"PRIu64" more recovery blocks to be able to repair.\n", recovery_block_lack);
 			} else {
-				printf("You need %" PRIu64 " more recovery blocks (%u volumes) to be able to repair.\n", recovery_block_lack, lack_count_cohort);
+				printf("You need %"PRIu64" more recovery blocks (%u volumes) to be able to repair.\n", recovery_block_lack, lack_count_cohort);
 			}
 		}
 		if (missing_dir_count + bad_dir_count + possible_count == 0){

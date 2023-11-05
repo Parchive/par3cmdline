@@ -1,6 +1,3 @@
-// avoid error of MSVC
-#define _CRT_SECURE_NO_WARNINGS
-
 #include <errno.h>
 #include <inttypes.h>
 #include <stdio.h>
@@ -168,7 +165,7 @@ int par3_trial(PAR3_CTX *par3_ctx, char *temp_path)
 		// rate1 "File data in Source blocks" = "total size of input file data" / "total size of source blocks"
 		// rate2 "Recovery data in PAR files" = "total size of recovery blocks" / "total size of PAR files"
 		// rate of "Efficiency of PAR files" = rate1 * rate2
-		printf("\nTotal size of PAR files = %" PRIu64 "\n", total_par_size);
+		printf("\nTotal size of PAR files = %"PRIu64"\n", total_par_size);
 		if ( (par3_ctx->block_count == 0) || (total_par_size == 0) ){
 			rate1 = 0;
 			rate2 = 0;
@@ -187,7 +184,7 @@ int par3_trial(PAR3_CTX *par3_ctx, char *temp_path)
 				block_p++;
 				block_count--;
 			}
-			//printf("Total file data in input blocks = %" PRIu64 "\n", total_data_size);
+			//printf("Total file data in input blocks = %"PRIu64"\n", total_data_size);
 
 			rate1 = (double)total_data_size / (double)(par3_ctx->block_size * par3_ctx->block_count);
 			if (par3_ctx->data_packet != 0){	// Archive Files are same as 100% redundancy.
