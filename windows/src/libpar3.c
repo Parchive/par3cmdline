@@ -1,4 +1,8 @@
-#ifdef _WIN32
+/* Redefinition of _FILE_OFFSET_BITS must happen BEFORE including stdio.h */
+#ifdef __linux__
+#define _FILE_OFFSET_BITS 64
+#define _stat64 stat
+#elif _WIN32
 // avoid error of MSVC
 #define _CRT_SECURE_NO_WARNINGS
 #endif
@@ -10,35 +14,29 @@
 #include <string.h>
 #include <math.h>
 
-#include <sys/types.h>
-#include <sys/stat.h>
-
 #if __linux__
 
-#define _stat64 stat
-
+#include <sys/types.h>
+#include <sys/stat.h>
 #include <strings.h>
 #define _strnicmp strncasecmp
 #define _stricmp strcasecmp
 
 #elif _WIN32
+
+// MSVC headers
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <direct.h>
+#include <io.h>
 #endif
 
 #include "libpar3.h"
 #include "common.h"
 
 
-
-
 #if __linux__
-
-// MSVC headers
 #elif _WIN32
-
-// MSVC headers
-#include <direct.h>
-#include <io.h>
-
 
 // recursive search into sub-directories
 static int path_search_recursive(PAR3_CTX *par3_ctx, char *sub_dir)

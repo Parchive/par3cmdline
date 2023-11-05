@@ -1,6 +1,7 @@
-
+#ifdef _WIN32
 // avoid error of MSVC
 #define _CRT_SECURE_NO_WARNINGS
+#endif
 
 #include <errno.h>
 #include <inttypes.h>
@@ -9,8 +10,27 @@
 #include <stdlib.h>
 #include <string.h>
 
+#if __linux__
+
+#include <unistd.h> 
+#define _chdir  chdir
+#define _getcwd getcwd
+
+#include <strings.h>
+#define _strnicmp strncasecmp
+#define _stricmp strcasecmp
+
+/* This definition of _MAX_FNAME works for GCC on POSIX systems */
+#include <limits.h>
+#define _MAX_FNAME NAME_MAX
+
+/* Not sure if this is the right definition, but it seems like a safe one.*/
+#define _MAX_DIR PATH_MAX
+
+#elif _WIN32
 // MSVC headers
 #include <direct.h>
+#endif
 
 #include "libpar3.h"
 #include "common.h"
@@ -768,31 +788,31 @@ int main(int argc, char *argv[])
 	if (par3_ctx->noise_level >= 1){
 		if (par3_ctx->memory_limit != 0){
 			if ((par3_ctx->memory_limit & ((1 << 30) - 1)) == 0){
-				printf("memory_limit = %I64u GB\n", par3_ctx->memory_limit >> 30);
+				printf("memory_limit = %"PRIu64" GB\n", par3_ctx->memory_limit >> 30);
 			} else if ((par3_ctx->memory_limit & ((1 << 20) - 1)) == 0){
-				printf("memory_limit = %I64u MB\n", par3_ctx->memory_limit >> 20);
+				printf("memory_limit = %"PRIu64" MB\n", par3_ctx->memory_limit >> 20);
 			} else if ((par3_ctx->memory_limit & ((1 << 10) - 1)) == 0){
-				printf("memory_limit = %I64u KB\n", par3_ctx->memory_limit >> 10);
+				printf("memory_limit = %"PRIu64" KB\n", par3_ctx->memory_limit >> 10);
 			} else {
-				printf("memory_limit = %I64u Bytes\n", par3_ctx->memory_limit);
+				printf("memory_limit = %"PRIu64" Bytes\n", par3_ctx->memory_limit);
 			}
 		}
 		if (par3_ctx->search_limit != 0)
 			printf("search_limit = %d ms\n", par3_ctx->search_limit);
 		if (par3_ctx->block_count != 0)
-			printf("Specified block count = %I64u\n", par3_ctx->block_count);
+			printf("Specified block count = %"PRIu64"\n", par3_ctx->block_count);
 		if (par3_ctx->block_size != 0)
-			printf("Specified block size = %I64u\n", par3_ctx->block_size);
+			printf("Specified block size = %"PRIu64"\n", par3_ctx->block_size);
 		if (par3_ctx->redundancy_size != 0)
 			printf("Specified redundancy = %u %%\n", par3_ctx->redundancy_size);
 		if (par3_ctx->max_redundancy_size != 0)
 			printf("max_redundancy_size = %u\n", par3_ctx->max_redundancy_size);
 		if (par3_ctx->recovery_block_count != 0)
-			printf("recovery_block_count = %I64u\n", par3_ctx->recovery_block_count);
+			printf("recovery_block_count = %"PRIu64"\n", par3_ctx->recovery_block_count);
 		if (par3_ctx->first_recovery_block != 0)
-			printf("First recovery block number = %I64u\n", par3_ctx->first_recovery_block);
+			printf("First recovery block number = %"PRIu64"\n", par3_ctx->first_recovery_block);
 		if (par3_ctx->max_recovery_block != 0)
-			printf("max_recovery_block = %I64u\n", par3_ctx->max_recovery_block);
+			printf("max_recovery_block = %"PRIu64"\n", par3_ctx->max_recovery_block);
 		if (par3_ctx->recovery_file_count != 0)
 			printf("Specified number of recovery files = %u\n", par3_ctx->recovery_file_count);
 		if (par3_ctx->recovery_file_scheme != 0){
@@ -801,7 +821,7 @@ int main(int argc, char *argv[])
 			} else if (par3_ctx->recovery_file_scheme == -2){
 				printf("Recovery file sizing = limit\n");
 			} else if (par3_ctx->recovery_file_scheme > 0){
-				printf("Recovery file sizing = limit to %I64d\n", par3_ctx->recovery_file_scheme);
+				printf("Recovery file sizing = limit to %"PRId64"\n", par3_ctx->recovery_file_scheme);
 			}
 		}
 		if (par3_ctx->ecc_method != 0)
@@ -896,12 +916,12 @@ int main(int argc, char *argv[])
 			if (par3_ctx->block_size & 1)
 				par3_ctx->block_size += 1;
 			if (par3_ctx->noise_level >= 0){
-				printf("Suggested block size = %I64u\n", par3_ctx->block_size);
+				printf("Suggested block size = %"PRIu64"\n", par3_ctx->block_size);
 			}
 		} else if (par3_ctx->block_size == 0){
 			par3_ctx->block_size = suggest_block_size(par3_ctx);
 			if (par3_ctx->noise_level >= 0){
-				printf("Suggested block size = %I64u\n", par3_ctx->block_size);
+				printf("Suggested block size = %"PRIu64"\n", par3_ctx->block_size);
 			}
 		} else if (par3_ctx->block_size & 1){
 			// Always increasing to multiple of 2 is easier ?
@@ -910,13 +930,13 @@ int main(int argc, char *argv[])
 				// Block size must be multiple of 2 for 16-bit Reed-Solomon Codes.
 				par3_ctx->block_size += 1;
 				if (par3_ctx->noise_level >= 0){
-					printf("Suggested block size = %I64u\n", par3_ctx->block_size);
+					printf("Suggested block size = %"PRIu64"\n", par3_ctx->block_size);
 				}
 			//}
 		}
 		par3_ctx->block_count = calculate_block_count(par3_ctx, par3_ctx->block_size);
 		if (par3_ctx->noise_level >= 0){
-			printf("Possible block count = %I64u\n", par3_ctx->block_count);
+			printf("Possible block count = %"PRIu64"\n", par3_ctx->block_count);
 			printf("\n");
 		}
 
