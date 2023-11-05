@@ -1,7 +1,3 @@
-
-// avoid error of MSVC
-#define _CRT_SECURE_NO_WARNINGS
-
 #include <errno.h>
 #include <inttypes.h>
 #include <stdio.h>
@@ -819,7 +815,7 @@ int check_packet_set(PAR3_CTX *par3_ctx)
 			printf("\n");
 			// show SetIDs of PAR3 Sets.
 			for (i = 0; i < id_count; i++){
-				printf("InputSetID = %02I64X %02I64X %02I64X %02I64X %02I64X %02I64X %02I64X %02I64X\n",
+				printf("InputSetID = %02"PRIx64" %02"PRIx64" %02"PRIx64" %02"PRIx64" %02"PRIx64" %02"PRIx64" %02"PRIx64" %02"PRIx64"\n",
 						(id_list[i] & 0xFF), (id_list[i] >> 8) & 0xFF,
 						(id_list[i] >> 16) & 0xFF, (id_list[i] >> 24) & 0xFF,
 						(id_list[i] >> 32) & 0xFF, (id_list[i] >> 40) & 0xFF, (id_list[i] >> 48) & 0xFF, id_list[i] >> 56);
@@ -837,27 +833,27 @@ int check_packet_set(PAR3_CTX *par3_ctx)
 	if (par3_ctx->noise_level >= 1){
 		printf("\nSet packet:\n");
 		if (par3_ctx->creator_packet_count > 0)
-			printf("Number of Creator Packet       =%3u (%4I64d bytes)\n", par3_ctx->creator_packet_count, par3_ctx->creator_packet_size);
+			printf("Number of Creator Packet       =%3u (%4"PRId64" bytes)\n", par3_ctx->creator_packet_count, par3_ctx->creator_packet_size);
 		if (par3_ctx->comment_packet_count > 0)
-			printf("Number of Comment Packet       =%3u (%4I64d bytes)\n", par3_ctx->comment_packet_count, par3_ctx->comment_packet_size);
+			printf("Number of Comment Packet       =%3u (%4"PRId64" bytes)\n", par3_ctx->comment_packet_count, par3_ctx->comment_packet_size);
 		if (par3_ctx->start_packet_count > 0)
-			printf("Number of Start Packet         =%3u (%4I64d bytes)\n", par3_ctx->start_packet_count, par3_ctx->start_packet_size);
+			printf("Number of Start Packet         =%3u (%4"PRId64" bytes)\n", par3_ctx->start_packet_count, par3_ctx->start_packet_size);
 		if (par3_ctx->matrix_packet_count > 0)
-			printf("Number of Matrix Packet        =%3u (%4I64d bytes)\n", par3_ctx->matrix_packet_count, par3_ctx->matrix_packet_size);
+			printf("Number of Matrix Packet        =%3u (%4"PRId64" bytes)\n", par3_ctx->matrix_packet_count, par3_ctx->matrix_packet_size);
 		if (par3_ctx->file_packet_count > 0)
-			printf("Number of File Packet          =%3u (%4I64d bytes)\n", par3_ctx->file_packet_count, par3_ctx->file_packet_size);
+			printf("Number of File Packet          =%3u (%4"PRId64" bytes)\n", par3_ctx->file_packet_count, par3_ctx->file_packet_size);
 		if (par3_ctx->dir_packet_count > 0)
-			printf("Number of Directory Packet     =%3u (%4I64d bytes)\n", par3_ctx->dir_packet_count, par3_ctx->dir_packet_size);
+			printf("Number of Directory Packet     =%3u (%4"PRId64" bytes)\n", par3_ctx->dir_packet_count, par3_ctx->dir_packet_size);
 		if (par3_ctx->root_packet_count > 0)
-			printf("Number of Root Packet          =%3u (%4I64d bytes)\n", par3_ctx->root_packet_count, par3_ctx->root_packet_size);
+			printf("Number of Root Packet          =%3u (%4"PRId64" bytes)\n", par3_ctx->root_packet_count, par3_ctx->root_packet_size);
 		if (par3_ctx->file_system_packet_count > 0)
-			printf("Number of File System Packet   =%3u (%4I64d bytes)\n", par3_ctx->file_system_packet_count, par3_ctx->file_system_packet_size);
+			printf("Number of File System Packet   =%3u (%4"PRId64" bytes)\n", par3_ctx->file_system_packet_count, par3_ctx->file_system_packet_size);
 		if (par3_ctx->ext_data_packet_count > 0)
-			printf("Number of External Data Packet =%3u (%4I64d bytes)\n", par3_ctx->ext_data_packet_count, par3_ctx->ext_data_packet_size);
+			printf("Number of External Data Packet =%3u (%4"PRId64" bytes)\n", par3_ctx->ext_data_packet_count, par3_ctx->ext_data_packet_size);
 		if (par3_ctx->data_packet_count > 0)
-			printf("Number of Data Packet          =%3I64u\n", par3_ctx->data_packet_count);
+			printf("Number of Data Packet          =%3"PRIu64"\n", par3_ctx->data_packet_count);
 		if (par3_ctx->recv_packet_count > 0)
-			printf("Number of Recovery Data Packet =%3I64u\n", par3_ctx->recv_packet_count);
+			printf("Number of Recovery Data Packet =%3"PRIu64"\n", par3_ctx->recv_packet_count);
 	}
 
 	return 0;
