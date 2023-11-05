@@ -3,6 +3,14 @@
 #define _CRT_SECURE_NO_WARNINGS
 #endif
 
+/* Redefinition of _FILE_OFFSET_BITS must happen BEFORE including stdio.h */
+#ifdef __linux__
+#define _FILE_OFFSET_BITS 64
+#define _stat64 stat
+#elif _WIN32
+#endif 
+
+
 #include <errno.h>
 #include <inttypes.h>
 #include <stdio.h>
@@ -19,6 +27,8 @@
    we should consider using ctime_r().  */
 #define __time64_t int64_t
 #define _ctime64 ctime
+
+#include <sys/stat.h>
 
 #elif _WIN32
 

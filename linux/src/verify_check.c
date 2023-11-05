@@ -18,21 +18,6 @@
 #include <time.h>
 
 #ifdef __linux__
-
-/* Based on code from: https://stackoverflow.com/questions/50119172/how-to-get-the-file-length-in-c-on-linux  */
-int64_t _filelengthi64(int filedes)
-{
-    off_t pos = lseek(filedes, 0, SEEK_CUR);
-    if (pos != (off_t)-1)
-    {
-        off_t size = lseek(filedes, 0, SEEK_END);
-        lseek(filedes, pos, SEEK_SET);
-        return (int64_t)size;
-    }
-    return (int64_t)-1;
-}
-
-
 #elif _WIN32
 // MSVC headers
 #include <io.h>

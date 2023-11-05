@@ -29,6 +29,17 @@ AC_CONFIG_SRCDIR([src/main.c])
 
 AC_CANONICAL_HOST
 
+dnl disable SIMD for MinGW
+case "$host" in
+     *-*-mingw*)
+       CFLAGS="$CFLAGS -DBLAKE3_NO_AVX512"
+       CFLAGS="$CFLAGS -DBLAKE3_NO_SSE41"
+       CFLAGS="$CFLAGS -DBLAKE3_NO_SSE2"
+       ;;
+     *)
+       ;;
+esac
+
 AC_CONFIG_HEADERS([config.h])
 AM_INIT_AUTOMAKE
 
@@ -51,6 +62,7 @@ AC_SUBST([CXXFLAGS])
 
 dnl Set language to C
 AC_LANG(C)
+
 
 dnl Checks for header files.
 AC_HEADER_DIRENT

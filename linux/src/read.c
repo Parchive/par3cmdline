@@ -2,6 +2,14 @@
 // avoid error of MSVC
 #define _CRT_SECURE_NO_WARNINGS
 
+/* Redefinition of _FILE_OFFSET_BITS must happen BEFORE including stdio.h */
+#ifdef __linux__
+#define _FILE_OFFSET_BITS 64
+#define _fileno fileno
+#elif _WIN32
+#endif 
+
+
 #include <errno.h>
 #include <inttypes.h>
 #include <stdio.h>
@@ -11,25 +19,7 @@
 
 #if __linux__
 
-/* in stdio.h */
-#define _fileno fileno
-
 #include <sys/stat.h>
-
-int64_t _filelengthi64(int fd) {
-  struct stat buffer;
-  int result;
-
-  result = fstat(fd, &buffer);
-  if (result == 0) {
-    // success
-    return buffer.st_size;
-  }
-  else {
-    // failure
-    return (int64_t) -1;  // this should sign-extend
-  }
-}
 
 #elif _WIN32
 

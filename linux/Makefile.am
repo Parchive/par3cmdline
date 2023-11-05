@@ -99,7 +99,7 @@ man_MANS = man/par3.1
 par3_SOURCES = src/main.c \
 	src/common.h \
 	src/common.c
-par3_LDADD = libpar3.a libblake3.a libleopard.a -lstdc++
+par3_LDADD = libpar3.a libblake3.a libleopard.a -lstdc++ -lm
 
 # -mavx supports AVX instructions
 AM_CFLAGS = -Wall -mavx -mavx2 -mavx512f -mavx512vl -mavx512bw

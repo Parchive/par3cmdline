@@ -2,6 +2,14 @@
 // avoid error of MSVC
 #define _CRT_SECURE_NO_WARNINGS
 
+/* Redefinition of _FILE_OFFSET_BITS must happen BEFORE including stdio.h */
+#ifdef __linux__
+#define _FILE_OFFSET_BITS 64
+#define _stat64 stat
+#elif _WIN32
+#endif 
+
+
 #include <errno.h>
 #include <inttypes.h>
 #include <stdio.h>
@@ -9,6 +17,8 @@
 #include <string.h>
 
 #if __linux__
+
+#include <sys/stat.h>
 
 #elif _WIN32
 
@@ -38,12 +48,6 @@ void make_packet_header(uint8_t *buf, uint64_t packet_size, uint8_t *set_id, uin
 		blake3(buf + 24, packet_size - 24, buf + 8);
 }
 
-
-#if __linux__
-
-#warning "static void generate_set_id(PAR3_CTX *par3_ctx, uint8_t *buf, size_t body_size) is UNDEFINED"
-
-#elif _WIN32
 
 // Input is packet body of Start Packet.
 // Return generated InputSetID at "buf - 16".
@@ -177,7 +181,6 @@ static void generate_set_id(PAR3_CTX *par3_ctx, uint8_t *buf, size_t body_size)
 	blake3_hasher_update(&hasher, buf, body_size);
 	blake3_hasher_finalize(&hasher, buf - 16, 8);
 }
-#endif
 
 
 // Start Packet, Creator Packet, Comment Packet
