@@ -15,7 +15,6 @@
 #define _stricmp strcasecmp
 
 #elif _WIN32
-
 // MSVC headers
 #include <search.h>
 #include <io.h>
