@@ -26,6 +26,9 @@
 
 #include <sys/stat.h>
 
+// permission to write by owner
+#define _S_IWRITE S_IWUSR
+
 #elif _WIN32
 
 // MSVC headers
@@ -61,9 +64,6 @@ static uint64_t FileTimeToTimet(uint64_t file_time)
 	return unix_time;
 }
 
-
-#ifdef __linux__
-#elif _WIN32
 
 // File System Specific Packets (optional packets)
 /*
@@ -142,6 +142,8 @@ int make_unix_permission_packet(PAR3_CTX *par3_ctx, char *file_name, uint8_t *ch
 	return 0;
 }
 
+
+
 // FAT Permissions Packet
 // 0 = write ok, 1 = failed (no checksum)
 // Return checksum of FAT Permissions Packet in *checksum.
@@ -188,7 +190,7 @@ int make_fat_permission_packet(PAR3_CTX *par3_ctx, char *file_name, uint8_t *che
 
 	return 0;
 }
-#endif
+
 
 // For showing file list
 static void show_file_system_info(PAR3_CTX *par3_ctx, uint8_t *checksum)
@@ -304,12 +306,6 @@ void read_file_system_option(PAR3_CTX *par3_ctx, int packet_type, int64_t offset
 }
 
 
-#ifdef __linux__
-
-#warning "static int check_file_system_info(PAR3_CTX *par3_ctx, uint8_t *checksum, void *stat_p) is UNDEFINED"
-
-#elif _WIN32
-
 // For verification
 static int check_file_system_info(PAR3_CTX *par3_ctx, uint8_t *checksum, void *stat_p)
 {
@@ -382,7 +378,6 @@ static int check_file_system_info(PAR3_CTX *par3_ctx, uint8_t *checksum, void *s
 
 	return ret;
 }
-#endif
 
 
 // packet_type: 1 = file, 2 = directory, 3 = root
