@@ -1,6 +1,12 @@
-
+/* Redefinition of _FILE_OFFSET_BITS must happen BEFORE including stdio.h */
+#ifdef __linux__
+#define _FILE_OFFSET_BITS 64
+#define _fseeki64 fseeko
+#define _stat64 stat
+#elif _WIN32
 // avoid error of MSVC
 #define _CRT_SECURE_NO_WARNINGS
+#endif
 
 #include <errno.h>
 #include <inttypes.h>
@@ -8,16 +14,28 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef __linux__
+
+#include <sys/stat.h>
+
+// default permissions on directory is read, write and search by owner
+#define _mkdir(dirname) mkdir(dirname, S_IRUSR | S_IWUSR | S_IXUSR)
+
+#elif _WIN32
+
 // MSVC headers
 #include <direct.h>
 #include <sys/stat.h>
+
+#define S_ISDIR(m) (((m) & _S_IFDIR) == _S_IFDIR)
+
+#endif
 
 #include "libpar3.h"
 #include "common.h"
 #include "file.h"
 #include "inside.h"
 #include "verify.h"
-
 
 // It will restore permissions or attributes after files are repaired.
 // return 0 = no need repair, 1 = restored successfully, 2 = failed
@@ -35,12 +53,13 @@ static int restore_directory(char *path)
 		}
 
 	} else {
-		if ((stat_buf.st_mode & _S_IFDIR) == 0)
+		if (!S_ISDIR(stat_buf.st_mode))
 			return 0x8000;
 	}
 
 	return 0;
 }
+
 
 // Reconstruct directory tree of input set
 uint32_t reconstruct_directory_tree(PAR3_CTX *par3_ctx)
@@ -207,7 +226,7 @@ int restore_input_file(PAR3_CTX *par3_ctx, char *temp_path)
 						file_offset = slice_list[slice_index].find_offset;
 						find_name = slice_list[slice_index].find_name;
 						if (find_name == NULL){
-							printf("Input slice[%I64d] was not found.\n", slice_index);
+							printf("Input slice[%"PRId64"] was not found.\n", slice_index);
 							if (fp_read != NULL)
 								fclose(fp_read);
 							fclose(fp_write);
@@ -386,7 +405,7 @@ int try_restore_input_file(PAR3_CTX *par3_ctx, char *temp_path)
 						file_offset = slice_list[slice_index].find_offset;
 						find_name = slice_list[slice_index].find_name;
 						if (find_name == NULL){
-							printf("Input slice[%I64d] was not found.\n", slice_index);
+							printf("Input slice[%"PRId64"] was not found.\n", slice_index);
 							if (fp_read != NULL)
 								fclose(fp_read);
 							fclose(fp_write);
@@ -528,6 +547,7 @@ int verify_repaired_file(PAR3_CTX *par3_ctx, char *temp_path,
 
 	// Allocate buffer to store file data temporary.
 	par3_ctx->work_buf = malloc(par3_ctx->block_size);
+
 	if (par3_ctx->work_buf == NULL){
 		perror("Failed to allocate memory for input data");
 		return RET_MEMORY_ERROR;

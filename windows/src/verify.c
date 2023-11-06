@@ -1,6 +1,9 @@
-
-// avoid error of MSVC
-#define _CRT_SECURE_NO_WARNINGS
+/* Redefinition of _FILE_OFFSET_BITS must happen BEFORE including stdio.h */
+#ifdef __linux__
+#define _FILE_OFFSET_BITS 64
+#define _stat64 stat
+#elif _WIN32
+#endif
 
 #include <errno.h>
 #include <inttypes.h>
@@ -8,8 +11,17 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef __linux__
+#include <sys/stat.h>
+#elif _WIN32
 // MSVC headers
 #include <sys/stat.h>
+
+// _S_IFDIR = 0x4000
+#define S_ISDIR(m) (((m) & _S_IFDIR) == _S_IFDIR)
+// _S_IFREG = 0x8000
+#define S_ISREG(m) (((m) & _S_IFREG) == _S_IFREG)
+#endif
 
 #include "blake3/blake3.h"
 #include "libpar3.h"
@@ -31,17 +43,17 @@ int check_directory(PAR3_CTX *par3_ctx, char *path, int64_t offset)
 	if (_stat64(path, &stat_buf) != 0)
 		return 1;
 
-	// _S_IFDIR = 0x4000
-	if ((stat_buf.st_mode & _S_IFDIR) == 0)
+	if (!S_ISDIR(stat_buf.st_mode))
 		return 0x8000;
 
 	if ( (offset >= 0) && ((par3_ctx->file_system & 4) != 0) && ((par3_ctx->file_system & 3) != 0) ){
-		//printf("offset of Directory Packet = %I64d\n", offset);
+		//printf("offset of Directory Packet = %"PRId64"\n", offset);
 		return check_file_system_option(par3_ctx, 2, offset, &stat_buf);
 	}
 
 	return 0;
 }
+
 
 // Check existense of each input directory.
 // Return number of missing directories.
@@ -102,6 +114,8 @@ void check_input_directory(PAR3_CTX *par3_ctx, uint32_t *missing_dir_count, uint
 	}
 }
 
+
+
 // This will check permission and attributes, only when you set an option.
 // return 0 = exist, 1 = missing
 // 0x8000 = not file
@@ -117,17 +131,17 @@ static int check_file(PAR3_CTX *par3_ctx, char *path, uint64_t *current_size, in
 	// Get size of existing file.
 	*current_size = stat_buf.st_size;	// This may be different from original size.
 
-	// _S_IFREG = 0x8000
-	if ((stat_buf.st_mode & _S_IFREG) == 0)
+	if (!S_ISREG(stat_buf.st_mode))
 		return 0x8000;
 
 	if ( (offset >= 0) && (par3_ctx->file_system & 0x10003) ){
-		//printf("offset of File Packet = %I64d\n", offset);
+		//printf("offset of File Packet = %"PRId64"\n", offset);
 		return check_file_system_option(par3_ctx, 1, offset, &stat_buf);
 	}
 
 	return 0;
 }
+
 
 // Check existense and content of each input file.
 int verify_input_file(PAR3_CTX *par3_ctx, uint32_t *missing_file_count, uint32_t *damaged_file_count, uint32_t *bad_file_count)
@@ -192,14 +206,14 @@ int verify_input_file(PAR3_CTX *par3_ctx, uint32_t *missing_file_count, uint32_t
 	if (ret != 0)
 		return ret;
 	if (par3_ctx->noise_level >= 2){
-		printf("Number of full size block = %I64u, chunk tail = %I64u\n", par3_ctx->crc_count, par3_ctx->tail_count);
+		printf("Number of full size block = %"PRIu64", chunk tail = %"PRIu64"\n", par3_ctx->crc_count, par3_ctx->tail_count);
 /*
 		// for debug
 		for (uint64_t i = 0; i < par3_ctx->crc_count; i++){
-			printf("crc_list[%2I64u] = 0x%016I64x , block = %I64u\n", i, par3_ctx->crc_list[i].crc, par3_ctx->crc_list[i].index);
+			printf("crc_list[%2"PRIu64"] = 0x%016"PRIx64" , block = %"PRIu64"\n", i, par3_ctx->crc_list[i].crc, par3_ctx->crc_list[i].index);
 		}
 		for (uint64_t i = 0; i < par3_ctx->tail_count; i++){
-			printf("tail_list[%2I64u] = 0x%016I64x , slice = %I64u\n", i, par3_ctx->tail_list[i].crc, par3_ctx->tail_list[i].index);
+			printf("tail_list[%2"PRIu64"] = 0x%016"PRIx64" , slice = %"PRIu64"\n", i, par3_ctx->tail_list[i].crc, par3_ctx->tail_list[i].index);
 		}
 */
 	}
@@ -218,7 +232,7 @@ int verify_input_file(PAR3_CTX *par3_ctx, uint32_t *missing_file_count, uint32_t
 	file_p = par3_ctx->input_file_list;
 	for (num = 0; num < par3_ctx->input_file_count; num++){
 		ret = check_file(par3_ctx, file_p->name, &current_size, file_p->offset);
-		//printf("check_file = 0x%x, size = %I64u\n", ret, current_size);
+		//printf("check_file = 0x%x, size = %"PRIu64"\n", ret, current_size);
 		file_p->state |= ret;
 		if ( ((ret & 0xFFFF) == 0) && ( (file_p->size > 0) || (current_size > 0) ) ){
 			if (par3_ctx->noise_level >= 0){
@@ -226,7 +240,7 @@ int verify_input_file(PAR3_CTX *par3_ctx, uint32_t *missing_file_count, uint32_t
 			}
 			file_offset = 0;
 			ret = check_complete_file(par3_ctx, file_p->name, num, current_size, &file_offset);
-			//printf("ret = %d, size = %I64u, offset = %I64u\n", ret, current_size, file_offset);
+			//printf("ret = %d, size = %"PRIu64", offset = %"PRIu64"\n", ret, current_size, file_offset);
 			if (ret > 0)
 				return ret;	// error
 			if (ret == 0){
@@ -258,12 +272,12 @@ int verify_input_file(PAR3_CTX *par3_ctx, uint32_t *missing_file_count, uint32_t
 
 				// Start slide search after the last found block position.
 				ret = check_damaged_file(par3_ctx, file_p->name, current_size, file_offset, &file_damage, NULL);
-				//printf("ret = %d, size = %I64u, offset = %I64u, damage = %I64u\n",
+				//printf("ret = %d, size = %"PRIu64", offset = %"PRIu64", damage = %"PRIu64"\n",
 				//		ret, current_size, file_offset, file_damage);
 				if (ret != 0)
 					return ret;
 				if (par3_ctx->noise_level >= -1){
-					printf("Target: \"%s\" - damaged. %I64u of %I64u bytes available.\n",
+					printf("Target: \"%s\" - damaged. %"PRIu64" of %"PRIu64" bytes available.\n",
 							file_p->name, current_size - file_damage, current_size);
 				}
 			}
@@ -360,7 +374,7 @@ int verify_extra_file(PAR3_CTX *par3_ctx, uint32_t *missing_file_count, uint32_t
 
 		// Calculate file hash to find misnamed file later.
 		ret = check_damaged_file(par3_ctx, list_name + off, current_size, 0, &file_damage, tmp_p);
-		//printf("ret = %d, size = %I64u, damage = %I64u\n", ret, current_size, file_damage);
+		//printf("ret = %d, size = %"PRIu64", damage = %"PRIu64"\n", ret, current_size, file_damage);
 		if (ret != 0)
 			return ret;
 
@@ -406,7 +420,7 @@ printf("%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x\n",
 			if (ret & 4){
 				printf("Target: \"%s\" - is a match for \"%s\".\n", list_name + off, file_p->name);
 			} else {
-				printf("Target: \"%s\" - %I64u of %I64u bytes available.\n",
+				printf("Target: \"%s\" - %"PRIu64" of %"PRIu64" bytes available.\n",
 						list_name + off, current_size - file_damage, current_size);
 			}
 		}

@@ -1,7 +1,3 @@
-
-// avoid error of MSVC
-#define _CRT_SECURE_NO_WARNINGS
-
 #include <errno.h>
 #include <inttypes.h>
 #include <stdio.h>
@@ -191,7 +187,7 @@ int rs_compute_matrix(PAR3_CTX *par3_ctx, uint64_t lost_count)
 		par3_ctx->ecc_method |= 0x8000;	// Keep all lost blocks on memory
 		if (par3_ctx->noise_level >= 2){
 			printf("\nAligned size of block data = %zu\n", region_size);
-			printf("Keep all lost blocks on memory (%zu * %I64u = %zu)\n", region_size, lost_count, alloc_size);
+			printf("Keep all lost blocks on memory (%zu * %"PRIu64" = %zu)\n", region_size, lost_count, alloc_size);
 		}
 	}
 
