@@ -5,7 +5,7 @@
 #include <string.h>
 #include <wchar.h>
 
-#if __linux__
+#ifdef __linux__
 
 /* This definition of _MAX_FNAME works for GCC on POSIX systems */
 #include <limits.h>
@@ -25,7 +25,7 @@
 
 
 
-#if __linux__
+#ifdef __linux__
 
 // Reproduce Windows system call with Linux's fstat 
 int64_t _filelengthi64(int fd) {
@@ -160,7 +160,7 @@ int sanitize_file_name(char *name)
 }
 
 
-#if __linux__
+#ifdef __linux__
 #warning "int get_absolute_path(char *absolute_path, char *relative_path, size_t max) is UNDEFINED"
 #elif _WIN32
 // convert relative path to absolute path

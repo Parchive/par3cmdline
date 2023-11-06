@@ -14,7 +14,7 @@
 #include <string.h>
 #include <time.h>
 
-#if __linux__
+#ifdef __linux__
 
 #warning "Assuming this Linux system uses 64-bit time."
 /* There doesn't seem to be a preprocessor test for 64-bit time_t! 
@@ -62,7 +62,7 @@ static uint64_t FileTimeToTimet(uint64_t file_time)
 }
 
 
-#if __linux__
+#ifdef __linux__
 #elif _WIN32
 
 // File System Specific Packets (optional packets)
@@ -304,7 +304,7 @@ void read_file_system_option(PAR3_CTX *par3_ctx, int packet_type, int64_t offset
 }
 
 
-#if __linux__
+#ifdef __linux__
 
 #warning "static int check_file_system_info(PAR3_CTX *par3_ctx, uint8_t *checksum, void *stat_p) is UNDEFINED"
 
@@ -443,7 +443,7 @@ int check_file_system_option(PAR3_CTX *par3_ctx, int packet_type, int64_t offset
 }
 
 
-#if __linux__
+#ifdef __linux__
 
 #warning "static int reset_file_system_info(PAR3_CTX *par3_ctx, uint8_t *checksum, char *file_name); is UNDEFINED"
 
