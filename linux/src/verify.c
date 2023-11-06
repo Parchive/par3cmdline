@@ -18,9 +18,9 @@
 #include <sys/stat.h>
 
 // _S_IFDIR = 0x4000
-#define S_ISDIR(m) (((m) & _S_IFDIR) == _S_IFDIR)
+#define S_ISDIR(m) (((m) & _S_IFMT) == _S_IFDIR)
 // _S_IFREG = 0x8000
-#define S_ISREG(m) (((m) & _S_IFREG) == _S_IFREG)
+#define S_ISREG(m) (((m) & _S_IFMT) == _S_IFREG)
 #endif
 
 #include "blake3/blake3.h"
