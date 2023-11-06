@@ -547,7 +547,6 @@ int verify_repaired_file(PAR3_CTX *par3_ctx, char *temp_path,
 
 	// Allocate buffer to store file data temporary.
 	par3_ctx->work_buf = malloc(par3_ctx->block_size);
-
 	if (par3_ctx->work_buf == NULL){
 		perror("Failed to allocate memory for input data");
 		return RET_MEMORY_ERROR;
