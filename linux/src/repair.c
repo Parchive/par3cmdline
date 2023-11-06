@@ -1,13 +1,11 @@
-
-// avoid error of MSVC
-#define _CRT_SECURE_NO_WARNINGS
-
 /* Redefinition of _FILE_OFFSET_BITS must happen BEFORE including stdio.h */
 #ifdef __linux__
 #define _FILE_OFFSET_BITS 64
 #define _fseeki64 fseeko
 #define _stat64 stat
 #elif _WIN32
+// avoid error of MSVC
+#define _CRT_SECURE_NO_WARNINGS
 #endif
 
 #include <errno.h>
@@ -228,7 +226,7 @@ int restore_input_file(PAR3_CTX *par3_ctx, char *temp_path)
 						file_offset = slice_list[slice_index].find_offset;
 						find_name = slice_list[slice_index].find_name;
 						if (find_name == NULL){
-							printf("Input slice[%" PRId64 "] was not found.\n", slice_index);
+							printf("Input slice[%"PRId64"] was not found.\n", slice_index);
 							if (fp_read != NULL)
 								fclose(fp_read);
 							fclose(fp_write);
@@ -407,7 +405,7 @@ int try_restore_input_file(PAR3_CTX *par3_ctx, char *temp_path)
 						file_offset = slice_list[slice_index].find_offset;
 						find_name = slice_list[slice_index].find_name;
 						if (find_name == NULL){
-							printf("Input slice[%" PRId64 "] was not found.\n", slice_index);
+							printf("Input slice[%"PRId64"] was not found.\n", slice_index);
 							if (fp_read != NULL)
 								fclose(fp_read);
 							fclose(fp_write);
@@ -548,7 +546,8 @@ int verify_repaired_file(PAR3_CTX *par3_ctx, char *temp_path,
 	file_list = par3_ctx->input_file_list;
 
 	// Allocate buffer to store file data temporary.
-	par3_ctx->work_buf = malloc(par3_ctx->block_size);
+	par3_ctx->work_buf = malloc(par3_ctx->block_size);
+
 	if (par3_ctx->work_buf == NULL){
 		perror("Failed to allocate memory for input data");
 		return RET_MEMORY_ERROR;
