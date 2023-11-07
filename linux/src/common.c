@@ -161,7 +161,22 @@ int sanitize_file_name(char *name)
 
 
 #ifdef __linux__
-#warning "int get_absolute_path(char *absolute_path, char *relative_path, size_t max) is UNDEFINED"
+
+int get_absolute_path(char *absolute_path, char *relative_path, size_t max) {
+  // Linux is case-sensative, so it doesn't have to be lower/upper-cased.
+
+  // allocate buffer, in case max is less than PATH_MAX
+  char buf[PATH_MAX+1];
+  
+  if (realpath(relative_path, buf) != NULL) {
+    strncpy(absolute_path, buf, max);
+    return 1;
+  } else {
+    return 0;
+  }
+}
+
+
 #elif _WIN32
 // convert relative path to absolute path
 int get_absolute_path(char *absolute_path, char *relative_path, size_t max)
