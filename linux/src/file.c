@@ -24,10 +24,16 @@
 #define __time64_t int64_t
 #define _ctime64 ctime
 
+#define _chmod chmod
+
 #include <sys/stat.h>
+#include <utime.h>
 
 // permission to write by owner
 #define _S_IWRITE S_IWUSR
+
+#define _utime utime
+#define _utimbuf utimbuf
 
 #elif _WIN32
 
@@ -438,11 +444,6 @@ int check_file_system_option(PAR3_CTX *par3_ctx, int packet_type, int64_t offset
 }
 
 
-#ifdef __linux__
-
-#warning "static int reset_file_system_info(PAR3_CTX *par3_ctx, uint8_t *checksum, char *file_name); is UNDEFINED"
-
-#elif _WIN32
 
 // For repair
 static int reset_file_system_info(PAR3_CTX *par3_ctx, uint8_t *checksum, char *file_name)
@@ -541,7 +542,6 @@ static int reset_file_system_info(PAR3_CTX *par3_ctx, uint8_t *checksum, char *f
 
 	return ret;
 }
-#endif
 
 
 // packet_type: 1 = file, 2 = directory, 3 = root
