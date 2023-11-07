@@ -1,15 +1,12 @@
-
-// avoid error of MSVC
-#define _CRT_SECURE_NO_WARNINGS
-
 /* Redefinition of _FILE_OFFSET_BITS must happen BEFORE including stdio.h */
 #ifdef __linux__
 #define _FILE_OFFSET_BITS 64
 #define _fseeki64 fseeko
 #define _ftelli64 ftello
 #elif _WIN32
-#endif 
-
+// avoid error of MSVC
+#define _CRT_SECURE_NO_WARNINGS
+#endif
 
 #include <errno.h>
 #include <inttypes.h>
@@ -68,7 +65,7 @@ int insert_space_zip(PAR3_CTX *par3_ctx, int footer_size, int repeat_count)
 		// Insert mass of common packets between Recovery Data
 		each_max = (block_count + repeat_count - 2) / (repeat_count - 1);
 	}
-	//printf("block_count = " PRIu64 ", repeat_count = %d, each_max = " PRIu64 "\n", block_count, repeat_count, each_max);
+	//printf("block_count = %"PRIu64", repeat_count = %d, each_max = %"PRIu64"\n", block_count, repeat_count, each_max);
 
 	fp = fopen(par3_ctx->par_filename, "r+b");
 	if (fp == NULL){
@@ -98,7 +95,7 @@ int insert_space_zip(PAR3_CTX *par3_ctx, int footer_size, int repeat_count)
 	// Recovery Data Packet and repeated common packets
 	each_count = 0;
 	for (block_index = 0; block_index < block_count; block_index++){
-		//printf("block_index = " PRIu64 "\n", block_index);
+		//printf("block_index = %"PRIu64"\n", block_index);
 
 		// packet header
 		make_packet_header(packet_header, 88 + block_size, par3_ctx->set_id, "PAR REC\0", 0);
@@ -117,7 +114,7 @@ int insert_space_zip(PAR3_CTX *par3_ctx, int footer_size, int repeat_count)
 				ret = region_check_parity(buf_p, region_size);
 			}
 			if (ret != 0){
-				printf("Parity of recovery block[%" PRIu64 "] is different.\n", block_index);
+				printf("Parity of recovery block[%"PRIu64"] is different.\n", block_index);
 				fclose(fp);
 				return RET_LOGIC_ERROR;
 			}
@@ -151,7 +148,7 @@ int insert_space_zip(PAR3_CTX *par3_ctx, int footer_size, int repeat_count)
 				fclose(fp);
 				return RET_FILE_IO_ERROR;
 			}
-			//printf("block[" PRIu64 "] offset = %" PRId64 ", %s\n", block_index, position_list[block_index].offset, position_list[block_index].name);
+			//printf("block[%"PRIu64"] offset = %"PRId64", %s\n", block_index, position_list[block_index].offset, position_list[block_index].name);
 
 			// Calculate CRC of packet data to check error, because state of BLAKE3 hash is too large.
 			position_list[block_index].crc = crc64(packet_header + 24, 64, 0);

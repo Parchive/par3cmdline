@@ -1,13 +1,12 @@
-// avoid error of MSVC
-#define _CRT_SECURE_NO_WARNINGS
-
 /* Redefinition of _FILE_OFFSET_BITS must happen BEFORE including stdio.h */
 #ifdef __linux__
 #define _FILE_OFFSET_BITS 64
 #define _fseeki64 fseeko
 #define _ftelli64 ftello
 #elif _WIN32
-#endif 
+// avoid error of MSVC
+#define _CRT_SECURE_NO_WARNINGS
+#endif
 
 #include <errno.h>
 #include <inttypes.h>
@@ -192,7 +191,7 @@ static int write_data_packet(PAR3_CTX *par3_ctx, char *file_name, uint64_t each_
 	packet_count = 0;	// reduce 1, because put 1st copy at first.
 	for (num = 2; num <= each_count; num *= 2)	// log2(each_count)
 		packet_count++;
-	//printf("each_count = %" PRIu64 ", repetition = %zu\n", each_count, packet_count);
+	//printf("each_count = %"PRIu64", repetition = %zu\n", each_count, packet_count);
 	packet_count *= par3_ctx->common_packet_count;
 	//printf("number of repeated packets = %zu\n", packet_count);
 
@@ -235,7 +234,7 @@ static int write_data_packet(PAR3_CTX *par3_ctx, char *file_name, uint64_t each_
 			if (block_max > block_count)
 				block_max = block_count;
 		}
-		//printf("block_index = %" PRIu64 ", block_max = %" PRIu64 "\n", block_index, block_max);
+		//printf("block_index = %"PRIu64", block_max = %"PRIu64"\n", block_index, block_max);
 
 		while (block_index < block_max){
 			// data size in the block
@@ -256,7 +255,7 @@ static int write_data_packet(PAR3_CTX *par3_ctx, char *file_name, uint64_t each_
 					slice_index = slice_list[slice_index].next;
 				}
 				if (slice_index == -1){	// When there is no valid slice.
-					printf("Mapping information for block[%" PRIu64 "] is wrong.\n", block_index);
+					printf("Mapping information for block[%"PRIu64"] is wrong.\n", block_index);
 					fclose(fp_write);
 					if (fp_read != NULL)
 						fclose(fp_read);
@@ -267,7 +266,7 @@ static int write_data_packet(PAR3_CTX *par3_ctx, char *file_name, uint64_t each_
 				file_index = slice_list[slice_index].file;
 				file_offset = slice_list[slice_index].offset;
 				read_size = slice_list[slice_index].size;
-				//printf("Reading %zu bytes of slice[%" PRId64 "] on file[%u] for block[%" PRIu64 "].\n", read_size, slice_index, file_index, block_index);
+				//printf("Reading %zu bytes of slice[%"PRId64"] on file[%u] for block[%"PRIu64"].\n", read_size, slice_index, file_index, block_index);
 				if ( (fp_read == NULL) || (file_index != file_prev) ){
 					if (fp_read != NULL){	// Close previous input file.
 						fclose(fp_read);
@@ -295,12 +294,12 @@ static int write_data_packet(PAR3_CTX *par3_ctx, char *file_name, uint64_t each_
 				}
 
 			} else {	// tail data only (one tail or packed tails)
-				//printf("Reading %zu bytes for block[%" PRIu64 "].\n", read_size, block_index);
+				//printf("Reading %zu bytes for block[%"PRIu64"].\n", read_size, block_index);
 				tail_offset = 0;
 				while (tail_offset < write_size){	// Read tails until data end.
 					slice_index = block_list[block_index].slice;
 					while (slice_index != -1){
-						//printf("block = %" PRIu64 ", size = %zu, offset = %zu, slice = %" PRId64 "\n", block_index, write_size, tail_offset, slice_index);
+						//printf("block = %"PRIu64", size = %zu, offset = %zu, slice = %"PRId64"\n", block_index, write_size, tail_offset, slice_index);
 						// Even when chunk tails are overlaped, it will find tail slice of next position.
 						if ( (slice_list[slice_index].tail_offset + slice_list[slice_index].size > tail_offset)
 								&& (slice_list[slice_index].tail_offset <= tail_offset) ){
@@ -309,7 +308,7 @@ static int write_data_packet(PAR3_CTX *par3_ctx, char *file_name, uint64_t each_
 						slice_index = slice_list[slice_index].next;
 					}
 					if (slice_index == -1){	// When there is no valid slice.
-						printf("Mapping information for block[%" PRIu64 "] is wrong.\n", block_index);
+						printf("Mapping information for block[%"PRIu64"] is wrong.\n", block_index);
 						fclose(fp_write);
 						if (fp_read != NULL)
 							fclose(fp_read);
@@ -359,7 +358,7 @@ static int write_data_packet(PAR3_CTX *par3_ctx, char *file_name, uint64_t each_
 			if (block_list[block_index].state & 64){
 				// Calculate checksum of block to confirm that input file was not changed.
 				if (crc64(work_buf, write_size, 0) != block_list[block_index].crc){
-					printf("Checksum of block[%" PRIu64 "] is different.\n", block_index);
+					printf("Checksum of block[%"PRIu64"] is different.\n", block_index);
 					fclose(fp_read);
 					fclose(fp_write);
 					return RET_LOGIC_ERROR;
@@ -554,7 +553,7 @@ int write_archive_file(PAR3_CTX *par3_ctx, char *file_name)
 			}
 		}
 
-		sprintf(file_name + len, ".part%0*" PRIu64 "+%0*" PRIu64 ".par3", digit_num1, each_start, digit_num2, each_count);
+		sprintf(file_name + len, ".part%0*"PRIu64"+%0*"PRIu64".par3", digit_num1, each_start, digit_num2, each_count);
 		if (write_data_packet(par3_ctx, file_name, each_start, each_count) != 0){
 			return RET_FILE_IO_ERROR;
 		}
@@ -609,7 +608,7 @@ static int write_recovery_packet(PAR3_CTX *par3_ctx, char *file_name, uint64_t e
 	packet_count = 0;	// reduce 1, because put 1st copy at first.
 	for (num = 2; num <= each_count; num *= 2)	// log2(each_count)
 		packet_count++;
-	//printf("each_count = %" PRIu64 ", repetition = %zu\n", each_count, packet_count);
+	//printf("each_count = %"PRIu64", repetition = %zu\n", each_count, packet_count);
 	packet_count *= par3_ctx->common_packet_count;
 	//printf("number of repeated packets = %zu\n", packet_count);
 
@@ -653,7 +652,7 @@ static int write_recovery_packet(PAR3_CTX *par3_ctx, char *file_name, uint64_t e
 			block_index = num * cohort_count;	// Starting index of the block
 			block_max = block_index + cohort_count;	// How many blocks in the volume
 		}
-		//printf("block_index = %" PRIu64 ", block_max = %" PRIu64 "\n", block_index, block_max);
+		//printf("block_index = %"PRIu64", block_max = %"PRIu64"\n", block_index, block_max);
 
 		while (block_index < block_max){
 			// packet header
@@ -674,7 +673,7 @@ static int write_recovery_packet(PAR3_CTX *par3_ctx, char *file_name, uint64_t e
 					ret = region_check_parity(buf_p, region_size);
 				}
 				if (ret != 0){
-					printf("Parity of recovery block[%" PRIu64 "] is different.\n", block_index);
+					printf("Parity of recovery block[%"PRIu64"] is different.\n", block_index);
 					fclose(fp);
 					return RET_LOGIC_ERROR;
 				}
@@ -708,7 +707,7 @@ static int write_recovery_packet(PAR3_CTX *par3_ctx, char *file_name, uint64_t e
 					fclose(fp);
 					return RET_FILE_IO_ERROR;
 				}
-				//printf("block[%" PRIu64 "] offset = %" PRId64 ", %s\n", block_index, position_list[block_index - first_num].offset, position_list[block_index - first_num].name);
+				//printf("block[%"PRIu64"] offset = %"PRId64", %s\n", block_index, position_list[block_index - first_num].offset, position_list[block_index - first_num].name);
 
 				// Calculate CRC of packet data to check error, because state of BLAKE3 hash is too large.
 				position_list[block_index - first_num].crc = crc64(packet_header + 24, 64, 0);
@@ -894,7 +893,7 @@ int write_recovery_file(PAR3_CTX *par3_ctx, char *file_name)
 			}
 		}
 
-		sprintf(file_name + len, ".vol%0*" PRIu64 "+%0*" PRIu64 ".par3", digit_num1, each_start, digit_num2, each_count);
+		sprintf(file_name + len, ".vol%0*"PRIu64"+%0*"PRIu64".par3", digit_num1, each_start, digit_num2, each_count);
 		if ((par3_ctx->ecc_method & 0x8000) == 0){
 			// When recovery blocks were not created yet, keep list of PAR filename.
 			if ( namez_add(&(par3_ctx->par_file_name), &(par3_ctx->par_file_name_len), &(par3_ctx->par_file_name_max), file_name) != 0){
