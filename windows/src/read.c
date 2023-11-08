@@ -13,7 +13,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#if __linux__
+#ifdef __linux__
 
 #include <sys/stat.h>
 

@@ -14,7 +14,7 @@
 #include <string.h>
 #include <math.h>
 
-#if __linux__
+#ifdef __linux__
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -35,7 +35,7 @@
 #include "common.h"
 
 
-#if __linux__
+#ifdef __linux__
 #elif _WIN32
 
 // recursive search into sub-directories

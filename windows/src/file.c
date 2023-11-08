@@ -14,7 +14,7 @@
 #include <string.h>
 #include <time.h>
 
-#if __linux__
+#ifdef __linux__
 
 #warning "Assuming this Linux system uses 64-bit time."
 /* There doesn't seem to be a preprocessor test for 64-bit time_t! 
@@ -24,7 +24,16 @@
 #define __time64_t int64_t
 #define _ctime64 ctime
 
+#define _chmod chmod
+
 #include <sys/stat.h>
+#include <utime.h>
+
+// permission to write by owner
+#define _S_IWRITE S_IWUSR
+
+#define _utime utime
+#define _utimbuf utimbuf
 
 #elif _WIN32
 
@@ -61,9 +70,6 @@ static uint64_t FileTimeToTimet(uint64_t file_time)
 	return unix_time;
 }
 
-
-#if __linux__
-#elif _WIN32
 
 // File System Specific Packets (optional packets)
 /*
@@ -142,6 +148,8 @@ int make_unix_permission_packet(PAR3_CTX *par3_ctx, char *file_name, uint8_t *ch
 	return 0;
 }
 
+
+
 // FAT Permissions Packet
 // 0 = write ok, 1 = failed (no checksum)
 // Return checksum of FAT Permissions Packet in *checksum.
@@ -188,7 +196,7 @@ int make_fat_permission_packet(PAR3_CTX *par3_ctx, char *file_name, uint8_t *che
 
 	return 0;
 }
-#endif
+
 
 // For showing file list
 static void show_file_system_info(PAR3_CTX *par3_ctx, uint8_t *checksum)
@@ -304,12 +312,6 @@ void read_file_system_option(PAR3_CTX *par3_ctx, int packet_type, int64_t offset
 }
 
 
-#if __linux__
-
-#warning "static int check_file_system_info(PAR3_CTX *par3_ctx, uint8_t *checksum, void *stat_p) is UNDEFINED"
-
-#elif _WIN32
-
 // For verification
 static int check_file_system_info(PAR3_CTX *par3_ctx, uint8_t *checksum, void *stat_p)
 {
@@ -382,7 +384,6 @@ static int check_file_system_info(PAR3_CTX *par3_ctx, uint8_t *checksum, void *s
 
 	return ret;
 }
-#endif
 
 
 // packet_type: 1 = file, 2 = directory, 3 = root
@@ -443,11 +444,6 @@ int check_file_system_option(PAR3_CTX *par3_ctx, int packet_type, int64_t offset
 }
 
 
-#if __linux__
-
-#warning "static int reset_file_system_info(PAR3_CTX *par3_ctx, uint8_t *checksum, char *file_name); is UNDEFINED"
-
-#elif _WIN32
 
 // For repair
 static int reset_file_system_info(PAR3_CTX *par3_ctx, uint8_t *checksum, char *file_name)
@@ -546,7 +542,6 @@ static int reset_file_system_info(PAR3_CTX *par3_ctx, uint8_t *checksum, char *f
 
 	return ret;
 }
-#endif
 
 
 // packet_type: 1 = file, 2 = directory, 3 = root

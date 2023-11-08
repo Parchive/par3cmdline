@@ -10,7 +10,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#if __linux__
+#ifdef __linux__
 
 #include <unistd.h> 
 #define _chdir  chdir

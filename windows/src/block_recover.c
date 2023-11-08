@@ -16,7 +16,7 @@
 #include <string.h>
 #include <time.h>
 
-#if __linux__
+#ifdef __linux__
 
 #include <unistd.h>
 

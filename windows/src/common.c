@@ -5,7 +5,7 @@
 #include <string.h>
 #include <wchar.h>
 
-#if __linux__
+#ifdef __linux__
 
 /* This definition of _MAX_FNAME works for GCC on POSIX systems */
 #include <limits.h>
@@ -25,7 +25,7 @@
 
 
 
-#if __linux__
+#ifdef __linux__
 
 // Reproduce Windows system call with Linux's fstat 
 int64_t _filelengthi64(int fd) {
@@ -160,8 +160,23 @@ int sanitize_file_name(char *name)
 }
 
 
-#if __linux__
-#warning "int get_absolute_path(char *absolute_path, char *relative_path, size_t max) is UNDEFINED"
+#ifdef __linux__
+
+int get_absolute_path(char *absolute_path, char *relative_path, size_t max) {
+  // Linux is case-sensative, so it doesn't have to be lower/upper-cased.
+
+  // allocate buffer, in case max is less than PATH_MAX
+  char buf[PATH_MAX+1];
+  
+  if (realpath(relative_path, buf) != NULL) {
+    strncpy(absolute_path, buf, max);
+    return 1;
+  } else {
+    return 0;
+  }
+}
+
+
 #elif _WIN32
 // convert relative path to absolute path
 int get_absolute_path(char *absolute_path, char *relative_path, size_t max)
