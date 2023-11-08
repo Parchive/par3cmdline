@@ -439,7 +439,7 @@ It may be safe to store/recover mtime only (-fu1 option).
  Causion about directories (-fu7 option).
 You cannot change permissions of directories on Windows OS.
 You may not modify mtime of directories on Windows OS.
-I don't know it works on Linux OS.
+I don't know how it works on Linux OS.
 
 
 
