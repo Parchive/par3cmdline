@@ -144,19 +144,48 @@ int path_search(PAR3_CTX *par3_ctx, char *match_path, int flag_recursive)
 	if (tmp_p != NULL){
 		match_name = tmp_p + 1;
 
-		// directory may be a relative path from base-path
-		len = (size_t)(tmp_p - match_path);
-		memcpy(new_dir + 2, match_path, len);
-		new_dir[0] = '.';
-		new_dir[1] = '/';
-		new_dir[2 + len] = 0;
-		//printf("new_dir = \"%s\"\n", new_dir);
-
 		// store current working directory, and will resume later
 		tmp_p = _getcwd(cur_dir, _MAX_PATH);
 		if (tmp_p == NULL){
 			perror("Failed to get current working directory");
 			return RET_FILE_IO_ERROR;
+		}
+		//printf("cur_dir = \"%s\"\n", cur_dir);
+
+		// directory may be an absolute path belong to current working directory
+		ret = get_absolute_path(new_dir, cur_dir, _MAX_PATH);
+		if (ret != 0){
+			printf("Failed to convert current working directory to absolute path\n");
+			return RET_FILE_IO_ERROR;
+		}
+		//printf("absolute = \"%s\"\n", new_dir);
+		dir_len = strlen(new_dir);
+		if (_strnicmp(new_dir, match_path, dir_len) == 0){
+			len = (size_t)(match_name - 1 - match_path - dir_len);
+			//printf("dir_len = %zd, len = %zd\n", dir_len, len);
+			if (len <= 1){
+				len = 0;
+			} else {	// copy sub-directries
+				len--;
+				memcpy(new_dir + 2, match_path + dir_len + 1, len);
+			}
+		} else {
+			// directory may be a relative path from base-path
+			len = (size_t)(match_name - 1 - match_path);
+			memcpy(new_dir + 2, match_path, len);
+		}
+		new_dir[0] = '.';
+		new_dir[1] = '/';
+		new_dir[2 + len] = 0;
+		//printf("new_dir = \"%s\"\n", new_dir);
+
+		// check the sub-directory was stored already
+		if (len > 0){
+			ret = path_search(par3_ctx, new_dir + 2, 0);
+			if (ret != 0){
+				printf("Failed to test sub-directories\n");
+				return RET_FILE_IO_ERROR;
+			}
 		}
 
 		// move to the sub directory
@@ -179,7 +208,7 @@ int path_search(PAR3_CTX *par3_ctx, char *match_path, int flag_recursive)
 			// return to original working directory
 			if (_chdir(cur_dir) != 0){
 				perror("Failed to resume working directory");
-				return 6;
+				return RET_FILE_IO_ERROR;
 			}
 			printf("Ignoring out of base-path input file: %s\n", match_path);
 			return RET_FILE_IO_ERROR;
@@ -217,6 +246,7 @@ int path_search(PAR3_CTX *par3_ctx, char *match_path, int flag_recursive)
 		dir_len = strlen(new_dir) - base_len;
 		memmove(new_dir, new_dir + base_len, dir_len + 1);	// copy path, which inlcudes the last null string
 		//printf("relative path = \"%s\"\n", new_dir);
+		//printf("finding name  = \"%s\"\n", match_name);
 
 	} else {
 		match_name = match_path;
@@ -285,6 +315,19 @@ int path_search(PAR3_CTX *par3_ctx, char *match_path, int flag_recursive)
 					perror("Failed to return parent directory");
 					return RET_FILE_IO_ERROR;
 				}
+
+			} else {	// When the name is just a directory
+
+				// check name in list, and ignore if exist
+				if (namez_search(par3_ctx->input_dir_name, par3_ctx->input_dir_name_len, new_dir) != NULL)
+					continue;
+
+				// add found filename with relative path
+				if ( namez_add(&(par3_ctx->input_dir_name), &(par3_ctx->input_dir_name_len), &(par3_ctx->input_dir_name_max), new_dir) != 0){
+					_findclose(handle);
+					return RET_MEMORY_ERROR;
+				}
+
 			}
 
 		} while( _findnext64( handle, &c_file ) == 0 );

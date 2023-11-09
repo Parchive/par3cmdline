@@ -712,15 +712,23 @@ int main(int argc, char *argv[])
 			if (path_copy(par3_ctx->par_filename, tmp_p, _MAX_PATH - 20) == 0){
 				par3_ctx->par_filename[0] = 0;
 			} else {
-				// PAR filename may be a relative path from current working directory.
-				if (par3_ctx->base_path[0] != 0){
-					// if base-path isn't empty, relative from current working directory.
-					ret = get_absolute_path(file_name, par3_ctx->par_filename, _MAX_PATH - 8);
-					if (ret != 0){
-						printf("Failed to convert PAR filename to absolute path\n");
-						ret = RET_FILE_IO_ERROR;
-						goto prepare_return;
+				ret = get_absolute_path(file_name, par3_ctx->par_filename, _MAX_PATH - 8);
+				if (ret != 0){
+					printf("Failed to convert PAR filename to absolute path\n");
+					ret = RET_FILE_IO_ERROR;
+					goto prepare_return;
+				}
+				// PAR filename may be an absolute path.
+				if (_stricmp(file_name, par3_ctx->par_filename) == 0){
+					// If base-path is empty, set parent of PAR file.
+					if (par3_ctx->base_path[0] == 0){
+						tmp_p = strrchr(file_name, '/');
+						if (tmp_p != NULL)
+							memcpy(par3_ctx->base_path, file_name, tmp_p - file_name);
 					}
+				// PAR filename may be a relative path from current working directory.
+				} else if (par3_ctx->base_path[0] != 0){
+					// If base-path isn't empty, it was relative from current working directory.
 					strcpy(par3_ctx->par_filename, file_name);
 				}
 			}
@@ -863,7 +871,7 @@ int main(int argc, char *argv[])
 				tmp_p = argv[argi];
 			}
 
-			// read relative path of an input file
+			// read path of an input file
 			path_copy(file_name, tmp_p, _MAX_FNAME - 32);
 			if (file_name[0] == 0)
 				continue;
