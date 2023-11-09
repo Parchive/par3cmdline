@@ -239,6 +239,17 @@ Use this option only for debug usage with small files.
 
 
 
+[ About "-B" option ]
+
+ When you want to include sub-directories in input files/directories,
+you should set their base-path by "-B" properly.
+If you specify PAR3 file as an absolute path and don't set base-path by "-B",
+its parent directory will be the base-path automatically.
+If you specify PAR3 file as a relative path and don't set base-path by "-B",
+current working directory will be the base-path automatically.
+
+
+
 [ About "-q" option ]
 
  By setting "-q", it may show less information.
