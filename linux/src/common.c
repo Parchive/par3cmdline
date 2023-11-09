@@ -167,7 +167,7 @@ int get_absolute_path(char *absolute_path, char *relative_path, size_t max) {
 
   // allocate buffer, in case max is less than PATH_MAX
   char buf[PATH_MAX+1];
-  
+
   if (realpath(relative_path, buf) != NULL) {
     strncpy(absolute_path, buf, max);
     return 1;
