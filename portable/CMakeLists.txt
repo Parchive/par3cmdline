@@ -4,8 +4,15 @@ project("Par3" VERSION 0.1
     DESCRIPTION "Reference implementation of Parity Volume Set Specification 3.0"
     LANGUAGES C CXX)
 
-set(CMAKE_C_FLAGS "-std=c99 -Wall -Wextra -Werror=implicit-function-declaration")
-set(CMAKE_CXX_FLAGS "-std=c++20 -Wall -Wextra")
+set(CMAKE_C_FLAGS "-std=c99 -Wall")
+set(CMAKE_CXX_FLAGS "-std=c++20 -Wall")
+
+if ( CMAKE_CXX_COMPILER_ID STREQUAL "Clang" OR
+     CMAKE_CXX_COMPILER_ID STREQUAL "GNU" )
+    # Clang/GCC: enable more warnings
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wextra -Werror=implicit-function-declaration")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wextra")
+endif()
 
 add_subdirectory(blake3)
 add_subdirectory(leopard)
@@ -15,7 +22,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
 elseif(CMAKE_SYSTEM_NAME STREQUAL "Windows")
     add_subdirectory(platform/windows)
 else()
-    message(SEND_ERROR "Unsupported system $CMAKE_SYSTEM_NAME")
+    message(SEND_ERROR "Unsupported system ${CMAKE_SYSTEM_NAME}")
 endif()
 
 include_directories(.)
