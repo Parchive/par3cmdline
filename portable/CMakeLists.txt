@@ -13,7 +13,7 @@ add_compile_options(-Wall)
 
 if ( CMAKE_CXX_COMPILER_ID STREQUAL "Clang" OR
      CMAKE_CXX_COMPILER_ID STREQUAL "GNU" )
-    add_compile_options(-Wextra)
+    add_compile_options(-Wextra -Wno-sign-compare)
 
     # Prepend so this can be overridden with CFLAGS when calling CMake:
     set(CMAKE_C_FLAGS "-Werror=implicit-function-declaration ${CMAKE_C_FLAGS}")
