@@ -632,7 +632,9 @@ int recover_lost_block_split(PAR3_CTX *par3_ctx, char *temp_path, uint64_t lost_
 
 	// For Leopard-RS library
 	uint32_t work_count;
-	uint8_t **original_data = NULL, **recovery_data = NULL, **work_data = NULL;
+	const void** original_data = NULL;
+	const void** recovery_data = NULL;
+	void **work_data = NULL;
 
 	file_count = par3_ctx->input_file_count;
 	block_size = par3_ctx->block_size;
@@ -721,7 +723,7 @@ int recover_lost_block_split(PAR3_CTX *par3_ctx, char *temp_path, uint64_t lost_
 
 	if (par3_ctx->ecc_method & 8){	// FFT based Reed-Solomon Codes
 		// List of pointer
-		original_data = malloc(sizeof(block_data) * (block_count + max_recovery_block + work_count));
+		original_data = malloc(sizeof(void*) * (block_count + max_recovery_block + work_count));
 		if (original_data == NULL){
 			perror("Failed to allocate memory for Leopard-RS");
 			return RET_MEMORY_ERROR;
@@ -744,7 +746,7 @@ int recover_lost_block_split(PAR3_CTX *par3_ctx, char *temp_path, uint64_t lost_
 			}
 			buf_p += region_size;
 		}
-		work_data = recovery_data + max_recovery_block;
+		work_data = (void**)recovery_data + max_recovery_block;
 		for (block_index = 0; block_index < work_count; block_index++){
 			work_data[block_index] = buf_p;
 			buf_p += region_size;
@@ -1351,7 +1353,9 @@ int recover_lost_block_cohort(PAR3_CTX *par3_ctx, char *temp_path)
 
 	// For Leopard-RS library
 	uint32_t work_count;
-	uint8_t **original_data = NULL, **recovery_data = NULL, **work_data = NULL;
+	const void** original_data = NULL;
+	const void** recovery_data = NULL;
+	void **work_data = NULL;
 
 	file_count = par3_ctx->input_file_count;
 	block_size = par3_ctx->block_size;
@@ -1436,14 +1440,14 @@ int recover_lost_block_cohort(PAR3_CTX *par3_ctx, char *temp_path)
 	par3_ctx->block_data = block_data;
 
 	// List of pointer
-	original_data = malloc(sizeof(block_data) * (block_count2 + max_recovery_block2 + work_count));
+	original_data = malloc(sizeof(void*) * (block_count2 + max_recovery_block2 + work_count));
 	if (original_data == NULL){
 		perror("Failed to allocate memory for Leopard-RS");
 		return RET_MEMORY_ERROR;
 	}
 	recovery_data = original_data + block_count2;
 	buf_p = block_data + region_size * block_count2;
-	work_data = recovery_data + max_recovery_block2;
+	work_data = (void**)recovery_data + max_recovery_block2;
 	for (block_index = 0; block_index < work_count; block_index++){
 		work_data[block_index] = buf_p;
 		buf_p += region_size;

@@ -35,8 +35,4 @@ add_library(libpar3
     write_trial.c
 )
 
-# BUG: implicit conversion from uint8_t** to void**
-# TODO: fix these bugs in the source code instead of ignoring warnings here!
-set_source_files_properties(block_create.c block_recover.c PROPERTIES COMPILE_OPTIONS "-Wno-incompatible-pointer-types")
-
 target_link_libraries(libpar3 PRIVATE blake3 leopard platform)

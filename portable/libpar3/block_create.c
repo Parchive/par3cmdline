@@ -308,7 +308,8 @@ int create_recovery_block_split(PAR3_CTX *par3_ctx)
 
 	// For Leopard-RS library
 	uint32_t work_count;
-	uint8_t **original_data = NULL, **work_data = NULL;
+	const void **original_data = NULL;
+	void **work_data = NULL;
 
 	block_size = par3_ctx->block_size;
 	block_count = par3_ctx->block_count;
@@ -395,7 +396,7 @@ int create_recovery_block_split(PAR3_CTX *par3_ctx)
 
 	if (par3_ctx->ecc_method & 8){	// FFT based Reed-Solomon Codes
 		// List of pointer
-		original_data = malloc(sizeof(block_data) * (block_count + work_count));
+		original_data = malloc(sizeof(void*) * (block_count + work_count));
 		if (original_data == NULL){
 			perror("Failed to allocate memory for Leopard-RS");
 			return RET_MEMORY_ERROR;
@@ -405,7 +406,7 @@ int create_recovery_block_split(PAR3_CTX *par3_ctx)
 			original_data[block_index] = buf_p;
 			buf_p += region_size;
 		}
-		work_data = original_data + block_count;
+		work_data = (void**)original_data + block_count;
 		// Change order of recovery data to skip until first_recovery_block.
 		for (block_index = first_recovery_block; block_index < first_recovery_block + recovery_block_count; block_index++){
 			work_data[block_index] = buf_p;
@@ -848,7 +849,8 @@ int create_recovery_block_cohort(PAR3_CTX *par3_ctx)
 
 	// For Leopard-RS library
 	uint32_t work_count;
-	uint8_t **original_data = NULL, **work_data = NULL;
+	const void **original_data = NULL;
+	void **work_data = NULL;
 
 	block_size = par3_ctx->block_size;
 	block_count = par3_ctx->block_count;
@@ -926,7 +928,7 @@ int create_recovery_block_cohort(PAR3_CTX *par3_ctx)
 	par3_ctx->block_data = block_data;
 
 	// List of pointer
-	original_data = malloc(sizeof(block_data) * (block_count2 + work_count));
+	original_data = malloc(sizeof(void*) * (block_count2 + work_count));
 	if (original_data == NULL){
 		perror("Failed to allocate memory for Leopard-RS");
 		return RET_MEMORY_ERROR;
@@ -936,7 +938,7 @@ int create_recovery_block_cohort(PAR3_CTX *par3_ctx)
 		original_data[block_index] = buf_p;
 		buf_p += region_size;
 	}
-	work_data = original_data + block_count2;
+	work_data = (void**)original_data + block_count2;
 	// Change order of recovery data to skip until first_recovery_block.
 	for (block_index = first_recovery_block2; block_index < first_recovery_block2 + recovery_block_count2; block_index++){
 		work_data[block_index] = buf_p;
