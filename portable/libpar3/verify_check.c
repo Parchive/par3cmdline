@@ -621,7 +621,7 @@ int check_damaged_file(PAR3_CTX *par3_ctx, char *filename,
 							find_max = file_offset + slide_offset + block_size;
 
 						// When CRC and BLAKE3 match, remove this item from crc_list.
-						find_index = cmp_list_search_index(par3_ctx, temp_crc, block_index, crc_list, crc_count);
+						find_index = cmp_list_search_index(temp_crc, block_index, crc_list, crc_count);
 						if (find_index >= 0){
 							if (find_index + 1 < crc_count)
 								memmove(crc_list + find_index, crc_list + find_index + 1, sizeof(PAR3_CMP_CTX) * (crc_count - find_index - 1));
@@ -664,7 +664,7 @@ int check_damaged_file(PAR3_CTX *par3_ctx, char *filename,
 							find_max = file_offset + slide_offset + tail_size;
 
 						// When CRC and BLAKE3 match, remove this item from tail_list.
-						find_index = cmp_list_search_index(par3_ctx, temp_crc, slice_index, tail_list, tail_count);
+						find_index = cmp_list_search_index(temp_crc, slice_index, tail_list, tail_count);
 						if (find_index >= 0){
 							if (find_index + 1 < tail_count)
 								memmove(tail_list + find_index, tail_list + find_index + 1, sizeof(PAR3_CMP_CTX) * (tail_count - find_index - 1));
@@ -704,7 +704,7 @@ int check_damaged_file(PAR3_CTX *par3_ctx, char *filename,
 			while ( (slide_offset < block_size) && (file_offset + slide_offset + block_size <= file_size) ){
 				tail_size = 0;
 				// find_index is the first index of the matching CRC-64. There may be multiple items.
-				find_index = cmp_list_search(par3_ctx, crc, crc_list, crc_count);
+				find_index = cmp_list_search(crc, crc_list, crc_count);
 				while (find_index >= 0){	// When CRC-64 is same.
 					block_index = crc_list[find_index].index;	// index of block
 					if (tail_size == 0){	// When it didn't hash the block data yet.
@@ -831,7 +831,7 @@ int check_damaged_file(PAR3_CTX *par3_ctx, char *filename,
 				// Because CRC-64 for chunk tails is a range of the first 40-bytes, total data may be different.
 				tail_size = 0;
 				// find_index is the first index of the matching CRC-64. There may be multiple items.
-				find_index = cmp_list_search(par3_ctx, crc40, tail_list, tail_count);
+				find_index = cmp_list_search(crc40, tail_list, tail_count);
 				while (find_index >= 0){	// When CRC-64 is same.
 					slice_index = tail_list[find_index].index;	// index of slice
 					if (tail_size != slice_list[slice_index].size){

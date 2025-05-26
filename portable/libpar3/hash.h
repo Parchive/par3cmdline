@@ -13,8 +13,8 @@ void crc_list_add(PAR3_CTX *par3_ctx, uint64_t crc, uint64_t index);
 int crc_list_make(PAR3_CTX *par3_ctx);
 void crc_list_replace(PAR3_CTX *par3_ctx, uint64_t crc, uint64_t index);
 
-int64_t cmp_list_search(PAR3_CTX *par3_ctx, uint64_t crc, PAR3_CMP_CTX *cmp_list, int64_t count);
-int64_t cmp_list_search_index(PAR3_CTX *par3_ctx, uint64_t crc, int64_t id, PAR3_CMP_CTX *cmp_list, int64_t count);
+int64_t cmp_list_search(uint64_t crc, PAR3_CMP_CTX *cmp_list, int64_t count);
+int64_t cmp_list_search_index(uint64_t crc, int64_t id, PAR3_CMP_CTX *cmp_list, int64_t count);
 
 
 // BLAKE3

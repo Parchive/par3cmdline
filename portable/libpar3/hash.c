@@ -391,7 +391,7 @@ void crc_list_replace(PAR3_CTX *par3_ctx, uint64_t crc, uint64_t index)
 // Compare CRC-64 of blocks or chunk tails
 // Return index of the first item, which has the same CRC-64.
 // When no match, return -1 ~ -2
-int64_t cmp_list_search(PAR3_CTX *par3_ctx, uint64_t crc, PAR3_CMP_CTX *cmp_list, int64_t count)
+int64_t cmp_list_search(uint64_t crc, PAR3_CMP_CTX *cmp_list, int64_t count)
 {
 	int64_t index;
 	PAR3_CMP_CTX cmp_key, *cmp_p;
@@ -419,7 +419,7 @@ int64_t cmp_list_search(PAR3_CTX *par3_ctx, uint64_t crc, PAR3_CMP_CTX *cmp_list
 
 // Compare CRC-64 of blocks or chunk tails
 // When no match, return -1 ~ -3
-int64_t cmp_list_search_index(PAR3_CTX *par3_ctx, uint64_t crc, int64_t id, PAR3_CMP_CTX *cmp_list, int64_t count)
+int64_t cmp_list_search_index(uint64_t crc, int64_t id, PAR3_CMP_CTX *cmp_list, int64_t count)
 {
 	int64_t index;
 	PAR3_CMP_CTX cmp_key, *cmp_p, *cmp2_p;
