@@ -1,68 +1,13 @@
-#include <errno.h>
+#include "platform/platform.h"
+
+#include "common.h"
+
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <wchar.h>
 
-#ifdef __linux__
-
-/* This definition of _MAX_FNAME works for GCC on POSIX systems */
-#include <limits.h>
-#include <sys/stat.h>
-#define _MAX_FNAME NAME_MAX
-
-#define _strnicmp strncasecmp
-#define _stricmp strcasecmp
-
-#elif _WIN32
-// MSVC headers
-#include <search.h>
-#include <io.h>
-#endif
-
-#include "common.h"
-
-
-
-#ifdef __linux__
-
-// Reproduce Windows system call with Linux's fstat 
-int64_t _filelengthi64(int fd) {
-  struct stat buffer;
-  int result;
-
-  result = fstat(fd, &buffer);
-  if (result == 0) {
-    // success
-    return buffer.st_size;
-  }
-  else {
-    // failure
-    return (int64_t) -1;  // this should sign-extend
-  }
-}
-
-
-/* This is based on code from: https://stackoverflow.com/questions/50119172/how-to-get-the-file-length-in-c-on-linux  
-   Why lseek instead of fstat??
-int64_t _filelengthi64(int filedes)
-{
-    off_t pos = lseek(filedes, 0, SEEK_CUR);
-    if (pos != (off_t)-1)
-    {
-        off_t size = lseek(filedes, 0, SEEK_END);
-        lseek(filedes, pos, SEEK_SET);
-        return (int64_t)size;
-    }
-    return (int64_t)-1;
-}
-*/
-
-
-
-#elif _WIN32
-#endif
 
 // return pointer of filename
 char * offset_file_name(char *file_path)
@@ -158,101 +103,6 @@ int sanitize_file_name(char *name)
 
 	return ret;
 }
-
-
-#ifdef __linux__
-
-int get_absolute_path(char *absolute_path, char *relative_path, size_t max) {
-  // Linux is case-sensative, so it doesn't have to be lower/upper-cased.
-
-  // allocate buffer, in case max is less than PATH_MAX
-  char buf[PATH_MAX+1];
-
-  if (realpath(relative_path, buf) != NULL) {
-    strncpy(absolute_path, buf, max);
-    return 1;
-  } else {
-    return 0;
-  }
-}
-
-
-#elif _WIN32
-// convert relative path to absolute path
-int get_absolute_path(char *absolute_path, char *relative_path, size_t max)
-{
-	char *tmp_p;
-	size_t len;
-
-	// MSVC
-	struct _finddatai64_t c_file;
-	intptr_t handle;
-
-	// This function replaces "/" to "\" automatically.
-	if (_fullpath(absolute_path, relative_path, max) == NULL){
-		perror("Failed to make absolute path");
-		return 1;
-	}
-
-	// When the file exists, check each path component.
-	handle = _findfirst64(absolute_path, &c_file);
-	if (handle != (intptr_t) -1){
-		_findclose(handle);
-
-		// Even when case insensitive, use the original case for path component.
-		len = strlen(c_file.name);
-		tmp_p = strrchr(absolute_path, '\\');
-		if (tmp_p != NULL){
-			memcpy(tmp_p + 1, c_file.name, len);
-		}
-
-		// Check drive letter.
-		tmp_p = absolute_path;
-		if (tmp_p[1] == ':'){
-			if ( (tmp_p[0] >= 'a') && (tmp_p[0] <= 'z') ){
-				// Convert from lower case to upper case.
-				tmp_p[0] -= 'a' - 'A';
-			}
-			tmp_p = strchr(tmp_p, '\\');
-			if (tmp_p != NULL){
-				tmp_p[0] = '/';
-				tmp_p++;
-			}
-		}
-
-		// Check each path component.
-		tmp_p = strchr(tmp_p, '\\');
-		while (tmp_p != NULL){
-			tmp_p[0] = 0;
-
-			//printf("find = %s\n", absolute_path);
-			handle = _findfirst64(absolute_path, &c_file);
-			if (handle != (intptr_t) -1){
-				_findclose(handle);
-
-				//printf("component = %s\n", c_file.name);
-				len = strlen(c_file.name);
-				memcpy(tmp_p - len, c_file.name, len);
-			}
-
-			// Replace directory mark from Windows OS style "\" to UNIX style "/" for compatibility.
-			tmp_p[0] = '/';
-			tmp_p = strchr(tmp_p + 1, '\\');
-		}
-
-	} else {
-		// Even when the file doesn't exist, replace directory mark.
-		tmp_p = absolute_path;
-		tmp_p = strchr(tmp_p, '\\');
-		while (tmp_p != NULL){
-			tmp_p[0] = '/';
-			tmp_p = strchr(tmp_p + 1, '\\');
-		}
-	}
-
-	return 0;
-}
-#endif
 
 // copy filename, remove cover, replace directory mark
 size_t path_copy(char *dst, char *src, size_t max)

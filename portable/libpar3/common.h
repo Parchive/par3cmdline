@@ -1,24 +1,13 @@
 #ifndef __COMMON_H__
 #define __COMMON_H__
 
-#if __linux__
-
-#include <linux/limits.h>
-#define _MAX_PATH PATH_MAX
-
-// Windows system call 
-int64_t _filelengthi64(int fd);
-
-#elif _WIN32
-
-#endif
-
-
+#include <stddef.h>
+#include <stdint.h>
 
 char * offset_file_name(char *file_path);
 int sanitize_file_name(char *name);
 
-int get_absolute_path(char *absolute_path, char *relative_path, size_t max);
+int get_absolute_path(char *absolute_path, const char *relative_path, size_t max);  /* platform.h */
 size_t path_copy(char *dst, char *src, size_t max);
 
 size_t trim_text(uint8_t *text, size_t len);

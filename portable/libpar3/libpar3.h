@@ -1,17 +1,7 @@
 #ifndef __LIBPAR3_H__
 #define __LIBPAR3_H__
 
-
-#if __linux__
-
-#include <linux/limits.h>
-#define _MAX_PATH PATH_MAX
-
-#elif _WIN32
-
-// no windows-specific includes here
-
-#endif
+#include "platform/platform.h"
 
 // Return value of par3cmdline (same as par2cmdline)
 #define RET_SUCCESS             0

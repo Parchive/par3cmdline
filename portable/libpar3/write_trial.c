@@ -1,16 +1,12 @@
-#ifdef _WIN32
-// avoid error of MSVC
-#define _CRT_SECURE_NO_WARNINGS
-#endif
+#include "libpar3.h"
+
+#include "common.h"
 
 #include <errno.h>
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#include "libpar3.h"
-#include "common.h"
 
 
 // Try Index File

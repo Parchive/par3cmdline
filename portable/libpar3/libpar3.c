@@ -1,42 +1,13 @@
-/* Redefinition of _FILE_OFFSET_BITS must happen BEFORE including stdio.h */
-#ifdef __linux__
-#define _FILE_OFFSET_BITS 64
-#define _stat64 stat
-#elif _WIN32
-// avoid error of MSVC
-#define _CRT_SECURE_NO_WARNINGS
-#endif
+#include "libpar3.h"
 
-#include <errno.h>
+#include "common.h"
+
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
 
-#ifdef __linux__
-
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <strings.h>
-#define _strnicmp strncasecmp
-#define _stricmp strcasecmp
-
-#elif _WIN32
-
-// MSVC headers
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <direct.h>
-#include <io.h>
-#endif
-
-#include "libpar3.h"
-#include "common.h"
-
-
-#ifdef __linux__
-#elif _WIN32
 
 // recursive search into sub-directories
 static int path_search_recursive(PAR3_CTX *par3_ctx, char *sub_dir)
@@ -534,8 +505,6 @@ int extra_search(PAR3_CTX *par3_ctx, char *match_path)
 	return 0;
 }
 
-#endif
-
 
 // get information of input files
 int get_file_status(PAR3_CTX *par3_ctx)
@@ -891,10 +860,6 @@ int sort_input_set(PAR3_CTX *par3_ctx)
 	return 0;
 }
 
-
-#ifdef __linux__
-#elif _WIN32
-
 // search other par files from base filename
 int par_search(PAR3_CTX *par3_ctx, char *base_name, int flag_other)
 {
@@ -1085,7 +1050,6 @@ int par_search(PAR3_CTX *par3_ctx, char *base_name, int flag_other)
 
 	return 0;
 }
-#endif
 
 
 // This function releases all allocated memory.

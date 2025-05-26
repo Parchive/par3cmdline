@@ -29,7 +29,6 @@ plank@cs.utk.edu
 
  */
 
-#include <errno.h>
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -347,4 +346,3 @@ int gf16_region_check_parity(int galois_poly, uint8_t *buf, size_t region_size)
 
 	return 0;
 }
-

@@ -1,13 +1,12 @@
-#include <errno.h>
+#include "libpar3.h"
+
+#include "common.h"
+
 #include <inttypes.h>
 #include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include <math.h>
 
-#include "libpar3.h"
 #include "inside.h"
-#include "common.h"
 #include "map.h"
 #include "packet.h"
 #include "block.h"

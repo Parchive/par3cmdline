@@ -1,18 +1,9 @@
-#include <errno.h>
+#include "libpar3.h"
+
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#ifdef __linux__
-
-#include <limits.h>
-
-#elif _WIN32
-#endif
-
-#include "libpar3.h"
-
 
 // Data Packets substitute for lost input blocks.
 int substitute_input_block(PAR3_CTX *par3_ctx)

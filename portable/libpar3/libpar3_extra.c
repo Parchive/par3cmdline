@@ -1,10 +1,10 @@
-#include <errno.h>
+#include "libpar3.h"
+
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include "libpar3.h"
 #include "block.h"
 #include "packet.h"
 #include "read.h"

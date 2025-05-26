@@ -1,12 +1,11 @@
+#include "libpar3.h"
+
+#include "blake3/blake3.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-// MSVC headers
-#include <search.h>
-
-#include "blake3/blake3.h"
-#include "libpar3.h"
 #include "hash.h"
 
 

@@ -1,25 +1,16 @@
-/* Redefinition of _FILE_OFFSET_BITS must happen BEFORE including stdio.h */
-#ifdef __linux__
-#define _FILE_OFFSET_BITS 64
-#define _fseeki64 fseeko
-#elif _WIN32
-// avoid error of MSVC
-#define _CRT_SECURE_NO_WARNINGS
-#endif
+#include "libpar3.h"
 
-#include <errno.h>
+#include "leopard/leopard.h"
+
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
-#include "libpar3.h"
-#include "common.h"
 #include "galois.h"
 #include "hash.h"
 #include "reedsolomon.h"
-#include "leopard/leopard.h"
 
 
 // When it uses Reed-Solomon Erasure Codes, it tries to allocate memory for all recovery blocks.

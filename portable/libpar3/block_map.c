@@ -1,19 +1,9 @@
-#include <errno.h>
+#include "libpar3.h"
+
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#ifdef __linux__
-
-#include <limits.h>
-
-#elif _WIN32
-#endif
-
-#include "libpar3.h"
-#include "common.h"
-
 
 // Count how many number of input file slices, and allocate memory for them.
 int count_slice_info(PAR3_CTX *par3_ctx)

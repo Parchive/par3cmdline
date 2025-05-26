@@ -1,41 +1,16 @@
-/* Redefinition of _FILE_OFFSET_BITS must happen BEFORE including stdio.h */
-#ifdef __linux__
-#define _FILE_OFFSET_BITS 64
-#define _fseeki64 fseeko
-#define _stat64 stat
-#elif _WIN32
-// avoid error of MSVC
-#define _CRT_SECURE_NO_WARNINGS
-#endif
+#include "libpar3.h"
 
-#include <errno.h>
+#include "common.h"
+
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#ifdef __linux__
-
-#include <sys/stat.h>
-
-// default permissions on directory is read, write and search by owner
-#define _mkdir(dirname) mkdir(dirname, S_IRUSR | S_IWUSR | S_IXUSR)
-
-#elif _WIN32
-
-// MSVC headers
-#include <direct.h>
-#include <sys/stat.h>
-
-#define S_ISDIR(m) (((m) & _S_IFMT) == _S_IFDIR)
-
-#endif
-
-#include "libpar3.h"
-#include "common.h"
 #include "file.h"
 #include "inside.h"
 #include "verify.h"
+
 
 // It will restore permissions or attributes after files are repaired.
 // return 0 = no need repair, 1 = restored successfully, 2 = failed

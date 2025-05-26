@@ -1,17 +1,13 @@
-#ifdef _WIN32
-// avoid error of MSVC
-#define _CRT_SECURE_NO_WARNINGS
-#endif
+#include "libpar3.h"
 
-#include <errno.h>
+#include "blake3/blake3.h"
+
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
-#include "blake3/blake3.h"
-#include "libpar3.h"
 #include "hash.h"
 
 

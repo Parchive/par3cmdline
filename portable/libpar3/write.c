@@ -1,22 +1,14 @@
-/* Redefinition of _FILE_OFFSET_BITS must happen BEFORE including stdio.h */
-#ifdef __linux__
-#define _FILE_OFFSET_BITS 64
-#define _fseeki64 fseeko
-#define _ftelli64 ftello
-#elif _WIN32
-// avoid error of MSVC
-#define _CRT_SECURE_NO_WARNINGS
-#endif
+#include "libpar3.h"
 
-#include <errno.h>
+#include "common.h"
+
+#include "blake3/blake3.h"
+
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include "blake3/blake3.h"
-#include "libpar3.h"
-#include "common.h"
 #include "galois.h"
 #include "hash.h"
 #include "packet.h"

@@ -1,31 +1,12 @@
-/* Redefinition of _FILE_OFFSET_BITS must happen BEFORE including stdio.h */
-#ifdef __linux__
-#define _FILE_OFFSET_BITS 64
-#define _stat64 stat
-#elif _WIN32
-#endif
+#include "libpar3.h"
 
-#include <errno.h>
+#include "common.h"
+
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#ifdef __linux__
-#include <sys/stat.h>
-#elif _WIN32
-// MSVC headers
-#include <sys/stat.h>
-
-// _S_IFDIR = 0x4000
-#define S_ISDIR(m) (((m) & _S_IFMT) == _S_IFDIR)
-// _S_IFREG = 0x8000
-#define S_ISREG(m) (((m) & _S_IFMT) == _S_IFREG)
-#endif
-
-#include "blake3/blake3.h"
-#include "libpar3.h"
-#include "common.h"
 #include "hash.h"
 #include "file.h"
 #include "verify.h"

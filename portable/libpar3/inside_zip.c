@@ -1,35 +1,12 @@
-/* Redefinition of _FILE_OFFSET_BITS must happen BEFORE including stdio.h */
-#ifdef __linux__
-#define _FILE_OFFSET_BITS 64
-#define _fseeki64 fseeko
-#define _fileno fileno
-#define _chsize_s ftruncate
-#elif _WIN32
-// avoid error of MSVC
-#define _CRT_SECURE_NO_WARNINGS
-#endif
+#include "libpar3.h"
 
-#include <errno.h>
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#ifdef __linux__
-
-#include <unistd.h>
-
-#elif _WIN32
-
-// MSVC headers
-#include <io.h>
-
-#endif
-
-#include "libpar3.h"
 #include "hash.h"
 #include "inside.h"
-#include "common.h"
 
 
 #define ZIP_SEARCH_SIZE	1024

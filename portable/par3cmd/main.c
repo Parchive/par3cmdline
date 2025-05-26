@@ -1,39 +1,18 @@
+#include "platform/platform.h"
+
 #ifdef _WIN32
 // avoid error of MSVC
 #define _CRT_SECURE_NO_WARNINGS
 #endif
 
-#include <errno.h>
 #include <inttypes.h>
 #include <locale.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#ifdef __linux__
-
-#include <unistd.h> 
-#define _chdir  chdir
-#define _getcwd getcwd
-
-#include <strings.h>
-#define _strnicmp strncasecmp
-#define _stricmp strcasecmp
-
-/* This definition of _MAX_FNAME works for GCC on POSIX systems */
-#include <limits.h>
-#define _MAX_FNAME NAME_MAX
-
-/* Not sure if this is the right definition, but it seems like a safe one.*/
-#define _MAX_DIR PATH_MAX
-
-#elif _WIN32
-// MSVC headers
-#include <direct.h>
-#endif
-
-#include "libpar3.h"
-#include "common.h"
+#include "libpar3/libpar3.h"
+#include "libpar3/common.h"
 
 
 // This application name and version
