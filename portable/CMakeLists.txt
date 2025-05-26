@@ -4,14 +4,19 @@ project("Par3" VERSION 0.1
     DESCRIPTION "Reference implementation of Parity Volume Set Specification 3.0"
     LANGUAGES C CXX)
 
-set(CMAKE_C_FLAGS "-std=c99 -Wall")
-set(CMAKE_CXX_FLAGS "-std=c++20 -Wall")
+set(CMAKE_C_STANDARD 99)
+set(CMAKE_C_EXTENSIONS OFF)
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+add_compile_options(-Wall)
 
 if ( CMAKE_CXX_COMPILER_ID STREQUAL "Clang" OR
      CMAKE_CXX_COMPILER_ID STREQUAL "GNU" )
-    # Clang/GCC: enable more warnings
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wextra -Werror=implicit-function-declaration")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wextra")
+    add_compile_options(-Wextra)
+
+    # Prepend so this can be overridden with CFLAGS when calling CMake:
+    set(CMAKE_C_FLAGS "-Werror=implicit-function-declaration ${CMAKE_C_FLAGS}")
 endif()
 
 add_subdirectory(blake3)
