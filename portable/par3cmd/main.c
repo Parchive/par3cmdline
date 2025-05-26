@@ -1,9 +1,9 @@
 #include "platform/platform.h"
 
-#ifdef _WIN32
-// avoid error of MSVC
-#define _CRT_SECURE_NO_WARNINGS
-#endif
+#include "locale_helpers.h"
+
+#include "libpar3/libpar3.h"
+#include "libpar3/common.h"
 
 #include <inttypes.h>
 #include <locale.h>
@@ -11,8 +11,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "libpar3/libpar3.h"
-#include "libpar3/common.h"
 
 
 // This application name and version
@@ -103,7 +101,7 @@ int main(int argc, char *argv[])
 	// For non UTF-8 code page system
 	ret = 1;
 	tmp_p = setlocale(LC_ALL, "");
-	if ( (argc > 2) && (tmp_p != NULL) && (strstr(tmp_p, "utf8") == NULL) ){
+	if ( (argc > 2) && (tmp_p != NULL) && !ctype_is_utf8() ){
 		wchar_t *w_argv_buf;
 
 		//printf("default locale = %s\n", tmp_p);
@@ -134,7 +132,7 @@ int main(int argc, char *argv[])
 			mbstowcs(w_argv_buf, utf8_argv_buf, len);
 
 			// change to UTF-8
-			if (setlocale(LC_ALL, ".UTF-8") == NULL){	// could not change locale
+			if ( ctype_set_utf8() != 0 ){	// could not change locale
 				printf("Failed to set UTF-8.\nUnicode filename won't be supported.\n");
 				free(utf8_argv);
 				utf8_argv = NULL;
@@ -158,11 +156,8 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	if (ret){	// change locale's code page to use UTF-8
-		tmp_p = setlocale(LC_ALL, ".UTF-8");
-		if (tmp_p == NULL){
-			printf("Failed to set UTF-8.\nUnicode filename won't be supported.\n");
-		}
+	if (ret && ctype_set_utf8() != 0){	// change locale's code page to use UTF-8
+		printf("Failed to set UTF-8.\nUnicode filename won't be supported.\n");
 	}
 
 	// After here, use "ret = *" and "goto prepare_return;" to release memory before return.
