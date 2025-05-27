@@ -157,7 +157,7 @@ int rs8_invert_matrix_cauchy(PAR3_CTX *par3_ctx, int lost_count)
 	// Set index of existing input blocks after
 	k = 0;
 	for (j = 0; j < block_count; j++){
-		if (j == lost_id[k]){
+		if (k < lost_count && j == lost_id[k]){
 			k++;
 			continue;
 		}
