@@ -135,6 +135,7 @@ typedef struct {
 							// FAT Permissions Packet: 0x10000 = LastWriteTimestamp
 	uint32_t search_limit;	// how long time to slide search (milli second)
 	uint64_t memory_limit;	// how much memory to use (byte)
+	int repetition_limit;	// max repetition of packets in each file
 
 	// For CRC-64 as rolling hash
 	uint64_t window_table[256];		// slide window search for block size

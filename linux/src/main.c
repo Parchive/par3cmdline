@@ -46,7 +46,7 @@ static void print_version(int show_copyright)
 
 	if (show_copyright){
 		printf(
-"\nCopyright (C) 2022 Yutaka Sawada.\n\n"
+"\nCopyright (C) 2025 Yutaka Sawada.\n\n"
 "par3cmdline comes with ABSOLUTELY NO WARRANTY.\n\n"
 "This is free software; you can redistribute it and/or modify it\n"
 "under the terms of the GNU Lesser General Public License as published\n"
@@ -103,6 +103,7 @@ static void print_help(void)
 "  -i<n>    : Number of interleaving"
 "  -fu<n>   : Use UNIX Permissions Packet\n"
 "  -ff      : Use FAT Permissions Packet\n"
+"  -lp<n>   : Limit repetition of packets in each file\n"
 "  -C<text> : Set comment\n"
 	);
 }
@@ -649,6 +650,20 @@ int main(int argc, char *argv[])
 					}
 				}
 
+			} else if ( (tmp_p[0] == 'l') && (tmp_p[1] == 'p')
+					&& (tmp_p[2] >= '0') && (tmp_p[2] <= '9') ){	// Max repetition
+				if ( (command_operation != 'c') && (command_operation != 'e') ){
+					printf("Cannot specify max repetition unless creating.\n");
+					ret = RET_INVALID_COMMAND;
+					goto prepare_return;
+				} else if (par3_ctx->repetition_limit != 0){
+					printf("Cannot specify max repetition twice.\n");
+					ret = RET_INVALID_COMMAND;
+					goto prepare_return;
+				} else {
+					par3_ctx->repetition_limit = strtoul(tmp_p + 2, NULL, 10);
+				}
+
 			} else if ( (tmp_p[0] == 'C') && (tmp_p[1] != 0) ){	// Set comment
 				if (command_operation != 'c'){
 					printf("Cannot specify comment unless creating.\n");
@@ -851,6 +866,8 @@ int main(int argc, char *argv[])
 			printf("Absolute path = enable\n");
 		if (par3_ctx->data_packet != 0)
 			printf("Data packet = store\n");
+		if (par3_ctx->repetition_limit != 0)
+			printf("Max packet repetition = %u\n", par3_ctx->repetition_limit);
 		if (par3_ctx->base_path[0] != 0)
 			printf("Base path = \"%s\"\n", par3_ctx->base_path);
 		printf("PAR file = \"%s\"\n", par3_ctx->par_filename);

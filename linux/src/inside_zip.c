@@ -367,9 +367,14 @@ uint64_t inside_zip_size(PAR3_CTX *par3_ctx,
 		if (repeat_count > redundancy_percent - 1)
 			repeat_count = redundancy_percent - 1;
 	} else if (redundancy_percent < 20){	// n * 100 / (100 + n)
-		i = (redundancy_percent * 100) / (100 + redundancy_percent);
-		if (repeat_count > (int)i)
-			repeat_count = (int)i;
+		int limit_count = (redundancy_percent * 100) / (100 + redundancy_percent);
+		if (repeat_count > limit_count)
+			repeat_count = limit_count;
+	}
+	if (par3_ctx->repetition_limit > 0){	// Limit repetition of packets in each file.
+		int limit_count = par3_ctx->repetition_limit - 1;	// Additional copies
+		if (repeat_count > limit_count)
+			repeat_count = limit_count;
 	}
 	if (par3_ctx->noise_level >= 2){
 		printf("repeat_count = %d\n", repeat_count);
