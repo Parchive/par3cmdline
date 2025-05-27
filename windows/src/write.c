@@ -191,6 +191,11 @@ static int write_data_packet(PAR3_CTX *par3_ctx, char *file_name, uint64_t each_
 	packet_count = 0;	// reduce 1, because put 1st copy at first.
 	for (num = 2; num <= each_count; num *= 2)	// log2(each_count)
 		packet_count++;
+	if (par3_ctx->repetition_limit > 0){	// Limit repetition of packets in each file.
+		size_t limit_count = par3_ctx->repetition_limit - 1;	// Additional copies
+		if (packet_count > limit_count)
+			packet_count = limit_count;
+	}
 	//printf("each_count = %"PRIu64", repetition = %zu\n", each_count, packet_count);
 	packet_count *= par3_ctx->common_packet_count;
 	//printf("number of repeated packets = %zu\n", packet_count);
@@ -608,6 +613,11 @@ static int write_recovery_packet(PAR3_CTX *par3_ctx, char *file_name, uint64_t e
 	packet_count = 0;	// reduce 1, because put 1st copy at first.
 	for (num = 2; num <= each_count; num *= 2)	// log2(each_count)
 		packet_count++;
+	if (par3_ctx->repetition_limit > 0){	// Limit repetition of packets in each file.
+		size_t limit_count = par3_ctx->repetition_limit - 1;	// Additional copies
+		if (packet_count > limit_count)
+			packet_count = limit_count;
+	}
 	//printf("each_count = %"PRIu64", repetition = %zu\n", each_count, packet_count);
 	packet_count *= par3_ctx->common_packet_count;
 	//printf("number of repeated packets = %zu\n", packet_count);
