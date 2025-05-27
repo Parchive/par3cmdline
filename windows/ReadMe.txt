@@ -87,6 +87,7 @@ Options: (create)
   -i<n>    : Number of interleaving
   -fu<n>   : Use UNIX Permissions Packet
   -ff      : Use FAT Permissions Packet
+  -lp<n>   : Limit repetition of packets in each file
   -C<text> : Set comment
 
 
@@ -462,6 +463,35 @@ At this time, this supports only one field: LastWriteTime.
  Because Microsoft C-runtime library doesn't support FileAttributes nor directory,
 you cannot store/recover them in par3cmdline.
 Another PAR3 client may support other fields or directory.
+
+
+
+[ About "-lp<n>" option ]
+
+ You may limit repetition of packets in each PAR file.
+It will repeat critical packets by number of included blocks like below.
+
+Redundancy of critical packets;
+number of blocks = 0 ~ 1 : number of copies = 1
+number of blocks = 2 ~ 3 : number of copies = 2
+number of blocks = 4 ~ 7 : number of copies = 3
+number of blocks = 8 ~ 15 : number of copies = 4
+number of blocks = 16 ~ 31 : number of copies = 5
+number of blocks = 32 ~ 63 : number of copies = 6
+number of blocks = 64 ~ 127 : number of copies = 7
+number of blocks = 128 ~ 255 : number of copies = 8
+number of blocks = 256 ~ 511 : number of copies = 9
+number of blocks = 512 ~ 1023 : number of copies = 10
+number of blocks = 1024 ~ 2047 : number of copies = 11
+number of blocks = 2048 ~ 4095 : number of copies = 12
+number of blocks = 4096 ~ 8191 : number of copies = 13
+number of blocks = 8192 ~ 16383 : number of copies = 14
+number of blocks = 16384 ~ 32767 : number of copies = 15
+number of blocks = 32768 ~ 65535 : number of copies = 16
+
+ If you want to make smaller PAR files, you should set this option.
+When there are some PAR files, setting "-lp3" would be enough.
+The option puts packets at the top, in middle, and at the end of a PAR file.
 
 
 
