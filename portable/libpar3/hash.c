@@ -1,6 +1,6 @@
 #include "libpar3.h"
 
-#include "blake3/blake3.h"
+#include "../blake3/blake3.h"
 
 #include <stdio.h>
 #include <stdlib.h>

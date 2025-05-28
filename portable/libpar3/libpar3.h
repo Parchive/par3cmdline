@@ -1,7 +1,7 @@
 #ifndef __LIBPAR3_H__
 #define __LIBPAR3_H__
 
-#include "platform/platform.h"
+#include "../platform/platform.h"
 
 // Return value of par3cmdline (same as par2cmdline)
 #define RET_SUCCESS             0

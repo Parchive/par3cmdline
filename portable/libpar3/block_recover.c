@@ -1,6 +1,6 @@
 #include "libpar3.h"
 
-#include "leopard/leopard.h"
+#include "../leopard/leopard.h"
 
 #include <inttypes.h>
 #include <stdio.h>
@@ -945,7 +945,7 @@ int recover_lost_block_split(PAR3_CTX *par3_ctx, char *temp_path, uint64_t lost_
 		for (lost_index = 0; lost_index < lost_count; lost_index++){
 			block_index = recv_id[lost_index];	// Index of the recovery block
 			if (par3_ctx->ecc_method & 8){	// FFT based Reed-Solomon Codes
-				buf_p = recovery_data[block_index];	// Address of the recovery block
+				buf_p = (uint8_t *)recovery_data[block_index];	// Address of the recovery block
 			}
 
 			// Search packet for the recovery block

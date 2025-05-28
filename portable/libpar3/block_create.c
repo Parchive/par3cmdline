@@ -1,6 +1,6 @@
 #include "libpar3.h"
 
-#include "leopard/leopard.h"
+#include "../leopard/leopard.h"
 
 #include <inttypes.h>
 #include <stdio.h>

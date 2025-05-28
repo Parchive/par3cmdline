@@ -2,7 +2,7 @@
 
 #include "common.h"
 
-#include "blake3/blake3.h"
+#include "../blake3/blake3.h"
 
 #include <inttypes.h>
 #include <stdio.h>
