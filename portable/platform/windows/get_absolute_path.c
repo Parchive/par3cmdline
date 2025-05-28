@@ -3,6 +3,7 @@
 #include <io.h>
 #include <search.h>
 #include <stdio.h>
+#include <string.h>
 
 // convert relative path to absolute path
 int get_absolute_path(char *absolute_path, const char *relative_path, size_t max)
