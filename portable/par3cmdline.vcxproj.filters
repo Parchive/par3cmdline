@@ -1,0 +1,261 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="ソース ファイル">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="ヘッダー ファイル">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;h++;hm;inl;inc;ipp;xsd</Extensions>
+    </Filter>
+    <Filter Include="リソース ファイル">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+    <Filter Include="ソース ファイル\libpar3">
+      <UniqueIdentifier>{5ae2803b-6434-402b-ba3d-d86bd0aa6158}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ソース ファイル\blake3">
+      <UniqueIdentifier>{63be1fa7-1776-4ae0-8fd3-829a9872f3c1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ソース ファイル\leopard">
+      <UniqueIdentifier>{e354cccb-b2ed-4776-a98d-cb93172a181c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ソース ファイル\platform">
+      <UniqueIdentifier>{1c1628f8-cb14-471d-a060-7cd78e6a291d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ソース ファイル\par3cmd">
+      <UniqueIdentifier>{48471b6e-4b28-4726-8633-8f675bc65b7b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ヘッダー ファイル\blake3">
+      <UniqueIdentifier>{3fe2e90b-0341-40a3-846d-34c1f57c6c30}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ヘッダー ファイル\leopard">
+      <UniqueIdentifier>{f03abe69-e6c2-4d85-8547-e86cdba86d08}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ヘッダー ファイル\libpar3">
+      <UniqueIdentifier>{547c3348-a825-4207-aa73-f4628a6d4fab}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ヘッダー ファイル\platform">
+      <UniqueIdentifier>{55b8b86c-2511-4d54-8867-05abac8b4181}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ヘッダー ファイル\par3cmd">
+      <UniqueIdentifier>{1c31c43a-c8eb-4b48-83c4-dad823a2e255}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ソース ファイル\platform\windows">
+      <UniqueIdentifier>{801b9d40-84e4-4805-bff0-54467582a4ac}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ヘッダー ファイル\platform\windows">
+      <UniqueIdentifier>{8451c322-1369-45ed-a4ce-58014e17bde1}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="blake3\blake3.c">
+      <Filter>ソース ファイル\blake3</Filter>
+    </ClCompile>
+    <ClCompile Include="blake3\blake3_avx2.c">
+      <Filter>ソース ファイル\blake3</Filter>
+    </ClCompile>
+    <ClCompile Include="blake3\blake3_avx512.c">
+      <Filter>ソース ファイル\blake3</Filter>
+    </ClCompile>
+    <ClCompile Include="blake3\blake3_dispatch.c">
+      <Filter>ソース ファイル\blake3</Filter>
+    </ClCompile>
+    <ClCompile Include="blake3\blake3_portable.c">
+      <Filter>ソース ファイル\blake3</Filter>
+    </ClCompile>
+    <ClCompile Include="blake3\blake3_sse2.c">
+      <Filter>ソース ファイル\blake3</Filter>
+    </ClCompile>
+    <ClCompile Include="blake3\blake3_sse41.c">
+      <Filter>ソース ファイル\blake3</Filter>
+    </ClCompile>
+    <ClCompile Include="leopard\leopard.cpp">
+      <Filter>ソース ファイル\leopard</Filter>
+    </ClCompile>
+    <ClCompile Include="leopard\LeopardCommon.cpp">
+      <Filter>ソース ファイル\leopard</Filter>
+    </ClCompile>
+    <ClCompile Include="leopard\LeopardFF8.cpp">
+      <Filter>ソース ファイル\leopard</Filter>
+    </ClCompile>
+    <ClCompile Include="leopard\LeopardFF16.cpp">
+      <Filter>ソース ファイル\leopard</Filter>
+    </ClCompile>
+    <ClCompile Include="libpar3\block_check.c">
+      <Filter>ソース ファイル\libpar3</Filter>
+    </ClCompile>
+    <ClCompile Include="libpar3\block_create.c">
+      <Filter>ソース ファイル\libpar3</Filter>
+    </ClCompile>
+    <ClCompile Include="libpar3\block_map.c">
+      <Filter>ソース ファイル\libpar3</Filter>
+    </ClCompile>
+    <ClCompile Include="libpar3\block_recover.c">
+      <Filter>ソース ファイル\libpar3</Filter>
+    </ClCompile>
+    <ClCompile Include="libpar3\common.c">
+      <Filter>ソース ファイル\libpar3</Filter>
+    </ClCompile>
+    <ClCompile Include="libpar3\file.c">
+      <Filter>ソース ファイル\libpar3</Filter>
+    </ClCompile>
+    <ClCompile Include="libpar3\galois8.c">
+      <Filter>ソース ファイル\libpar3</Filter>
+    </ClCompile>
+    <ClCompile Include="libpar3\galois16.c">
+      <Filter>ソース ファイル\libpar3</Filter>
+    </ClCompile>
+    <ClCompile Include="libpar3\hash.c">
+      <Filter>ソース ファイル\libpar3</Filter>
+    </ClCompile>
+    <ClCompile Include="libpar3\inside_zip.c">
+      <Filter>ソース ファイル\libpar3</Filter>
+    </ClCompile>
+    <ClCompile Include="libpar3\libpar3.c">
+      <Filter>ソース ファイル\libpar3</Filter>
+    </ClCompile>
+    <ClCompile Include="libpar3\libpar3_create.c">
+      <Filter>ソース ファイル\libpar3</Filter>
+    </ClCompile>
+    <ClCompile Include="libpar3\libpar3_extra.c">
+      <Filter>ソース ファイル\libpar3</Filter>
+    </ClCompile>
+    <ClCompile Include="libpar3\libpar3_inside.c">
+      <Filter>ソース ファイル\libpar3</Filter>
+    </ClCompile>
+    <ClCompile Include="libpar3\libpar3_verify.c">
+      <Filter>ソース ファイル\libpar3</Filter>
+    </ClCompile>
+    <ClCompile Include="libpar3\map.c">
+      <Filter>ソース ファイル\libpar3</Filter>
+    </ClCompile>
+    <ClCompile Include="libpar3\map_inside.c">
+      <Filter>ソース ファイル\libpar3</Filter>
+    </ClCompile>
+    <ClCompile Include="libpar3\map_simple.c">
+      <Filter>ソース ファイル\libpar3</Filter>
+    </ClCompile>
+    <ClCompile Include="libpar3\map_slide.c">
+      <Filter>ソース ファイル\libpar3</Filter>
+    </ClCompile>
+    <ClCompile Include="libpar3\packet_add.c">
+      <Filter>ソース ファイル\libpar3</Filter>
+    </ClCompile>
+    <ClCompile Include="libpar3\packet_make.c">
+      <Filter>ソース ファイル\libpar3</Filter>
+    </ClCompile>
+    <ClCompile Include="libpar3\packet_parse.c">
+      <Filter>ソース ファイル\libpar3</Filter>
+    </ClCompile>
+    <ClCompile Include="libpar3\read.c">
+      <Filter>ソース ファイル\libpar3</Filter>
+    </ClCompile>
+    <ClCompile Include="libpar3\reedsolomon.c">
+      <Filter>ソース ファイル\libpar3</Filter>
+    </ClCompile>
+    <ClCompile Include="libpar3\reedsolomon8.c">
+      <Filter>ソース ファイル\libpar3</Filter>
+    </ClCompile>
+    <ClCompile Include="libpar3\reedsolomon16.c">
+      <Filter>ソース ファイル\libpar3</Filter>
+    </ClCompile>
+    <ClCompile Include="libpar3\repair.c">
+      <Filter>ソース ファイル\libpar3</Filter>
+    </ClCompile>
+    <ClCompile Include="libpar3\verify.c">
+      <Filter>ソース ファイル\libpar3</Filter>
+    </ClCompile>
+    <ClCompile Include="libpar3\verify_check.c">
+      <Filter>ソース ファイル\libpar3</Filter>
+    </ClCompile>
+    <ClCompile Include="libpar3\write.c">
+      <Filter>ソース ファイル\libpar3</Filter>
+    </ClCompile>
+    <ClCompile Include="libpar3\write_inside.c">
+      <Filter>ソース ファイル\libpar3</Filter>
+    </ClCompile>
+    <ClCompile Include="libpar3\write_trial.c">
+      <Filter>ソース ファイル\libpar3</Filter>
+    </ClCompile>
+    <ClCompile Include="par3cmd\locale_helpers.c">
+      <Filter>ソース ファイル\par3cmd</Filter>
+    </ClCompile>
+    <ClCompile Include="par3cmd\main.c">
+      <Filter>ソース ファイル\par3cmd</Filter>
+    </ClCompile>
+    <ClCompile Include="platform\windows\get_absolute_path.c">
+      <Filter>ソース ファイル\platform\windows</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="blake3\blake3.h">
+      <Filter>ヘッダー ファイル\blake3</Filter>
+    </ClInclude>
+    <ClInclude Include="blake3\blake3_impl.h">
+      <Filter>ヘッダー ファイル\blake3</Filter>
+    </ClInclude>
+    <ClInclude Include="leopard\leopard.h">
+      <Filter>ヘッダー ファイル\leopard</Filter>
+    </ClInclude>
+    <ClInclude Include="leopard\LeopardCommon.h">
+      <Filter>ヘッダー ファイル\leopard</Filter>
+    </ClInclude>
+    <ClInclude Include="leopard\LeopardFF8.h">
+      <Filter>ヘッダー ファイル\leopard</Filter>
+    </ClInclude>
+    <ClInclude Include="leopard\LeopardFF16.h">
+      <Filter>ヘッダー ファイル\leopard</Filter>
+    </ClInclude>
+    <ClInclude Include="libpar3\block.h">
+      <Filter>ヘッダー ファイル\libpar3</Filter>
+    </ClInclude>
+    <ClInclude Include="libpar3\common.h">
+      <Filter>ヘッダー ファイル\libpar3</Filter>
+    </ClInclude>
+    <ClInclude Include="libpar3\file.h">
+      <Filter>ヘッダー ファイル\libpar3</Filter>
+    </ClInclude>
+    <ClInclude Include="libpar3\galois.h">
+      <Filter>ヘッダー ファイル\libpar3</Filter>
+    </ClInclude>
+    <ClInclude Include="libpar3\hash.h">
+      <Filter>ヘッダー ファイル\libpar3</Filter>
+    </ClInclude>
+    <ClInclude Include="libpar3\inside.h">
+      <Filter>ヘッダー ファイル\libpar3</Filter>
+    </ClInclude>
+    <ClInclude Include="libpar3\libpar3.h">
+      <Filter>ヘッダー ファイル\libpar3</Filter>
+    </ClInclude>
+    <ClInclude Include="libpar3\map.h">
+      <Filter>ヘッダー ファイル\libpar3</Filter>
+    </ClInclude>
+    <ClInclude Include="libpar3\packet.h">
+      <Filter>ヘッダー ファイル\libpar3</Filter>
+    </ClInclude>
+    <ClInclude Include="libpar3\read.h">
+      <Filter>ヘッダー ファイル\libpar3</Filter>
+    </ClInclude>
+    <ClInclude Include="libpar3\repair.h">
+      <Filter>ヘッダー ファイル\libpar3</Filter>
+    </ClInclude>
+    <ClInclude Include="libpar3\verify.h">
+      <Filter>ヘッダー ファイル\libpar3</Filter>
+    </ClInclude>
+    <ClInclude Include="libpar3\write.h">
+      <Filter>ヘッダー ファイル\libpar3</Filter>
+    </ClInclude>
+    <ClInclude Include="par3cmd\locale_helpers.h">
+      <Filter>ヘッダー ファイル\par3cmd</Filter>
+    </ClInclude>
+    <ClInclude Include="platform\platform.h">
+      <Filter>ヘッダー ファイル\platform</Filter>
+    </ClInclude>
+    <ClInclude Include="platform\windows\platform_windows.h">
+      <Filter>ヘッダー ファイル\platform\windows</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>
