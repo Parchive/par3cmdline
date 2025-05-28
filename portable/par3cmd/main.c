@@ -1,9 +1,9 @@
-#include "platform/platform.h"
+#include "../platform/platform.h"
 
 #include "locale_helpers.h"
 
-#include "libpar3/libpar3.h"
-#include "libpar3/common.h"
+#include "../libpar3/libpar3.h"
+#include "../libpar3/common.h"
 
 #include <inttypes.h>
 #include <locale.h>

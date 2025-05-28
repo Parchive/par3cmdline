@@ -1,3 +1,5 @@
+#include "../platform/platform.h"
+
 #include "locale_helpers.h"
 
 #include <locale.h>
