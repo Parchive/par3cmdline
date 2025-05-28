@@ -30,7 +30,5 @@ else()
     message(SEND_ERROR "Unsupported system ${CMAKE_SYSTEM_NAME}")
 endif()
 
-include_directories(.)
-
 add_subdirectory(libpar3)
 add_subdirectory(par3cmd)
