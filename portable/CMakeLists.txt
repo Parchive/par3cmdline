@@ -4,6 +4,8 @@ project("Par3" VERSION 0.1
     DESCRIPTION "Reference implementation of Parity Volume Set Specification 3.0"
     LANGUAGES C CXX)
 
+include(GNUInstallDirs)
+
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_EXTENSIONS OFF)
 set(CMAKE_CXX_STANDARD 20)
@@ -34,3 +36,7 @@ include_directories(.)
 
 add_subdirectory(libpar3)
 add_subdirectory(par3cmd)
+
+install(DIRECTORY man/
+    DESTINATION ${CMAKE_INSTALL_MANDIR}/man1
+    FILES_MATCHING PATTERN "*.1")
