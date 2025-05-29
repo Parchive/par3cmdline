@@ -1,0 +1,44 @@
+BUILDING ON WINDOWS
+===================
+
+With Microsoft Visual Studio: use the solution file (par3cmdline.sln).
+
+Alternatively, use CMake as described below.
+
+
+BUILDING ON LINUX
+=================
+
+To build using CMake:
+
+% cmake -D CMAKE_BUILD_TYPE=Release -B build
+% cmake --build build     # or:  make -C build
+
+CMAKE_BUILD_TYPE is one of: Debug, Release, RelWithDebInfo, MinSizeRel.
+
+To install:
+
+% cmake --install build   # installs under /usr/local by default
+
+
+To debug the build itself:
+
+% make -C build VERBOSE=1
+
+...will show individual commands being executed. Alternatively:
+
+% cmake -D CMAKE_VERBOSE_MAKEFILE=ON ...
+
+...will enable verbose builds by default.
+
+
+To build with Ninja instead of Make, which can be faster:
+
+% cmake -D CMAKE_BUILD_TYPE=Release -G Ninja -B build-ninja
+% cmake --build build-ninja     # or:  ninja -C build-ninja
+
+
+To cross-compile from Linux to Windows, creating a Windows executable:
+
+% cmake -D CMAKE_BUILD_TYPE=Release -D CMAKE_TOOLCHAIN_FILE=mingw-w64-x86_64.cmake -B build-windows
+% cmake --build build-windows
