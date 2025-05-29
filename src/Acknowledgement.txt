@@ -3,7 +3,7 @@
 
 https://github.com/Parchive/par3cmdline
 
-Copyright (C) 2022 Yutaka Sawada.
+Copyright (C) 2022-2025 Yutaka Sawada.
 
 par3cmdline comes with ABSOLUTELY NO WARRANTY.
 
@@ -12,6 +12,12 @@ under the terms of the GNU Lesser General Public License as published
 by the Free Software Foundation; either version 2.1 of the License,
 or (at your option) any later version.
 
+
+[ Additional authors ]
+
+File format specification by Michael D. Nahas.
+
+Linux platform support by Maks Verver.
 
 
 [ BLAKE3 cryptographic hash function ]
