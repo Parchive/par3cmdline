@@ -18,17 +18,6 @@ par3 \- PAR 3.0 compatible file verification and repair tool.
 .RI "[options] <" "PAR3 file" "> [" "files" "]"
 .br
 
-Also:
-.br
-.B par3create
-.RI "[options] <" "PAR3 file" "> [" "files" "]"
-.br
-.B par3verify
-.RI "[options] <" "PAR3 file" "> [" "files" "]"
-.br
-.B par3repair
-.RI "[options] <" "PAR3 file" "> [" "files" "]"
-.br
 .SH DESCRIPTION
 par3cmdline is a program for creating and using PAR3 files to detect damage in data files and repair them if necessary. It can be used with any kind of file.
 .SH OPTIONS
@@ -106,13 +95,13 @@ Set the basepath to use as reference for the datafiles
 .B \-\-
 Treat all following arguments as filenames
 .SH EXAMPLES
-With PAR 2.0 you can create PAR3 recovery files for as few as 1 or as many as 32768 files. If you wanted to create PAR1 recovery files for a single file you are forced to split the file into muliple parts and RAR is frequently used for this purpose. You do NOT need to split files with PAR 2.0.
+With PAR 3.0 you can create recovery files with any number of input files. There is no need to archive small files together, or to split large files into multiple parts.
 
-To create PAR 2 recovery files for a single data file (e.g. one called test.mpg), you can use the following command:
+To create PAR 3 recovery files for a single data file (e.g. one called test.mpg), you can use the following command to create a recovery file with 2000 input blocks and 100 recovery blocks:
 
-  par3 create test.mpg
+  par3 create -b2000 -c100 test.mpg
 
-If test.mpg is an 800 MB file, then this will create a total of 8 PAR3 files with the following filenames (taking roughly 6 minutes on a PC with a 1500MHz CPU):
+If test.mpg is an 800 MB file, then this will create a total of 8 PAR3 files with the following filenames (taking roughly 1 minute):
 
   test.mpg.par3 	 - This is an index file for verification only
   test.mpg.vol00+01.par3 - Recovery file with 1 recovery block
@@ -123,7 +112,7 @@ If test.mpg is an 800 MB file, then this will create a total of 8 PAR3 files wit
   test.mpg.vol31+32.par3 - Recovery file with 32 recovery blocks
   test.mpg.vol63+37.par3 - Recovery file with 37 recovery blocks
 
-The test.mpg.par3 file is 39 KB in size and the other files vary in size from 443 KB to 15 MB. These par3 files will enable the recovery of up to 100 errors totalling 40 MB of lost or damaged data from the original test.mpg file when it and the par3 files are posted on UseNet. When posting on UseNet it is recommended that you use the "-s" option to set a blocksize that is equal to the Article size that you will use to post the data file. If you wanted to post the test.mpg file using an article size of 300 KB then the command you would type is:
+The test.mpg.par3 file is 45 KB in size and the other files vary in size from 460 KB to 16 MB. These par3 files will enable the recovery of up to 100 errors totalling 40 MB of lost or damaged data from the original test.mpg file when it and the par3 files are posted on UseNet. When posting on UseNet it is recommended that you use the "-s" option to set a blocksize that is equal to the Article size that you will use to post the data file. If you wanted to post the test.mpg file using an article size of 300 KB then the command you would type is:
 
   par3 create -s307200 test.mpg
 
@@ -139,7 +128,7 @@ This specifies the same block size (which is a requirement for additional recove
 
 The "-m" option controls how much memory par3 uses. It defaults to 16 MB unless you override it.
 
-CREATING PAR3 FILES FOR MULTIPLE DATA FILES
+.SS CREATING PAR3 FILES FOR MULTIPLE DATA FILES
 
 When creating PAR3 recovery files form multiple data files, you must specify the base filename to use for the par3 files and the names of all of the data files. If test.mpg had been split into multiple RAR files, then you could use:
 
@@ -147,7 +136,7 @@ When creating PAR3 recovery files form multiple data files, you must specify the
 
 The files filename "test.mpg.rar.par3" says what you want the par3 files to be called and "test.mpg.part*.rar" should select all of the RAR files.
 
-VERIFYING AND REPAIRING
+.SS VERIFYING AND REPAIRING
 
 When using par3 recovery files to verify or repair the data files from which they were created, you only need to specify the filename of one of the par3 files to par3. For example:
 
@@ -159,7 +148,7 @@ This tells par3 to use the information in test.mpg.par3 to verify the data files
 
 This tells par3 to verify and if possible repair any damaged or missing files. If a repair is carried out, then each file which is repaired will be re-verified to confirm that the repair was successful.
 
-MISSNAMED AND INCOMPLETE DATA FILES
+.SS MISSNAMED AND INCOMPLETE DATA FILES
 
 If any of the recovery files or data files have the wrong filename, then par3 will not automatically find and scan them. To have par3 scan such files, you must include them on the command line when attempting to verify or repair; e.g.:
 
@@ -169,7 +158,7 @@ This tells par3 to scan the file called other.mpg to see if it contains any data
 
   par3 r test.mpg.par3 *
 
-WHAT TO DO WHEN YOU ARE TOLD YOU NEED MORE RECOVERY BLOCKS
+.SS WHAT TO DO WHEN YOU ARE TOLD YOU NEED MORE RECOVERY BLOCKS
 
 If par3 determines that any of the data files are damaged or missing and finds that there is insufficient recovery data to effect a repair, you will be told that you need a certain number of recovery blocks. You can obtain these by downloading additional recovery files. In order to make things easy, par3 files have filenames that tell you exactly how many recovery blocks each one contains. Assuming that the following command was used to create recovery data:
 
@@ -187,7 +176,7 @@ Then the recovery files that are created would be called:
 
 The first file in this list does not contain any recovery data, it only contains information sufficient to verify the data files. Each of the other files contains a different number of recovery blocks. The number after the '+' sign is the number of recovery blocks and the number preceding the '+' sign is the block number of the first recovery block in that file. If par3 told you that you needed 10 recovery blocks, then you would need "test.mpg.vol01+02.par3" and "test.mpg.vol07+08.par". You might of course choose to fetch "test.mpg.vol15+16.par3" instead (in which case you would have an extra 6 recovery blocks which would not be used for the repair).
 
-HASHING
+.SS HASHING
 
 Hashing portion (file verification and creation stages) of the code can't be parallelized without processing multiple files simultaneously. The 2 file/thread default is a good choice for HDDs, using more threads can result in worse performance. Four or more threads can be used for better performance with SSDs.
 
