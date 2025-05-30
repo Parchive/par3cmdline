@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "common.h"
 #include "hash.h"
 #include "inside.h"
 
@@ -333,18 +334,16 @@ uint64_t inside_zip_size(PAR3_CTX *par3_ctx,
 	for (i = 4; i <= recovery_block_count; i *= 2)	// log2(recovery_block_count)
 		repeat_count++;
 	// Limit repetition by redundancy
-	// Redundancy = 0 ~ 5% : Max 4 times
-	// Redundancy = 6 ~ 10% : Max "redundancy - 1" times
-	// Redundancy = 11% : 11 * 100 / 111 = 9.91, Max 9 times
-	// Redundancy = 20% : 20 * 100 / 120 = 16.66, Max 16 times
-	if (redundancy_percent <= 5){
-		if (repeat_count > 4)
-			repeat_count = 4;
-	} else if (redundancy_percent <= 10){
-		if (repeat_count > redundancy_percent - 1)
-			repeat_count = redundancy_percent - 1;
-	} else if (redundancy_percent < 20){	// n * 100 / (100 + n)
-		int limit_count = (redundancy_percent * 100) / (100 + redundancy_percent);
+	// Redundancy = 1 ~ 8% : log2(8) = 3, Max 3 times
+	// Redundancy = 9 ~ 16% : log2(16) = 4, Max 4 times
+	// Redundancy = 17 ~ 32% : log2(32) = 5, Max 5 times
+	// Redundancy = 33 ~ 64% : log2(64) = 6, Max 6 times
+	// Redundancy = 65 ~ 128% : log2(128) = 7, Max 7 times
+	if (redundancy_percent <= 8){
+		if (repeat_count > 3)
+			repeat_count = 3;
+	} else {
+		int limit_count = roundup_log2(redundancy_percent);
 		if (repeat_count > limit_count)
 			repeat_count = limit_count;
 	}
