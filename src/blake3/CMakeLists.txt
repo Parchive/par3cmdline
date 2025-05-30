@@ -11,4 +11,4 @@ add_library(blake3 STATIC
 set_source_files_properties(blake3_sse2.c   PROPERTIES COMPILE_OPTIONS "-msse2")
 set_source_files_properties(blake3_sse41.c  PROPERTIES COMPILE_OPTIONS "-msse4.1")
 set_source_files_properties(blake3_avx2.c   PROPERTIES COMPILE_OPTIONS "-mavx2")
-set_source_files_properties(blake3_avx512.c PROPERTIES COMPILE_OPTIONS "-mavx512f -mavx512vl")
+set_source_files_properties(blake3_avx512.c PROPERTIES COMPILE_OPTIONS "-mavx512vl")
