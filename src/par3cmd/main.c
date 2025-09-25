@@ -37,9 +37,9 @@ static void print_help(void)
 {
 	printf(
 "Usage:\n"
-"  par3 -h  : show this help\n"
-"  par3 -V  : show version\n"
-"  par3 -VV : show version and copyright\n\n"
+"  par3 -h  : Show this help\n"
+"  par3 -V  : Show version\n"
+"  par3 -VV : Show version and copyright\n\n"
 "  par3 tc       [options] <PAR3 file> [files] : Try to create PAR3 files\n"
 "  par3 te       [options] <PAR3 file> [file]  : Try to extend PAR3 files\n"
 "  par3 c(reate) [options] <PAR3 file> [files] : Create PAR3 files\n"
@@ -65,8 +65,8 @@ static void print_help(void)
 "Options: (create)\n"
 "  -b<n>    : Set the Block-Count\n"
 "  -s<n>    : Set the Block-Size (don't use both -b and -s)\n"
-"  -r<n>    : Level of redundancy (%%)\n"
-"  -rm<n>   : Maximum redundancy (%%)\n"
+"  -r<n>    : Level of redundancy (percentage)\n"
+"  -rm<n>   : Maximum redundancy (percentage)\n"
 "  -c<n>    : Recovery Block-Count (don't use both -r and -c)\n"
 "  -cf<n>   : First Recovery-Block-Number\n"
 "  -cm<n>   : Maximum Recovery Block-Count\n"
