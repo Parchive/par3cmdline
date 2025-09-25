@@ -77,7 +77,7 @@ static void print_help(void)
 "  -D       : Store Data packets\n"
 "  -d<n>    : Enable deduplication of input blocks\n"
 "  -e<n>    : Set using Error Correction Codes\n"
-"  -i<n>    : Number of interleaving"
+"  -i<n>    : Number of interleaving\n"
 "  -fu<n>   : Use UNIX Permissions Packet\n"
 "  -ff      : Use FAT Permissions Packet\n"
 "  -lp<n>   : Limit repetition of packets in each file\n"
@@ -1174,3 +1174,4 @@ prepare_return:
 
 	return ret;
 }
+
