@@ -1,6 +1,6 @@
 .\" Manpage for par3
-.\" Contact par3@mike.nahasmail.com for mistakes.
-.TH par3 1 "may 2022" "0.0.1" "Parity archive utils"
+.\" Contact tenfon@outlook.jp for mistakes.
+.TH par3 1 "may 2025" "0.0.1" "Parity archive utils"
 .SH NAME
 par3 \- PAR 3.0 compatible file verification and repair tool.
 .SH SYNOPSIS
@@ -18,6 +18,35 @@ par3 \- PAR 3.0 compatible file verification and repair tool.
 .RI "[options] <" "PAR3 file" "> [" "files" "]"
 .br
 
+.B par3 tc
+.RI "      [options] <" "PAR3 file" "> [" "files" "]"
+.br
+.B par3 te
+.RI "      [options] <" "PAR3 file" "> [" "file" "]"
+.br
+.B par3 e(xtend)
+.RI "[options] <" "PAR3 file" "> [" "file" "]"
+.br
+.B par3 l(ist)
+.RI "  [options] <" "PAR3 file" ">"
+.br
+
+.B par3 ti
+.RI "      [options] <" "ZIP file" ">"
+.br
+.B par3 i(nsert)
+.RI "[options] <" "ZIP file" ">"
+.br
+.B par3 d(elete)
+.RI "[options] <" "ZIP file" ">"
+.br
+.B par3 vs
+.RI "      [options] <" "ZIP file" "> [" "files" "]"
+.br
+.B par3 rs
+.RI "      [options] <" "ZIP file" "> [" "files" "]"
+.br
+
 .SH DESCRIPTION
 par3cmdline is a program for creating and using PAR3 files to detect damage in data files and repair them if necessary. It can be used with any kind of file.
 .SH OPTIONS
@@ -31,27 +60,26 @@ Show version
 .B \-VV
 Show version and copyright
 .TP
-.BI "\-a <" "file" ">"
-Set the main PAR3 archive name; required on create, optional for verify and repair
-.TP
 .B \-b<n>
 Set the Block\(hyCount
 .TP
 .B \-s<n>
 .RB "Set the Block\(hySize (don't use both " "\-b" " and " "\-s" ")"
-
 .TP
 .B \-r<n>
 Level of redundancy (percentage)
 .TP
-.B \-r<c><n>
-Redundancy target size, <c>=g(iga),m(ega),k(ilo) bytes
+.B \-rm<n>
+Maximum redundancy (percentage)
 .TP
 .B \-c<n>
 .RB "Recovery block count (don't use both " "\-r" " and " "\-c" ")"
 .TP
-.B \-f<n>
+.B \-cf<n>
 First Recovery\(hyBlock\(hyNumber
+.TP
+.B \-cm<n>
+Maximum Recovery Block\(hyCount
 .TP
 .B \-u
 Uniform recovery file sizes
@@ -63,13 +91,7 @@ Uniform recovery file sizes
 .RB "Number of recovery files (don't use both " "\-n" " and " "\-l" ")"
 .TP
 .B \-m<n>
-Memory (in MB) to use
-.TP
-.B \-t<n>
-.RB "Number of threads used for main processing (auto-detected)"
-.TP
-.B \-T<n>
-.RB "Number of files hashed in parallel (during file verification and creation stages, 2 default)"
+Memory to use
 .TP
 .B \-v [\-v]
 Be more verbose
@@ -77,20 +99,41 @@ Be more verbose
 .B \-q [\-q]
 .RB "Be more quiet (" "\-qq" " gives silence)"
 .TP
-.B \-p
-Purge backup files and par files on successful recovery or when no recovery is needed
-.TP
 .B \-R
 Recurse into subdirectories (only useful on create)
 .TP
-.B \-N
-data skipping (find badly mispositioned data blocks)
+.B \-D
+Store Data packets
+.TP
+.B \-C<text>
+Set comment
 .TP
 .B \-S<n>
-Skip leaway (distance +/\- from expected block position)
+Searching time limit (milli second)
 .TP
 .B \-B<path>
 Set the basepath to use as reference for the datafiles
+.TP
+.B \-abs
+Enable absolute path
+.TP
+.B \-d<n>
+Enable deduplication of input blocks
+.TP
+.B \-e<n>
+Set using Error Correction Codes
+.TP
+.B \-i<n>
+Number of interleaving
+.TP
+.B \-fu<n>
+Use UNIX Permissions Packet
+.TP
+.B \-ff
+Use FAT Permissions Packet
+.TP
+.B \-lp<n>
+Limit repetition of packets in each file
 .TP
 .B \-\-
 Treat all following arguments as filenames
@@ -120,13 +163,13 @@ This will create 9 PAR3 files instead of 8, and they will be capable of correcti
 
   par3 create -s307200 -r10 test.mpg
 
-This would also create 9 PAR3 files, but they would be able to correct up to 269 errors totalling 80 MB. Since twice as much recovery data is created, it will take about 16 minutes to do so with a 1500MHz CPU. The "-u" and "-n" options can be used to control exactly how many recovery files are created and how the recovery blocks are distributed amoungst them. They do not affect the total quantity of recovery data created. The "-f" option is used when you create additional recovery data. e.g. If you have already created 10% and want another 5% then you migh use the following command:
+This would also create 9 PAR3 files, but they would be able to correct up to 269 errors totalling 80 MB. Since twice as much recovery data is created, it will take about 16 minutes to do so with a 1500MHz CPU. The "-u" and "-n" options can be used to control exactly how many recovery files are created and how the recovery blocks are distributed amoungst them. They do not affect the total quantity of recovery data created. The "-cf" option is used when you create additional recovery data. e.g. If you have already created 10% and want another 5% then you migh use the following command:
 
-  par3 create -s307200 -r5 -f300 test.mpg
+  par3 create -s307200 -r5 -cf300 test.mpg
 
 This specifies the same block size (which is a requirement for additional recovery files), 5% recovery data, and a first block number of 300.
 
-The "-m" option controls how much memory par3 uses. It defaults to 16 MB unless you override it.
+The "-m" option controls how much memory par3 uses. It defaults to unlimited, unless you override it. You may set last character to "k", "kb", "m", "mb", "g", or "gb" as unit (case insensitive). Thus, setting "-m1MB" is same as "-m1048576".
 
 .SS CREATING PAR3 FILES FOR MULTIPLE DATA FILES
 
@@ -176,12 +219,26 @@ Then the recovery files that are created would be called:
 
 The first file in this list does not contain any recovery data, it only contains information sufficient to verify the data files. Each of the other files contains a different number of recovery blocks. The number after the '+' sign is the number of recovery blocks and the number preceding the '+' sign is the block number of the first recovery block in that file. If par3 told you that you needed 10 recovery blocks, then you would need "test.mpg.vol01+02.par3" and "test.mpg.vol07+08.par". You might of course choose to fetch "test.mpg.vol15+16.par3" instead (in which case you would have an extra 6 recovery blocks which would not be used for the repair).
 
-.SS HASHING
+.SS EXPERIMENTAL FEATURE
 
-Hashing portion (file verification and creation stages) of the code can't be parallelized without processing multiple files simultaneously. The 2 file/thread default is a good choice for HDDs, using more threads can result in worse performance. Four or more threads can be used for better performance with SSDs.
+If you want to know what happens, you may use trial command. They are "tc" (try to create), "te" (try to extend), "ti" (try to inset). These commands don't write files but show possible result.
+
+If you want to include data files in PAR files, you may set "-D" option. When test.mpg is the data file, it's splitted into multiple pieces, and saved as "test.mpg.part#+#.par3".
+
+If you want smaller PAR files, you may limit repetition of packets in each PAR file. When there are some PAR files, setting "-lp3" would be enough. The option puts critical packets at the top, in middle, and at the end of a PAR file.
+
+If you want faster creation or repair, you may try "FFT based Reed-Solomon Codes" by setting "-e8" option. But, this algorithm isn't official yet.
+
+If you want ot store "modification time" of data files, you may set "-fu1" or "-ff" options. It will restore the time stamp at repair.
+
+If you want to protect a ZIP file by PAR3 technology, you may insert PAR3 data in a ZIP file directly by "i(nsert)" command. You may remove inserted PAR3 data from a ZIP file by "d(elete)" command. To see integrity of the protected ZIP file, use "vs" (verify itself) command. To repair a protected ZIP file, use "vr" (repair itself) command.
+
+Don't use "-abs" or "-ABS" option normally. By setting this, absolute path of files are stored in PAR3 files at creation.
+
+Don't use "-d1" or "-d2" option normally. By setting this, creation will be very slow.
 
 .SH AUTHORS
-Yutaka Sawada <>
+Yutaka Sawada <tenfon@outlook.jp>
 .br
 Micahel Nahas <par3@mike.nahasmail.com>
 .br
