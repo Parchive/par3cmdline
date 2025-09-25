@@ -43,9 +43,9 @@ It doesn't support "PAR inside" feature yet.
 
 
 Usage:
-  par3 -h  : show this help
-  par3 -V  : show version
-  par3 -VV : show version and copyright
+  par3 -h  : Show this help
+  par3 -V  : Show version
+  par3 -VV : Show version and copyright
 
   par3 tc       [options] <PAR3 file> [files] : Try to create PAR3 files
   par3 te       [options] <PAR3 file> [file]  : Try to extend PAR3 files
@@ -72,8 +72,8 @@ Options: (verify or repair)
 Options: (create)
   -b<n>    : Set the Block-Count
   -s<n>    : Set the Block-Size (don't use both -b and -s)
-  -r<n>    : Level of redundancy (%)
-  -rm<n>   : Maximum redundancy (%)
+  -r<n>    : Level of redundancy (percentage)
+  -rm<n>   : Maximum redundancy (percentage)
   -c<n>    : Recovery Block-Count (don't use both -r and -c)
   -cf<n>   : First Recovery-Block-Number
   -cm<n>   : Maximum Recovery Block-Count
