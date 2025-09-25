@@ -405,8 +405,8 @@ something.part#+#.par3
 [ About "-d<n>" option ]
 
  At this time, "-d1" and "-d2" are available.
-Deduplication level 1 : same blocks of ordinary offset are be detected.
-Deduplication level 2 : same blocks of varied offset are detected.
+Deduplication level 1 : Same blocks of ordinary offset are detected.
+Deduplication level 2 : Same blocks of varied offset are detected.
 Be careful, comparing checksum of blocks is slow.
 This may be useless for random data like compressed file.
 
