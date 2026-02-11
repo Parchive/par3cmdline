@@ -38,7 +38,7 @@ At this time, this supports Reed-Solomon Codes with Cauchy Matrix
 and FFT based Reed-Solomon Codes by Leopard-RS library.
 
 It doesn't use maultiple Recovery Codes at once.
-It doesn't support "PAR inside" feature yet.
+It doesn't support "PAR inside PAR" feature yet.
 
 
 
