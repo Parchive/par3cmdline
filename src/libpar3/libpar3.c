@@ -1,12 +1,12 @@
 #include "libpar3.h"
 
-#include "common.h"
-
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+
+#include "common.h"
 
 
 // recursive search into sub-directories

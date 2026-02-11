@@ -5,6 +5,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "common.h"
+
 // Count how many number of input file slices, and allocate memory for them.
 int count_slice_info(PAR3_CTX *par3_ctx)
 {
@@ -368,7 +370,7 @@ int calculate_recovery_count(PAR3_CTX *par3_ctx)
 		}
 
 	} else if (par3_ctx->ecc_method & 8){	// FFT based Reed-Solomon Codes
-		uint64_t cohort_count, i;
+		uint64_t cohort_count, i, m1, n1, r0, r1, s1;
 
 		if (par3_ctx->noise_level >= 0){
 			printf("FFT based Reed-Solomon Codes\n");
@@ -384,21 +386,26 @@ int calculate_recovery_count(PAR3_CTX *par3_ctx)
 
 		// When there are too many block, it uses interleaving automatically.
 		if (cohort_count == 1){
-			// Check total number of blocks
-			total_count = par3_ctx->block_count + par3_ctx->first_recovery_block + par3_ctx->recovery_block_count;
-			if (total_count < par3_ctx->block_count + par3_ctx->max_recovery_block)
-				total_count = par3_ctx->block_count + par3_ctx->max_recovery_block;
-			if (total_count > 65536){
+			// Number of possible recovery blocks
+			r0 = par3_ctx->first_recovery_block + par3_ctx->recovery_block_count;
+			if (r0 < par3_ctx->max_recovery_block)
+				r0 = par3_ctx->max_recovery_block;
+			// Check total number of blocks for leo_encode() in "leopard.cpp"
+			total_count = par3_ctx->block_count + r0;
+			if (total_count > 65536)
 				cohort_count = (total_count + 65536 - 1) / 65536;
-				printf("Number of cohort is increased to %"PRIu64".\n", cohort_count);
+			while (1){	// Check values per cohort
+				r1 = (r0 + cohort_count - 1) / cohort_count;
+				s1 = (par3_ctx->block_count + cohort_count - 1) / cohort_count;
+				m1 = next_pow2(r1);
+				n1 = next_pow2(m1 + s1);
+				//printf("r = %"PRIu64", m = %"PRIu64", n = %"PRIu64"\n", r1, m1, n1);
+				if ( (n1 <= 65536) && (r1 <= 32768) )
+					break;
+				cohort_count++;
 			}
-			total_count = par3_ctx->first_recovery_block + par3_ctx->recovery_block_count;
-			if (total_count < par3_ctx->max_recovery_block)
-				total_count = par3_ctx->max_recovery_block;
-			if (total_count > 32768 * cohort_count){
-				cohort_count = (total_count + 32768 - 1) / 32768;
+			if (cohort_count > 1)
 				printf("Number of cohort is increased to %"PRIu64".\n", cohort_count);
-			}
 		}
 
 		if (cohort_count > UINT_MAX){
@@ -440,9 +447,10 @@ int calculate_recovery_count(PAR3_CTX *par3_ctx)
 		}
 
 		// Check total number of blocks
-		total_count = par3_ctx->block_count + par3_ctx->first_recovery_block + par3_ctx->recovery_block_count;
-		if (total_count < par3_ctx->block_count + par3_ctx->max_recovery_block)
-			total_count = par3_ctx->block_count + par3_ctx->max_recovery_block;
+		r0 = par3_ctx->first_recovery_block + par3_ctx->recovery_block_count;
+		if (r0 < par3_ctx->max_recovery_block)
+			r0 = par3_ctx->max_recovery_block;
+		total_count = par3_ctx->block_count + r0;
 		if (total_count > 65536 * cohort_count){
 			if (cohort_count == 1){
 				printf("Total block count %"PRIu64" are too many.\n", total_count);
@@ -454,14 +462,24 @@ int calculate_recovery_count(PAR3_CTX *par3_ctx)
 		}
 		// Leopard-RS library has a restriction; recovery_count <= 32768
 		// Though it's possible to solve this problem, I don't try at this time.
-		total_count = par3_ctx->first_recovery_block + par3_ctx->recovery_block_count;
-		if (total_count < par3_ctx->max_recovery_block)
-			total_count = par3_ctx->max_recovery_block;
-		if (total_count > 32768 * cohort_count){
+		r1 = (r0 + cohort_count - 1) / cohort_count;	// recovery block count per cohort
+		if (r1 > 32768){
 			if (cohort_count == 1){
-				printf("Recovery block count %"PRIu64" are too many.\n", total_count);
+				printf("Recovery block count %"PRIu64" are too many.\n", r0);
 			} else {
-				printf("Recovery block count %"PRIu64" (%"PRIu64" per cohort) are too many.\n", total_count, total_count / cohort_count);
+				printf("Recovery block count %"PRIu64" (%"PRIu64" per cohort) are too many.\n", r0, r1);
+			}
+			return RET_LOGIC_ERROR;
+		}
+		s1 = (par3_ctx->block_count + cohort_count - 1) / cohort_count;	// source block count per cohort
+		m1 = next_pow2(r1);
+		n1 = next_pow2(m1 + s1);
+		//printf("r = %"PRIu64", m = %"PRIu64", n = %"PRIu64"\n", r1, m1, n1);
+		if (n1 > 65536){
+			if (cohort_count == 1){
+				printf("Recovery block count %"PRIu64" are too many.\n", r0);
+			} else {
+				printf("Recovery block count %"PRIu64" (%"PRIu64" per cohort) are too many.\n", r0, r1);
 			}
 			return RET_LOGIC_ERROR;
 		}
