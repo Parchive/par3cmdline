@@ -196,7 +196,7 @@ LEO_EXPORT LeopardResult leo_encode(
 
     The sum of original_count + recovery_count must not exceed 65536.
 
-    Returns the work_count value to pass into leo_encode().
+    Returns the work_count value to pass into leo_decode().
     Returns 0 on invalid input.
 */
 LEO_EXPORT unsigned leo_decode_work_count(
