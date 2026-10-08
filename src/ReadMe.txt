@@ -172,7 +172,7 @@ When it reapired some files, this command returns RET_REPAIR_FAILED(5).
 [ About "insert PAR" command ]
 
  This is a sample implementation of "PAR inside ZIP" feature.
-This command inserts PAR3 packets in normal ZIP (.zip) or 7-Zip (.7z) file.
+This command inserts PAR3 packets in normal ZIP (.zip), 7-Zip (.7z) or RAR (.rar) file.
 Because it doesn't modify the original ZIP file data,
 other ZIP archiver tools can treat the protected ZIP file.
 
@@ -185,7 +185,7 @@ When you don't set redundancy, it becomes 1% by default.
 [ About "delete PAR" command ]
 
  This is a sample implementation of "PAR inside ZIP" feature.
-This command deletes PAR3 packets from protected ZIP (.zip) or 7-Zip (.7z) file.
+This command deletes PAR3 packets from protected ZIP (.zip), 7-Zip (.7z) or RAR (.rar) file.
 The resulting ZIP file should be same as the original one.
 If protected ZIP file is damaged, you must repair it before deleting PAR3 packets.
 
