@@ -738,14 +738,15 @@ int main(int argc, char *argv[])
 		} else {
 			par3_ctx->base_path[0] = 0;	// clear base-path
 		}
-		if (command_option == 's'){	// Check file extension for "PAR inside ZIP"
-			tmp_p = par3_ctx->par_filename;
-			len = strlen(tmp_p);
-			if ( (_stricmp(tmp_p + len - 4, ".zip") != 0) && (_stricmp(tmp_p + len - 3, ".7z") != 0) ){
-				printf("File extension is different from ZIP.\n");
-				ret = RET_FILE_IO_ERROR;
-				goto prepare_return;
-			}
+		// Check file extension for "PAR inside ZIP"
+		tmp_p = par3_ctx->par_filename;
+		len = strlen(tmp_p);
+		if ( (_stricmp(tmp_p + len - 4, ".zip") != 0)
+				&& (_stricmp(tmp_p + len - 3, ".7z") != 0)
+				&& (_stricmp(tmp_p + len - 4, ".rar") != 0) ){
+			printf("File extension is different from ZIP.\n");
+			ret = RET_FILE_IO_ERROR;
+			goto prepare_return;
 		}
 	} else {
 		tmp_p = par3_ctx->par_filename;
@@ -1113,7 +1114,7 @@ int main(int argc, char *argv[])
 
 	} else if ( (command_operation == 'i') || (command_operation == 'd') ){	// PAR inside
 
-		// Outside file = input file = PAR file
+		// Inside file = input file = PAR file
 		par3_ctx->input_file_name_len = strlen(par3_ctx->par_filename) + 1;
 		par3_ctx->input_file_name_max = par3_ctx->input_file_name_len;
 		par3_ctx->input_file_name = malloc(par3_ctx->input_file_name_max);
