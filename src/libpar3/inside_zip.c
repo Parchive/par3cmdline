@@ -13,8 +13,8 @@
 #define ZIP_SEARCH_SIZE	1024
 
 // Check ZIP file format and total size of footer sections
-// format_type : 0 = Unknown, 1 = PAR3, 2 = ZIP, 3 = 7z
-// copy_size   : 0 = 7z, 22 or 98 or more = ZIP
+// format_type : 0 = Unknown, 1 = PAR3, 2 = ZIP, 3 = 7z, 4 = RAR
+// copy_size   : 0 = 7z or RAR, 22 or 98 or more = ZIP
 int check_outside_format(PAR3_CTX *par3_ctx, int *format_type, int *copy_size)
 {
 	uint8_t buf[ZIP_SEARCH_SIZE];
@@ -33,9 +33,10 @@ int check_outside_format(PAR3_CTX *par3_ctx, int *format_type, int *copy_size)
 	}
 
 	// Check file format
-	// 7z =  Signature of starting 6-bytes
 	// zip = local file header signature (starting 4-bytes) and
 	//       end of central directory record (last 22-bytes)
+	// 7z  = Signature of starting 6-bytes
+	// rar = Signature of starting 7-bytes (until RAR4) or 8-bytes (RAR5)
 	if (fread(buf, 1, 32, fp) != 32){
 		perror("Failed to read Outside file");
 		fclose(fp);
@@ -138,6 +139,11 @@ int check_outside_format(PAR3_CTX *par3_ctx, int *format_type, int *copy_size)
 			printf("Invalid 7z file format\n");
 			return RET_LOGIC_ERROR;
 		}
+
+	} else if ( (((uint32_t *)buf)[0] == 0x21726152) && (((uint16_t *)(buf + 4))[0] == 0x071a)
+			&& ( (((uint16_t *)(buf + 6))[0] == 0x0001) || (buf[6] == 0x00) ) ){	// RAR archive
+		// Because RAR file format is varied by versions, it checks the archive signature only.
+		*format_type = 4;
 
 	} else {	// Unknown format
 		fclose(fp);
@@ -391,9 +397,10 @@ int delete_inside_data(PAR3_CTX *par3_ctx)
 	}
 
 	// Check file format
-	// 7z =  Signature of starting 6-bytes
 	// zip = local file header signature (starting 4-bytes) and
 	//       end of central directory record (last 22-bytes)
+	// 7z  = Signature of starting 6-bytes
+	// rar = Signature of starting 7-bytes (until RAR4) or 8-bytes (RAR5)
 	if (fread(buf, 1, 32, fp) != 32){
 		perror("Failed to read Outside file");
 		fclose(fp);
@@ -555,6 +562,112 @@ int delete_inside_data(PAR3_CTX *par3_ctx)
 			return RET_FILE_IO_ERROR;
 		} else {
 			if (_chsize_s(file_no, 32 + offset + header_size) != 0){
+				perror("Failed to resize Outside file");
+				fclose(fp);
+				return RET_FILE_IO_ERROR;
+			}
+		}
+
+	} else if ( (((uint32_t *)buf)[0] == 0x21726152) && (((uint16_t *)(buf + 4))[0] == 0x071a)
+			&& ( (((uint16_t *)(buf + 6))[0] == 0x0001) || (buf[6] == 0x00) ) ){	// RAR archive
+		// Because original file size is unknown, it needs to find File packet of PAR3.
+		int packet_offset;
+		int64_t packet_size, inside_size = 0;
+		uint64_t set_id1 = 0, set_id2 = 0;
+		if (file_size >= ZIP_SEARCH_SIZE){
+			read_size = ZIP_SEARCH_SIZE;
+			offset = file_size - ZIP_SEARCH_SIZE;
+		} else {
+			read_size = file_size;
+			offset = 0;
+		}
+		packet_offset = (int)(read_size - 48);
+		while (read_size > 0){
+			if (_fseeki64(fp, offset, SEEK_SET) != 0){
+				perror("Failed to seek Outside file");
+				fclose(fp);
+				return RET_FILE_IO_ERROR;
+			}
+			if (fread(buf, 1, read_size, fp) != read_size){
+				perror("Failed to read Outside file");
+				fclose(fp);
+				return RET_FILE_IO_ERROR;
+			}
+
+			// search packets
+			while (packet_offset > 0){
+				if (memcmp(buf + packet_offset, "PAR3\0PKT", 8) == 0){	// check Magic sequence
+					// read packet size
+					memcpy(&packet_size, buf + (packet_offset + 24), 8);
+					//printf("packet_size = %"PRId64", type = %s\n", packet_size, buf + packet_offset + 40);
+					if ( (set_id1 == 0) && (memcmp(buf + packet_offset + 40, "PAR ROO\0", 8) == 0) ){	// Root Packet
+						if (packet_size == 77){	// There should be only one input file.
+							memcpy(&set_id1, buf + packet_offset + 32, 8);
+							//printf("set_id1 = 0x%"PRIx64"\n", set_id1);
+							if (set_id1 == set_id2)
+								break;
+						}
+					}
+					if ( (set_id2 == 0) && (memcmp(buf + packet_offset + 40, "PAR FIL\0", 8) == 0) ){	// File Packet
+						int name_len = 0;	// filename size
+						memcpy(&name_len, buf + packet_offset + 48, 2);
+						//printf("name_len = %d\n", name_len);
+						buf[packet_offset + 48 + 2 + name_len] = 0;	// set null string to finish filename
+						char *inside_name = buf + packet_offset + 48 + 2;
+						int outside_name_len = (int)strlen(par3_ctx->par_filename);
+						//printf("inside file name = %s\n", inside_name);
+						//printf("outside_name_len = %d\n", outside_name_len);
+						// check filename
+						if ( (outside_name_len == name_len) && (_stricmp(inside_name, par3_ctx->par_filename) == 0) ){
+							memcpy(&inside_size, buf + packet_offset + 48 + 2 + name_len + 25, 8);
+							//printf("inside_size = %"PRId64"\n", inside_size);
+							memcpy(&set_id2, buf + packet_offset + 32, 8);
+							//printf("set_id2 = 0x%"PRIx64"\n", set_id2);
+							if (set_id1 == set_id2){
+								break;
+							} else {	// find another root packet
+								set_id1 = 0;
+							}
+						}
+					}
+					packet_offset -= 48;
+				} else {
+					packet_offset--;
+				}
+			}
+			if ( (set_id2 != 0) && (set_id1 == set_id2) )
+				break;
+
+			// next reading position
+			if (offset >= ZIP_SEARCH_SIZE / 2){
+				read_size = ZIP_SEARCH_SIZE / 2;
+				offset -= ZIP_SEARCH_SIZE / 2;
+			} else {
+				read_size = offset;
+				offset = 0;
+			}
+			memmove(buf + read_size, buf, read_size);
+			packet_offset += (int)read_size;
+		}
+
+		if ( (set_id1 * set_id2 == 0) || (set_id1 != set_id2) ){	// PAR3 packets are missing
+			fclose(fp);
+			printf("Unknown file format\n");
+			return RET_LOGIC_ERROR;
+		}
+
+		if (par3_ctx->noise_level >= 0){
+			printf("Original file size = %"PRId64"\n", inside_size);
+		}
+
+		// Delete appended data by resizing to the original file
+		file_no = _fileno(fp);
+		if (file_no < 0){
+			perror("Failed to seek Outside file");
+			fclose(fp);
+			return RET_FILE_IO_ERROR;
+		} else {
+			if (_chsize_s(file_no, inside_size) != 0){
 				perror("Failed to resize Outside file");
 				fclose(fp);
 				return RET_FILE_IO_ERROR;

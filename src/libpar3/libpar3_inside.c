@@ -129,20 +129,26 @@ int par3_insert_zip(PAR3_CTX *par3_ctx, char command_trial)
 	}
 
 	// Map input file slices into input blocks.
-	if (format_type == 2){	// ZIP (.zip)
+	if (copy_size > 0){
 		// It splits original file into 2 chunks and appends 2 chunks.
 		// [ data chunk ] [ footer chunk ] [ unprotected chunk ] [ duplicated footer chunk ]
 		if (par3_ctx->noise_level >= 2){
-			printf("ZIP file format (.zip)\n");
+			if (format_type == 2){	// ZIP (.zip)
+				printf("ZIP file format (.zip)\n");
+			}
 		}
 		// Special funtion is required for additonal chunks.
 		ret = map_input_block_zip(par3_ctx, copy_size, best_total_size);
 
-	} else if (format_type == 3){	// 7-Zip (.7z)
+	} else if (copy_size == 0){
 		// It appends 1 chunk.
 		// [ protected chunk ] [ unprotected chunk ]
 		if (par3_ctx->noise_level >= 2){
-			printf("7-Zip file format (.7z)\n");
+			if (format_type == 3){	// 7-Zip (.7z)
+				printf("7-Zip file format (.7z)\n");
+			} else if (format_type == 4){	// RAR (.rar)
+				printf("RAR file format (.rar)\n");
+			}
 		}
 		ret = map_input_block_zip(par3_ctx, 0, best_total_size);
 
