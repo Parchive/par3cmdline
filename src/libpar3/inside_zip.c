@@ -18,12 +18,14 @@
 int check_outside_format(PAR3_CTX *par3_ctx, int *format_type, int *copy_size)
 {
 	uint8_t buf[ZIP_SEARCH_SIZE];
+	int par_filename_len;
 	int64_t file_size, read_size, offset;
 	FILE *fp;
 
 	*format_type = 0;
 	*copy_size = 0;
 	file_size = par3_ctx->total_file_size;
+	par_filename_len = (int)strlen(par3_ctx->par_filename);
 
 	//printf("ZIP filename = \"%s\"\n", par3_ctx->par_filename);
 	fp = fopen(par3_ctx->par_filename, "rb");
@@ -42,7 +44,8 @@ int check_outside_format(PAR3_CTX *par3_ctx, int *format_type, int *copy_size)
 		fclose(fp);
 		return RET_FILE_IO_ERROR;
 	}
-	if (((uint32_t *)buf)[0] == 0x04034b50){	// ZIP archive
+	if ( (_stricmp(par3_ctx->par_filename + par_filename_len - 4, ".zip") == 0)
+			&& (((uint32_t *)buf)[0] == 0x04034b50) ){	// ZIP archive
 		int footer_size = 0;
 		int64_t ecdr_size;	// end of central directory record
 		int64_t cdh_size, cdh_offset;	// central directory header
@@ -106,7 +109,8 @@ int check_outside_format(PAR3_CTX *par3_ctx, int *format_type, int *copy_size)
 		}
 		*copy_size = footer_size;
 
-	} else if ( (((uint16_t *)buf)[0] == 0x7A37) && (((uint32_t *)(buf + 2))[0] == 0x1C27AFBC) ){	// 7z archive
+	} else if ( (_stricmp(par3_ctx->par_filename + par_filename_len - 3, ".7z") == 0)
+			&& (((uint16_t *)buf)[0] == 0x7A37) && (((uint32_t *)(buf + 2))[0] == 0x1C27AFBC) ){	// 7z archive
 		int64_t header_size;
 		*format_type = 3;
 
@@ -140,7 +144,8 @@ int check_outside_format(PAR3_CTX *par3_ctx, int *format_type, int *copy_size)
 			return RET_LOGIC_ERROR;
 		}
 
-	} else if ( (((uint32_t *)buf)[0] == 0x21726152) && (((uint16_t *)(buf + 4))[0] == 0x071a)
+	} else if ( (_stricmp(par3_ctx->par_filename + par_filename_len - 4, ".rar") == 0)
+			&& (((uint32_t *)buf)[0] == 0x21726152) && (((uint16_t *)(buf + 4))[0] == 0x071a)
 			&& ( (((uint16_t *)(buf + 6))[0] == 0x0001) || (buf[6] == 0x00) ) ){	// RAR archive
 		// Because RAR file format is varied by versions, it checks the archive signature only.
 		*format_type = 4;
@@ -383,11 +388,12 @@ uint64_t inside_zip_size(PAR3_CTX *par3_ctx,
 int delete_inside_data(PAR3_CTX *par3_ctx)
 {
 	uint8_t buf[ZIP_SEARCH_SIZE];
-	int file_no;
+	int par_filename_len, file_no;
 	int64_t file_size, read_size, offset;
 	FILE *fp;
 
 	file_size = par3_ctx->total_file_size;
+	par_filename_len = (int)strlen(par3_ctx->par_filename);
 
 	//printf("ZIP filename = \"%s\"\n", par3_ctx->par_filename);
 	fp = fopen(par3_ctx->par_filename, "r+b");
@@ -406,7 +412,8 @@ int delete_inside_data(PAR3_CTX *par3_ctx)
 		fclose(fp);
 		return RET_FILE_IO_ERROR;
 	}
-	if (((uint32_t *)buf)[0] == 0x04034b50){	// ZIP archive
+	if ( (_stricmp(par3_ctx->par_filename + par_filename_len - 4, ".zip") == 0)
+			&& (((uint32_t *)buf)[0] == 0x04034b50) ){	// ZIP archive
 		int footer_size = 0;
 		int64_t ecdr_size;	// end of central directory record
 		int64_t cdh_size, cdh_offset;	// central directory header
@@ -518,7 +525,8 @@ int delete_inside_data(PAR3_CTX *par3_ctx)
 			}
 		}
 
-	} else if ( (((uint16_t *)buf)[0] == 0x7A37) && (((uint32_t *)(buf + 2))[0] == 0x1C27AFBC) ){	// 7z archive
+	} else if ( (_stricmp(par3_ctx->par_filename + par_filename_len - 3, ".7z") == 0)
+			&& (((uint16_t *)buf)[0] == 0x7A37) && (((uint32_t *)(buf + 2))[0] == 0x1C27AFBC) ){	// 7z archive
 		int64_t header_size;
 
 		// Check size in Start Header
@@ -568,9 +576,10 @@ int delete_inside_data(PAR3_CTX *par3_ctx)
 			}
 		}
 
-	} else if ( (((uint32_t *)buf)[0] == 0x21726152) && (((uint16_t *)(buf + 4))[0] == 0x071a)
+	} else if ( (_stricmp(par3_ctx->par_filename + par_filename_len - 4, ".rar") == 0)
+			&& (((uint32_t *)buf)[0] == 0x21726152) && (((uint16_t *)(buf + 4))[0] == 0x071a)
 			&& ( (((uint16_t *)(buf + 6))[0] == 0x0001) || (buf[6] == 0x00) ) ){	// RAR archive
-		// Because original file size is unknown, it needs to find File packet of PAR3.
+		// Because original RAR file size is unknown, it needs to find File packet of PAR3.
 		int packet_offset;
 		int64_t packet_size, inside_size = 0;
 		uint64_t set_id1 = 0, set_id2 = 0;
@@ -614,11 +623,10 @@ int delete_inside_data(PAR3_CTX *par3_ctx)
 						//printf("name_len = %d\n", name_len);
 						buf[packet_offset + 48 + 2 + name_len] = 0;	// set null string to finish filename
 						char *inside_name = buf + packet_offset + 48 + 2;
-						int outside_name_len = (int)strlen(par3_ctx->par_filename);
 						//printf("inside file name = %s\n", inside_name);
-						//printf("outside_name_len = %d\n", outside_name_len);
+						//printf("par_filename_len = %d\n", par_filename_len);
 						// check filename
-						if ( (outside_name_len == name_len) && (_stricmp(inside_name, par3_ctx->par_filename) == 0) ){
+						if ( (par_filename_len == name_len) && (_stricmp(inside_name, par3_ctx->par_filename) == 0) ){
 							memcpy(&inside_size, buf + packet_offset + 48 + 2 + name_len + 25, 8);
 							//printf("inside_size = %"PRId64"\n", inside_size);
 							memcpy(&set_id2, buf + packet_offset + 32, 8);
@@ -657,7 +665,7 @@ int delete_inside_data(PAR3_CTX *par3_ctx)
 		}
 
 		if (par3_ctx->noise_level >= 0){
-			printf("Original file size = %"PRId64"\n", inside_size);
+			printf("Original RAR file size = %"PRId64"\n", inside_size);
 		}
 
 		// Delete appended data by resizing to the original file
@@ -681,7 +689,7 @@ int delete_inside_data(PAR3_CTX *par3_ctx)
 	}
 
 	if (fclose(fp) != 0){
-		perror("Failed to close ZIP file");
+		perror("Failed to close Outside file");
 		return RET_FILE_IO_ERROR;
 	}
 
