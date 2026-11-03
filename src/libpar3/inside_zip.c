@@ -717,7 +717,7 @@ int copy_inside_data(PAR3_CTX *par3_ctx, char *temp_path)
 
 	// Get range of target unprotected chunk
 	offset = 0;
-	chunk_offset = 0;
+	chunk_offset = -1;
 	if (chunk_num < 2)
 		return RET_LOGIC_ERROR;
 	while (chunk_num > 0){	// check all chunk descriptions
@@ -732,7 +732,7 @@ int copy_inside_data(PAR3_CTX *par3_ctx, char *temp_path)
 		chunk_p++;
 		chunk_num--;
 	}
-	if (chunk_offset == 0)
+	if (chunk_offset == -1)
 		return RET_LOGIC_ERROR;
 	if (par3_ctx->noise_level >= 2){
 		printf("\nUnprotected Chunk: offset = %"PRId64", size = %"PRId64"\n", chunk_offset, chunk_size);
